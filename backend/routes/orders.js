@@ -244,7 +244,7 @@ async function syncToProfessionalTables(transaction, tableId, displayOrderId, it
 
     const p_id = `id${idx}`, p_dish = `dish${idx}`, p_qty = `qty${idx}`, p_cost = `cost${idx}`,
       p_status = `st${idx}`, p_name = `name${idx}`, p_note = `note${idx}`, p_mods = `mods${idx}`,
-      p_tw = `tw${idx}`;
+      p_tw = `tw${idx}`, p_disc = `disc${idx}`;
 
     itemRequest.input(p_id, sql.UniqueIdentifier, lineItemId);
     itemRequest.input(p_dish, sql.UniqueIdentifier, finalProdId);
@@ -255,6 +255,7 @@ async function syncToProfessionalTables(transaction, tableId, displayOrderId, it
     itemRequest.input(p_note, sql.NVarChar(sql.MAX), noteInfo.value);
     itemRequest.input(p_mods, sql.NVarChar(sql.MAX), modsJSON);
     itemRequest.input(p_tw, sql.Bit, takeawayInfo.value ? 1 : 0);
+    itemRequest.input(p_disc, sql.Decimal(18, 2), item.discount || 0);
 
     batchSql += `
       -- Process Item ${idx}
@@ -265,13 +266,14 @@ async function syncToProfessionalTables(transaction, tableId, displayOrderId, it
           TotalDetailLineAmount = @${p_cost} * @${p_qty}, 
           StatusCode = CASE WHEN @${p_status} = 0 THEN 0 ELSE (CASE WHEN @${p_status} > StatusCode THEN @${p_status} ELSE StatusCode END) END, 
           Description = @${p_name}, DishName = @${p_name}, ModifiedBy = @userId, ModifiedOn = GETDATE(), 
-          ModifiersJSON = @${p_mods}, OrderNumber = @orderNo, Remarks = @${p_note}, isTakeAway = @${p_tw} 
+          ModifiersJSON = @${p_mods}, OrderNumber = @orderNo, Remarks = @${p_note}, isTakeAway = @${p_tw},
+          DiscountAmount = @${p_disc}, DiscountType = CASE WHEN @${p_disc} > 0 THEN 'percentage' ELSE NULL END
         WHERE OrderDetailId = @${p_id};
       END
       ELSE
       BEGIN
-        INSERT INTO RestaurantOrderDetailCur (OrderDetailId, OrderId, DishId, Description, DishName, Quantity, PricePerUnit, ActualAmount, TotalDetailLineAmount, StatusCode, CreatedBy, CreatedOn, ModifiersJSON, OrderNumber, Remarks, isTakeAway, BusinessUnitId, OrderDateTime)
-        VALUES (@${p_id}, @orderId, @${p_dish}, @${p_name}, @${p_name}, @${p_qty}, @${p_cost}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_status}, @userId, GETDATE(), @${p_mods}, @orderNo, @${p_note}, @${p_tw}, @bizId, GETDATE());
+        INSERT INTO RestaurantOrderDetailCur (OrderDetailId, OrderId, DishId, Description, DishName, Quantity, PricePerUnit, ActualAmount, TotalDetailLineAmount, StatusCode, CreatedBy, CreatedOn, ModifiersJSON, OrderNumber, Remarks, isTakeAway, BusinessUnitId, OrderDateTime, DiscountAmount, DiscountType)
+        VALUES (@${p_id}, @orderId, @${p_dish}, @${p_name}, @${p_name}, @${p_qty}, @${p_cost}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_status}, @userId, GETDATE(), @${p_mods}, @orderNo, @${p_note}, @${p_tw}, @bizId, GETDATE(), @${p_disc}, CASE WHEN @${p_disc} > 0 THEN 'percentage' ELSE NULL END);
       END
 
       -- Sync Modifiers for Item ${idx}
@@ -529,6 +531,7 @@ router.post("/send", async (req, res) => {
             d.OrderDetailId as lineItemId, d.DishId as id, dish.Name as name,
             d.Quantity as qty, d.PricePerUnit as price, d.StatusCode, 
             d.ModifiersJSON, d.Remarks as note, d.isTakeAway as isTakeaway,
+            ISNULL(d.DiscountAmount, 0) as discount,
             ISNULL(ckt.KitchenTypeCode, '2') as KitchenTypeCode, 
             ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') as KitchenTypeName,
             pm.PrinterPath as PrinterIP
@@ -643,6 +646,7 @@ router.get("/cart/:tableId", async (req, res) => {
           d.PricePerUnit as price, 
           ISNULL(dish.Name, d.DishName) as name, 
           d.ModifiersJSON, d.Remarks as note, d.isTakeAway as isTakeaway,
+          ISNULL(d.DiscountAmount, 0) as discount,
           CASE d.StatusCode 
             WHEN 1 THEN 'NEW' WHEN 2 THEN 'SENT' WHEN 3 THEN 'READY' 
             WHEN 4 THEN 'SERVED' WHEN 5 THEN 'HOLD' WHEN 0 THEN 'VOIDED' 
