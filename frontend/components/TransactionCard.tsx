@@ -27,6 +27,11 @@ const TransactionCard = React.memo(
         onPress={() => onPress(item)}
         style={[
           styles.transactionCard,
+          item.DiscountAmount > 0 && {
+            borderColor: Theme.success,
+            borderWidth: 1.2,
+            backgroundColor: Theme.success + "15",
+          },
           (item.VoidAmount > 0 || item.IsCancelled) && {
             borderColor: Theme.danger,
             borderWidth: 1.2,

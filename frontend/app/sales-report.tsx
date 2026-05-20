@@ -2076,11 +2076,11 @@ export default function SalesReport() {
                                     : `-$${item.DiscountAmount.toFixed(2)}`;
                                 return (
                                   <>
-                                    <Text style={{ color: Theme.danger, fontSize: 10, fontFamily: Fonts.black }}>
+                                    <Text style={{ color: Theme.success, fontSize: 10, fontFamily: Fonts.black }}>
                                       ${discountedUnit.toFixed(2)}
                                     </Text>
-                                    <View style={{ backgroundColor: Theme.danger + "15", borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-                                      <Text style={{ color: Theme.danger, fontSize: 9, fontFamily: Fonts.black }}>{badge}</Text>
+                                    <View style={{ backgroundColor: Theme.success + "15", borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                                      <Text style={{ color: Theme.success, fontSize: 9, fontFamily: Fonts.black }}>{badge}</Text>
                                     </View>
                                   </>
                                 );
@@ -2098,7 +2098,7 @@ export default function SalesReport() {
                             <Text style={{ color: Theme.textMuted, fontSize: 10, fontFamily: Fonts.bold, textDecorationLine: "line-through" }}>
                               ${(item.Price * item.Qty).toFixed(2)}
                             </Text>
-                            <Text style={[styles.orderItemPrice, { color: Theme.danger }]}>
+                            <Text style={[styles.orderItemPrice, { color: Theme.success }]}>
                               {item.DiscountType === "percentage"
                                 ? `$${(item.Price * (1 - item.DiscountAmount / 100) * item.Qty).toFixed(2)}`
                                 : `$${(Math.max(0, item.Price - item.DiscountAmount) * item.Qty).toFixed(2)}`}
@@ -2135,10 +2135,10 @@ export default function SalesReport() {
                       </View>
                       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.danger }}>Discount</Text>
+                          <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.success }}>Discount</Text>
                           {selectedOrder?.DiscountType && (
-                            <View style={{ backgroundColor: Theme.danger + "15", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                              <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: Theme.danger }}>
+                            <View style={{ backgroundColor: Theme.success + "15", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                              <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: Theme.success }}>
                                 {selectedOrder.DiscountType === "percentage"
                                   ? `${selectedOrder.DiscountAmount}%`
                                   : "FIXED"}
@@ -2146,7 +2146,7 @@ export default function SalesReport() {
                             </View>
                           )}
                         </View>
-                        <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.danger }}>
+                        <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.success }}>
                           -{formatCurrency(selectedOrder?.DiscountAmount)}
                         </Text>
                       </View>
