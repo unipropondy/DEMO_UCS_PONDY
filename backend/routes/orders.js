@@ -532,6 +532,7 @@ router.post("/send", async (req, res) => {
             d.Quantity as qty, d.PricePerUnit as price, d.StatusCode, 
             d.ModifiersJSON, d.Remarks as note, d.isTakeAway as isTakeaway,
             ISNULL(d.DiscountAmount, 0) as discount,
+            ISNULL(d.DiscountType, NULL) as discountType,
             ISNULL(ckt.KitchenTypeCode, '2') as KitchenTypeCode, 
             ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') as KitchenTypeName,
             pm.PrinterPath as PrinterIP
@@ -647,6 +648,7 @@ router.get("/cart/:tableId", async (req, res) => {
           ISNULL(dish.Name, d.DishName) as name, 
           d.ModifiersJSON, d.Remarks as note, d.isTakeAway as isTakeaway,
           ISNULL(d.DiscountAmount, 0) as discount,
+          ISNULL(d.DiscountType, NULL) as discountType,
           CASE d.StatusCode 
             WHEN 1 THEN 'NEW' WHEN 2 THEN 'SENT' WHEN 3 THEN 'READY' 
             WHEN 4 THEN 'SERVED' WHEN 5 THEN 'HOLD' WHEN 0 THEN 'VOIDED' 

@@ -296,7 +296,7 @@ export default function PaymentScreen() {
       orderType: context?.orderType === "DINE_IN" ? "DINE-IN" : context?.orderType || "DINE-IN",
       tableNo: context?.orderType === "TAKEAWAY" ? context?.takeawayNo : context?.tableNo,
       section: context?.section,
-      items: finalItems.map((item: any) => ({ lineItemId: item.lineItemId, dishId: item.id, name: item.name, qty: item.qty, price: item.price, status: item.status })),
+      items: finalItems.map((item: any) => ({ lineItemId: item.lineItemId, dishId: item.id, name: item.name, qty: item.qty, price: item.price, status: item.status, discountAmount: item.discountAmount ?? item.discount ?? null, discountType: item.discountType ?? null })),
       subTotal: subtotal,
       taxAmount: tax,
       discountAmount: discountAmount,

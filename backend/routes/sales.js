@@ -156,6 +156,9 @@ router.get("/all", async (req, res) => {
         ${normalizeReportPayModeSql("sts.PayMode")} as PayMode,
         sh.SysAmount as SysAmount,
         sh.ManualAmount as ManualAmount,
+        sh.SubTotal as SubTotal,
+        ISNULL(sh.DiscountAmount, 0) as DiscountAmount,
+        sh.DiscountType as DiscountType,
         ISNULL(sts.ReceiptCount, 0) as ReceiptCount,
         ISNULL(sh.VoidItemQty, 0) as VoidQty,
         ISNULL(sh.VoidItemAmount, 0) as VoidAmount,
@@ -923,14 +926,16 @@ router.post("/save", async (req, res) => {
             .input("SubCategoryName", sql.NVarChar(255), meta.DishGroupName || "Unmapped")
             .input("Qty", sql.Int, item.qty || 1)
             .input("Price", sql.Decimal(18, 2), item.price || 0)
+            .input("ItemDiscountAmount", sql.Decimal(18, 2), Number(item.discountAmount) || null)
+            .input("ItemDiscountType", sql.NVarChar(50), item.discountType || null)
             .input("Status", sql.NVarChar(50), item.status || "NORMAL")
             .input("Spicy", sql.NVarChar(50), item.spicy || "")
             .input("Salt", sql.NVarChar(50), item.salt || "")
             .input("Oil", sql.NVarChar(50), item.oil || "")
             .input("Sugar", sql.NVarChar(50), item.sugar || "")
             .input("OrderDateTime", sql.DateTime, new Date()).query(`
-              INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, Status, Spicy, Salt, Oil, Sugar)
-              VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @Qty, @Price, @OrderDateTime, @CategoryName, @SubCategoryName, @Status, @Spicy, @Salt, @Oil, @Sugar)
+              INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar)
+              VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @Qty, @Price, @OrderDateTime, @CategoryName, @SubCategoryName, @ItemDiscountAmount, @ItemDiscountType, @Status, @Spicy, @Salt, @Oil, @Sugar)
             `);
         }
       }

@@ -2054,92 +2054,121 @@ export default function SalesReport() {
                                   textDecorationLine: "none",
                                 }}
                               >
-                                {" "}
-                                [VOID]
+                                {" "}[VOID]
                               </Text>
                             )}
                           </Text>
-                          <Text
-                            style={{
-                              color: Theme.textMuted,
-                              fontSize: 10,
-                              fontFamily: Fonts.bold,
-                            }}
-                          >
-                            UNIT: ${(item.Price || 0).toFixed(2)}
-                          </Text>
+                          {/* Unit price row — strikethrough if item has discount */}
+                          {item.DiscountAmount > 0 ? (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <Text style={{ color: Theme.textMuted, fontSize: 10, fontFamily: Fonts.bold, textDecorationLine: "line-through" }}>
+                                UNIT: ${(item.Price || 0).toFixed(2)}
+                              </Text>
+                              {/* Discounted unit price */}
+                              {(() => {
+                                const discountedUnit =
+                                  item.DiscountType === "percentage"
+                                    ? item.Price * (1 - item.DiscountAmount / 100)
+                                    : Math.max(0, item.Price - item.DiscountAmount);
+                                const badge =
+                                  item.DiscountType === "percentage"
+                                    ? `-${item.DiscountAmount}%`
+                                    : `-$${item.DiscountAmount.toFixed(2)}`;
+                                return (
+                                  <>
+                                    <Text style={{ color: Theme.danger, fontSize: 10, fontFamily: Fonts.black }}>
+                                      ${discountedUnit.toFixed(2)}
+                                    </Text>
+                                    <View style={{ backgroundColor: Theme.danger + "15", borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                                      <Text style={{ color: Theme.danger, fontSize: 9, fontFamily: Fonts.black }}>{badge}</Text>
+                                    </View>
+                                  </>
+                                );
+                              })()}
+                            </View>
+                          ) : (
+                            <Text style={{ color: Theme.textMuted, fontSize: 10, fontFamily: Fonts.bold }}>
+                              UNIT: ${(item.Price || 0).toFixed(2)}
+                            </Text>
+                          )}
                         </View>
-                        <Text
-                          style={[
-                            styles.orderItemPrice,
-                            item.Status === "VOIDED" && {
-                              textDecorationLine: "line-through",
-                              color: "#991b1b",
-                            },
-                          ]}
-                        >
-                          ${(item.Price * item.Qty).toFixed(2)}
-                        </Text>
+                        {/* Line total */}
+                        {item.DiscountAmount > 0 ? (
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={{ color: Theme.textMuted, fontSize: 10, fontFamily: Fonts.bold, textDecorationLine: "line-through" }}>
+                              ${(item.Price * item.Qty).toFixed(2)}
+                            </Text>
+                            <Text style={[styles.orderItemPrice, { color: Theme.danger }]}>
+                              {item.DiscountType === "percentage"
+                                ? `$${(item.Price * (1 - item.DiscountAmount / 100) * item.Qty).toFixed(2)}`
+                                : `$${(Math.max(0, item.Price - item.DiscountAmount) * item.Qty).toFixed(2)}`}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text
+                            style={[
+                              styles.orderItemPrice,
+                              item.Status === "VOIDED" && {
+                                textDecorationLine: "line-through",
+                                color: "#991b1b",
+                              },
+                            ]}
+                          >
+                            ${(item.Price * item.Qty).toFixed(2)}
+                          </Text>
+                        )}
                       </View>
                     ))
                   )}
                 </ScrollView>
                 <View style={styles.modalDivider} />
-                <View
-                  style={[
-                    styles.totalRow,
-                    {
-                      backgroundColor: Theme.primary + "05",
-                      padding: 12,
-                      borderRadius: 12,
-                      marginBottom: 16,
-                    },
-                  ]}
-                >
-                  <View>
-                    <Text
-                      style={[
-                        styles.totalLabel,
-                        {
-                          fontSize: 10,
-                          color: Theme.textSecondary,
-                          textTransform: "uppercase",
-                          letterSpacing: 1,
-                        },
-                      ]}
-                    >
-                      Total Amount
-                    </Text>
-                    <Text style={[styles.totalValue, { fontSize: 22 }]}>
-                      {formatCurrency(selectedOrder?.SysAmount)}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.paidBadgeSmall,
-                      { 
-                        paddingHorizontal: 6, 
-                        paddingVertical: 2,
-                        backgroundColor: selectedOrder?.IsCancelled ? Theme.danger + "20" : Theme.success + "20",
-                        borderColor: selectedOrder?.IsCancelled ? Theme.danger + "40" : Theme.success + "40",
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name={selectedOrder?.IsCancelled ? "close-circle" : "checkmark-circle"}
-                      size={14}
-                      color={selectedOrder?.IsCancelled ? Theme.danger : Theme.success}
-                    />
-                    <Text
-                      style={{
-                        color: selectedOrder?.IsCancelled ? Theme.danger : Theme.success,
-                        fontFamily: Fonts.black,
-                        fontSize: 10,
-                        marginLeft: 4,
-                      }}
-                    >
-                      {selectedOrder?.IsCancelled ? "CANCELLED" : "PAID"}
-                    </Text>
+                {/* Bill-level breakdown: Subtotal → Discount → Total */}
+                <View style={{ backgroundColor: Theme.primary + "05", padding: 12, borderRadius: 12, marginBottom: 16, gap: 6 }}>
+                  {/* Show subtotal + discount rows only when a bill discount was applied */}
+                  {selectedOrder?.DiscountAmount > 0 && (
+                    <>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                        <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.textSecondary }}>Subtotal</Text>
+                        <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                          {formatCurrency(selectedOrder?.SubTotal)}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.danger }}>Discount</Text>
+                          {selectedOrder?.DiscountType && (
+                            <View style={{ backgroundColor: Theme.danger + "15", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                              <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: Theme.danger }}>
+                                {selectedOrder.DiscountType === "percentage"
+                                  ? `${selectedOrder.DiscountAmount}%`
+                                  : "FIXED"}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.danger }}>
+                          -{formatCurrency(selectedOrder?.DiscountAmount)}
+                        </Text>
+                      </View>
+                      <View style={{ height: 1, backgroundColor: Theme.border + "50", marginVertical: 2 }} />
+                    </>
+                  )}
+                  {/* Final total + paid badge */}
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <View>
+                      <Text style={[styles.totalLabel, { fontSize: 10, color: Theme.textSecondary, textTransform: "uppercase", letterSpacing: 1 }]}>
+                        Total Amount
+                      </Text>
+                      <Text style={[styles.totalValue, { fontSize: 22 }]}>
+                        {formatCurrency(selectedOrder?.SysAmount)}
+                      </Text>
+                    </View>
+                    <View style={[styles.paidBadgeSmall, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: selectedOrder?.IsCancelled ? Theme.danger + "20" : Theme.success + "20", borderColor: selectedOrder?.IsCancelled ? Theme.danger + "40" : Theme.success + "40" }]}>
+                      <Ionicons name={selectedOrder?.IsCancelled ? "close-circle" : "checkmark-circle"} size={14} color={selectedOrder?.IsCancelled ? Theme.danger : Theme.success} />
+                      <Text style={{ color: selectedOrder?.IsCancelled ? Theme.danger : Theme.success, fontFamily: Fonts.black, fontSize: 10, marginLeft: 4 }}>
+                        {selectedOrder?.IsCancelled ? "CANCELLED" : "PAID"}
+                      </Text>
+                    </View>
                   </View>
                 </View>
 

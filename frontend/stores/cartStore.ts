@@ -31,7 +31,9 @@ export type CartItem = {
   note?: string;
 
   modifiers?: Modifier[];
-  discount?: number;
+  discount?: number;        // legacy alias — kept for cart UI compatibility
+  discountAmount?: number;  // actual persisted discount value (% or fixed $)
+  discountType?: string;    // 'percentage' | 'fixed' | null
   basePrice?: number;
   isTakeaway?: boolean;
   isVoided?: boolean;
@@ -41,8 +43,8 @@ export type CartItem = {
   KitchenTypeName?: string;
   PrinterIP?: string;
   KitchenTypeCode?: string;
-  sent?: number; // For compatibility with existing UI logic
-  sentDate?: string | number; // For compatibility with existing UI logic
+  sent?: number;
+  sentDate?: string | number;
 };
 
 export type DiscountInfo = {
