@@ -245,7 +245,28 @@ export default function PaymentScreen() {
     fetchPaymentDetail(m.payMode, m);
   };
 
-  const subtotal = useMemo(() => finalItems.filter((i: any) => i.status !== "VOIDED").reduce((sum: number, item: any) => sum + (item.price || 0) * (item.qty || 0), 0), [finalItems]);
+  const { subtotal, grossTotal: payGrossTotal, totalItemDiscount: payItemDiscount } = useMemo(() => {
+    const nonVoided = finalItems.filter((i: any) => i.status !== "VOIDED");
+    return nonVoided.reduce((acc: any, item: any) => {
+      const baseTotal = (item.price || 0) * (item.qty || 0);
+      let itemDiscount = 0;
+      const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+      const discType = item.discountType || 'percentage';
+      if (discAmt > 0) {
+        if (discType === 'percentage') {
+          itemDiscount = baseTotal * (discAmt / 100);
+        } else {
+          itemDiscount = discAmt * (item.qty || 0);
+        }
+      }
+      return {
+        grossTotal: acc.grossTotal + baseTotal,
+        totalItemDiscount: acc.totalItemDiscount + itemDiscount,
+        subtotal: acc.subtotal + (baseTotal - itemDiscount),
+      };
+    }, { grossTotal: 0, totalItemDiscount: 0, subtotal: 0 });
+  }, [finalItems]);
+
   const discountAmount = useMemo(() => {
     if (!discount?.applied) return 0;
     if (discount.type === "percentage") return (subtotal * discount.value) / 100;
@@ -559,18 +580,25 @@ export default function PaymentScreen() {
                 {showOrderPanel && (
                   <View style={styles.rightPane}>
                     <View style={styles.summaryCard}>
-                      <View style={styles.summaryHeader}><Text style={styles.summaryTitle}>Amount Due</Text><Text style={styles.summaryTotal}>${total.toFixed(2)}</Text></View>
+                      <View style={styles.summaryHeader}><Text style={styles.summaryTitle}>Amount Due</Text><Text style={styles.summaryTotal}>{currencySymbol}{total.toFixed(2)}</Text></View>
                       <View style={styles.breakdown}>
                         <View style={styles.breakRow}>
                           <Text style={styles.breakLabel}>Subtotal</Text>
-                          <Text style={styles.breakValue}>${subtotal.toFixed(2)}</Text>
+                          <Text style={styles.breakValue}>{currencySymbol}{payItemDiscount > 0 ? payGrossTotal.toFixed(2) : subtotal.toFixed(2)}</Text>
                         </View>
+
+                        {payItemDiscount > 0 && (
+                          <View style={styles.breakRow}>
+                            <Text style={[styles.breakLabel, { color: Theme.danger }]}>Item Discounts</Text>
+                            <Text style={[styles.breakValue, { color: Theme.danger }]}>-{currencySymbol}{payItemDiscount.toFixed(2)}</Text>
+                          </View>
+                        )}
                         
                         {(discount?.applied || discountAmount > 0) && (
                           <View style={styles.breakRow}>
                             <Text style={[styles.breakLabel, { color: Theme.danger }]}>Discount</Text>
                             <Text style={[styles.breakValue, { color: Theme.danger }]}>
-                              -${discountAmount.toFixed(2)}
+                              -{currencySymbol}{discountAmount.toFixed(2)}
                             </Text>
                           </View>
                         )}

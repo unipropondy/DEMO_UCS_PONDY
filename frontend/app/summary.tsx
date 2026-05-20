@@ -936,9 +936,38 @@ export default function SummaryScreen() {
                     ]}
                   >
                     {currencySymbol}
-                    {displaySubtotal.toFixed(2)}
+                    {totalItemDiscount > 0 ? grossTotal.toFixed(2) : displaySubtotal.toFixed(2)}
                   </Text>
                 </View>
+
+                {totalItemDiscount > 0 && (
+                  <View
+                    style={[
+                      styles.summaryRow,
+                      ((isLandscape && !isTablet) ||
+                        (isPhone && !isLandscape)) && { marginBottom: 6 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.summaryLabel,
+                        { color: Theme.danger },
+                        isPhone && !isLandscape && { fontSize: 13 },
+                      ]}
+                    >
+                      Item Discounts
+                    </Text>
+                    <Text
+                      style={[
+                        styles.summaryValue,
+                        { color: Theme.danger },
+                        isPhone && !isLandscape && { fontSize: 13 },
+                      ]}
+                    >
+                      -{currencySymbol}{totalItemDiscount.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
 
                 {discountInfo?.applied && (
                   <View
