@@ -320,7 +320,7 @@ export default function PaymentScreen() {
       items: finalItems.map((item: any) => ({ lineItemId: item.lineItemId, dishId: item.id, name: item.name, qty: item.qty, price: item.price, status: item.status, discountAmount: item.discountAmount ?? item.discount ?? null, discountType: item.discountType ?? null })),
       subTotal: subtotal,
       taxAmount: tax,
-      discountAmount: discountAmount,
+      discountAmount: discountAmount + payItemDiscount,
       discountType: discount?.type || "fixed",
       totalAmount: total,
       paymentMethod: method.trim(),

@@ -752,8 +752,6 @@ private static async printThermalReceipt(
 
   private static formatThermalTextWithDiscount(saleData: any, company: any, discountInfo?: DiscountInfo): string {
     const symbol = company.currencySymbol || '$';
-    const hasDiscount = discountInfo?.applied && discountInfo.amount > 0;
-    const originalTotal = hasDiscount ? (saleData.total || 0) + discountInfo.amount : (saleData.total || 0);
     const isCheckout = !!saleData.isCheckout;
     
     // 📏 80mm standard is ~48 characters
@@ -810,24 +808,96 @@ private static async printThermalReceipt(
           text += `[L]      + ${m.ModifierName || m.name}\n`;
         });
       }
+
+      // Item Discount
+      const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+      if (discAmt > 0) {
+        const discType = item.discountType || 'percentage';
+        const discStr = discType === 'percentage' ? `-${discAmt}%` : `-${symbol}${discAmt.toFixed(2)}`;
+        text += `[L]      Discount: ${discStr}\n`;
+      }
     });
     
     text += '[L]------------------------------------------------\n';
     
     // Totals
-    if (hasDiscount) {
-      const discLabel = discountInfo.type === 'percentage' ? `Discount (${discountInfo.value}%):` : 'Discount:';
-      text += `[R]Sub Total: ${symbol}${originalTotal.toFixed(2)}\n`;
-      text += `[R]${discLabel} -${symbol}${discountInfo.amount.toFixed(2)}\n`;
+    // Calculate item-level discounts and gross total
+    let grossTotal = 0;
+    let totalItemDiscount = 0;
+    (saleData.items || []).forEach((item: any) => {
+      if (item.status === 'VOIDED') return;
+      const qtyNum = parseInt(String(item.qty || item.quantity || 1)) || 1;
+      const baseTotal = (item.price || 0) * qtyNum;
+      let itemDiscount = 0;
+      const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+      const discType = item.discountType || 'percentage';
+      if (discAmt > 0) {
+        if (discType === 'percentage') {
+          itemDiscount = baseTotal * (discAmt / 100);
+        } else {
+          itemDiscount = discAmt * qtyNum;
+        }
+      }
+      grossTotal += baseTotal;
+      totalItemDiscount += itemDiscount;
+    });
+
+    const finalDiscountInfo = discountInfo || (saleData.discount ? {
+      applied: true,
+      type: saleData.discount.type || 'percentage',
+      value: saleData.discount.value || 0,
+      amount: saleData.discount.amount || 0
+    } : (saleData.discountAmount && saleData.discountAmount > 0 ? {
+      applied: true,
+      type: saleData.discountType || 'percentage',
+      value: saleData.discountValue || 0,
+      amount: saleData.discountAmount
+    } : null));
+
+    const orderDiscount = finalDiscountInfo?.amount || 0;
+    const hasAnyDiscount = totalItemDiscount > 0 || orderDiscount > 0;
+    let currentSubtotal = grossTotal;
+
+    text += `[R]Sub Total: ${symbol}${grossTotal.toFixed(2)}\n`;
+
+    if (totalItemDiscount > 0) {
+      text += `[R]Item Discounts: -${symbol}${totalItemDiscount.toFixed(2)}\n`;
+      currentSubtotal -= totalItemDiscount;
+    }
+
+    if (orderDiscount > 0) {
+      const discLabel = finalDiscountInfo?.type === 'percentage' ? `Discount (${finalDiscountInfo.value}%):` : 'Discount:';
+      text += `[R]${discLabel} -${symbol}${orderDiscount.toFixed(2)}\n`;
+      currentSubtotal -= orderDiscount;
+    }
+
+    if (hasAnyDiscount) {
+      text += '[L]------------------------------------------------\n';
+      const netLabel = (company.gstPercentage || 0) > 0 ? 'Net Amt (bef GST):' : 'Net Amount:';
+      text += `[R]${netLabel} ${symbol}${currentSubtotal.toFixed(2)}\n`;
+    }
+
+    // ============ GST ============
+    let finalTotal = saleData.total || saleData.totalAmount || currentSubtotal;
+    const hasGST = (company.gstPercentage || 0) > 0;
+    const gstRate = company.gstPercentage || 0;
+    if (hasGST) {
+      const gstAmount = currentSubtotal * (gstRate / (100 + gstRate));
+      const beforeGst = currentSubtotal - gstAmount;
+      if (!hasAnyDiscount) {
+        text += `[R]Sub Total (bef GST): ${symbol}${beforeGst.toFixed(2)}\n`;
+      }
+      text += `[R]GST (${gstRate}%): ${symbol}${gstAmount.toFixed(2)}\n`;
       text += '[L]------------------------------------------------\n';
     }
-    
+
     if (saleData.roundOff && saleData.roundOff !== 0) {
       const roSign = saleData.roundOff > 0 ? '+' : '';
       text += `[R]Round Off: ${roSign}${symbol}${saleData.roundOff.toFixed(2)}\n`;
+      text += '[L]------------------------------------------------\n';
     }
-    
-    text += `[R]<font size=\'big\'><B>TOTAL: ${symbol}${saleData.total.toFixed(2)}</B></font>\n`;
+
+    text += `[R]<font size=\'big\'><B>TOTAL: ${symbol}${finalTotal.toFixed(2)}</B></font>\n`;
     text += '[C]================================================\n';
     text += '[C]<B>THANK YOU! COME AGAIN!</B>\n';
     text += '[C]SMART-POS BY UNIPROSG\n\n\n\n';

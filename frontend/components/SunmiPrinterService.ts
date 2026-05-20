@@ -259,30 +259,72 @@ class SunmiPrinterService {
             await this.left(`    + ${mod.ModifierName || mod.name}`);
           }
         }
+
+        // ✅ Print Item Discount
+        const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+        if (discAmt > 0) {
+          const discType = item.discountType || 'percentage';
+          const discStr = discType === 'percentage' ? `-${discAmt}%` : `-${symbol}${discAmt.toFixed(2)}`;
+          await this.left(`    Discount: ${discStr}`);
+        }
       }
       
       await this.divider('-');
       
       // ============ SUBTOTAL & DISCOUNT ============
-      let subtotal = saleData.total;
-      
-      if (saleData.discountAmount && saleData.discountAmount > 0) {
-        const originalTotal = saleData.total + saleData.discountAmount;
-        await this.twoCols('Sub Total:', `${symbol}${originalTotal.toFixed(2)}`);
-        const discLabel = saleData.discountType === 'percentage' ? `Discount (${saleData.discountValue}%):` : 'Discount:';
-        await this.twoCols(discLabel, `-${symbol}${saleData.discountAmount.toFixed(2)}`);
-        await this.divider('-');
-        subtotal = saleData.total;
-      } else {
-        await this.twoCols('Sub Total:', `${symbol}${subtotal.toFixed(2)}`);
-        await this.divider('-');
+      // Calculate item discounts and gross total
+      let grossTotal = 0;
+      let totalItemDiscount = 0;
+      (saleData.items || []).forEach((item: any) => {
+        if (item.status === 'VOIDED') return;
+        const qtyNum = parseInt(String(item.qty || item.quantity || 1)) || 1;
+        const baseTotal = (item.price || 0) * qtyNum;
+        let itemDiscount = 0;
+        const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+        const discType = item.discountType || 'percentage';
+        if (discAmt > 0) {
+          if (discType === 'percentage') {
+            itemDiscount = baseTotal * (discAmt / 100);
+          } else {
+            itemDiscount = discAmt * qtyNum;
+          }
+        }
+        grossTotal += baseTotal;
+        totalItemDiscount += itemDiscount;
+      });
+
+      const orderDiscount = parseFloat(String(saleData.discountAmount || 0)) || 0;
+      const hasAnyDiscount = totalItemDiscount > 0 || orderDiscount > 0;
+      let currentSubtotal = grossTotal;
+
+      await this.twoCols('Sub Total:', `${symbol}${grossTotal.toFixed(2)}`);
+
+      if (totalItemDiscount > 0) {
+        await this.twoCols('Item Discounts:', `-${symbol}${totalItemDiscount.toFixed(2)}`);
+        currentSubtotal -= totalItemDiscount;
       }
-      
+
+      if (orderDiscount > 0) {
+        const discLabel = saleData.discountType === 'percentage' ? `Discount (${saleData.discountValue}%):` : 'Discount:';
+        await this.twoCols(discLabel, `-${symbol}${orderDiscount.toFixed(2)}`);
+        currentSubtotal -= orderDiscount;
+      }
+
+      if (hasAnyDiscount) {
+        await this.divider('-');
+        const netLabel = companySettings.gstPercentage > 0 ? 'Net Amt (bef GST):' : 'Net Amount:';
+        await this.twoCols(netLabel, `${symbol}${currentSubtotal.toFixed(2)}`);
+      }
+      await this.divider('-');
+
       // ============ GST ============
+      let finalTotal = saleData.total || saleData.totalAmount || currentSubtotal;
       if (companySettings.gstPercentage > 0) {
-        const gstAmount = subtotal * (companySettings.gstPercentage / (100 + companySettings.gstPercentage));
-        const beforeGst = subtotal - gstAmount;
-        await this.twoCols('Sub Total (before GST):', `${symbol}${beforeGst.toFixed(2)}`);
+        const gstAmount = currentSubtotal * (companySettings.gstPercentage / (100 + companySettings.gstPercentage));
+        const beforeGst = currentSubtotal - gstAmount;
+        if (!hasAnyDiscount) {
+          await this.twoCols('Sub Total (bef GST):', `${symbol}${beforeGst.toFixed(2)}`);
+        }
         await this.twoCols(`GST (${companySettings.gstPercentage}%):`, `${symbol}${gstAmount.toFixed(2)}`);
         await this.divider('-');
       }
@@ -295,7 +337,7 @@ class SunmiPrinterService {
       }
       
       // ============ GRAND TOTAL ============
-      await this.twoCols('GRAND TOTAL:', `${symbol}${subtotal.toFixed(2)}`);
+      await this.twoCols('GRAND TOTAL:', `${symbol}${finalTotal.toFixed(2)}`);
       await this.doubleDivider('=');
       
       // ============ PAYMENT ============

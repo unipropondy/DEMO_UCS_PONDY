@@ -301,16 +301,36 @@ private static escapeHtml(str: string): string {
     
     const hasGST = company.gstPercentage > 0;
     const gstRate = company.gstPercentage || 9;
-    let finalTotal = saleData.total || saleData.totalAmount;
-    
-    // ✅ If discount applied, finalTotal already discounted
-    // But we need original total for display
-    const hasDiscount = finalDiscountInfo?.applied && finalDiscountInfo.amount > 0;
-    const originalTotal = hasDiscount ? finalTotal + finalDiscountInfo!.amount : finalTotal;
-    
+    let finalTotal = saleData.total || saleData.totalAmount || 0;
+    const currencySymbol = company.currencySymbol || '$';
+
+    // Calculate item-level discounts and gross total
+    let grossTotal = 0;
+    let totalItemDiscount = 0;
+    (saleData.items || []).forEach((item: any) => {
+      if (item.status === 'VOIDED') return;
+      const qtyNum = parseInt(String(item.qty || item.quantity || 1)) || 1;
+      const baseTotal = (item.price || 0) * qtyNum;
+      let itemDiscount = 0;
+      const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+      const discType = item.discountType || 'percentage';
+      if (discAmt > 0) {
+        if (discType === 'percentage') {
+          itemDiscount = baseTotal * (discAmt / 100);
+        } else {
+          itemDiscount = discAmt * qtyNum;
+        }
+      }
+      grossTotal += baseTotal;
+      totalItemDiscount += itemDiscount;
+    });
+
+    const hasOrderDiscount = finalDiscountInfo?.applied && finalDiscountInfo.amount > 0;
+    const hasAnyDiscount = totalItemDiscount > 0 || hasOrderDiscount;
+    const originalSubTotal = grossTotal;
+
     const gstAmount = hasGST ? finalTotal * (gstRate / (100 + gstRate)) : 0;
     const amountWithoutGST = hasGST ? finalTotal - gstAmount : finalTotal;
-    const currencySymbol = company.currencySymbol || '$';
     
     const companyLogoUrl = company.companyLogo || '';
     const halalLogoUrl = company.halalLogo || '';
@@ -337,6 +357,15 @@ private static escapeHtml(str: string): string {
                   `<div class="item-modifiers">${item.modifiers.map((m: any) => `+ ${m.ModifierName || m.name}`).join('<br/>')}</div>` : 
                   ''
                 }
+                ${(() => {
+                  const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+                  if (discAmt > 0) {
+                    const discType = item.discountType || 'percentage';
+                    const discStr = discType === 'percentage' ? `-${discAmt}%` : `-${currencySymbol}${discAmt.toFixed(2)}`;
+                    return `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">Discount: ${discStr}</div>`;
+                  }
+                  return '';
+                })()}
             </td>
             <td class="item-qty">${item.qty || item.quantity}</td>
             <td class="item-price">${currencySymbol}${item.price.toFixed(2)}</td>
@@ -661,23 +690,31 @@ private static escapeHtml(str: string): string {
           
           <!-- Totals -->
           <div class="totals">
-            ${hasDiscount ? `
+            ${hasAnyDiscount ? `
             <div class="total-row">
               <span>Sub Total:</span>
-              <span>${currencySymbol}${originalTotal.toFixed(2)}</span>
+              <span>${currencySymbol}${originalSubTotal.toFixed(2)}</span>
             </div>
+            ${totalItemDiscount > 0 ? `
+            <div class="total-row">
+              <span>Item Discounts:</span>
+              <span>-${currencySymbol}${totalItemDiscount.toFixed(2)}</span>
+            </div>
+            ` : ''}
+            ${hasOrderDiscount ? `
             <div class="total-row">
               <span>Discount${finalDiscountInfo?.type === 'percentage' ? ` (${finalDiscountInfo?.value}%)` : ''}:</span>
               <span>-${currencySymbol}${finalDiscountInfo?.amount.toFixed(2)}</span>
             </div>
+            ` : ''}
             <div class="total-row" style="margin-top: 1.5mm; border-top: 1px dashed #ccc; padding-top: 1.5mm;">
               <span>${hasGST ? 'Net Amount (before GST):' : 'Net Amount:'}</span>
-              <span>${currencySymbol}${hasGST ? amountWithoutGST.toFixed(2) : finalTotal.toFixed(2)}</span>
+              <span>${currencySymbol}${hasGST ? amountWithoutGST.toFixed(2) : (finalTotal - (saleData.roundOff || 0)).toFixed(2)}</span>
             </div>
             ` : `
             <div class="total-row">
               <span>${hasGST ? 'Sub Total (before GST):' : 'Sub Total:'}</span>
-              <span>${currencySymbol}${hasGST ? amountWithoutGST.toFixed(2) : finalTotal.toFixed(2)}</span>
+              <span>${currencySymbol}${hasGST ? amountWithoutGST.toFixed(2) : (finalTotal - (saleData.roundOff || 0)).toFixed(2)}</span>
             </div>
             `}
             
