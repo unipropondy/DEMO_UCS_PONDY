@@ -72,6 +72,11 @@ export default function PaymentSuccess() {
       const discountInfo = JSON.parse(discountInfoRaw);
       const items = JSON.parse(itemsRaw);
       const userId = await AsyncStorage.getItem("userId") || "1";
+
+      // Compute subTotal from items so Sunmi printer can show Sub Total → Discount → Grand Total
+      const computedSubTotal = discountInfo?.subtotal 
+        ?? items.filter((i: any) => i.status !== 'VOIDED')
+               .reduce((s: number, i: any) => s + (i.price || 0) * (i.qty || i.quantity || 1), 0);
       
       const saleData = {
         invoiceNumber: orderId,
@@ -84,6 +89,11 @@ export default function PaymentSuccess() {
         roundOff: parseFloat(roundOff) || 0,
         waiterName: waiterName,
         date: new Date().toISOString(),
+        // ✅ Discount fields for Sunmi receipt (discountInfo handles LAN/PDF)
+        discountAmount: discountInfo?.amount ?? 0,
+        discountType: discountInfo?.type ?? null,
+        discountValue: discountInfo?.value ?? 0,
+        subTotal: computedSubTotal,
       };
 
       await UniversalPrinter.smartPrint(saleData, userId, {}, discountInfo);

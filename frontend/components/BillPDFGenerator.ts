@@ -659,28 +659,28 @@ private static escapeHtml(str: string): string {
             <tbody>${itemsHTML}</tbody>
            </table>
           
-                <!-- ✅ Discount Section -->
-          ${hasDiscount ? `
-          <div class="discount-section">
-            <div class="discount-title">🏷️ DISCOUNT APPLIED</div>
-            <div class="original-row">
-              <span>Original Total:</span>
-              <span>${currencySymbol}${originalTotal.toFixed(2)}</span>
-            </div>
-            <div class="discount-row">
-              <span>Discount (${finalDiscountInfo?.type === 'percentage' ? `${finalDiscountInfo?.value}%` : 'Fixed'}):</span>
-              <span>-${currencySymbol}${finalDiscountInfo?.amount.toFixed(2)}</span>
-            </div>
-          </div>
-          ` : ''}
-
-          
           <!-- Totals -->
           <div class="totals">
+            ${hasDiscount ? `
             <div class="total-row">
-              <span>${hasGST ? 'Sub Total (without GST):' : 'Sub Total:'}</span>
+              <span>Sub Total:</span>
+              <span>${currencySymbol}${originalTotal.toFixed(2)}</span>
+            </div>
+            <div class="total-row">
+              <span>Discount${finalDiscountInfo?.type === 'percentage' ? ` (${finalDiscountInfo?.value}%)` : ''}:</span>
+              <span>-${currencySymbol}${finalDiscountInfo?.amount.toFixed(2)}</span>
+            </div>
+            <div class="total-row" style="margin-top: 1.5mm; border-top: 1px dashed #ccc; padding-top: 1.5mm;">
+              <span>${hasGST ? 'Net Amount (before GST):' : 'Net Amount:'}</span>
               <span>${currencySymbol}${hasGST ? amountWithoutGST.toFixed(2) : finalTotal.toFixed(2)}</span>
             </div>
+            ` : `
+            <div class="total-row">
+              <span>${hasGST ? 'Sub Total (before GST):' : 'Sub Total:'}</span>
+              <span>${currencySymbol}${hasGST ? amountWithoutGST.toFixed(2) : finalTotal.toFixed(2)}</span>
+            </div>
+            `}
+            
             ${hasGST ? `
             <div class="total-row">
               <span>GST (${gstRate}%):</span>

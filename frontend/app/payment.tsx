@@ -332,7 +332,11 @@ export default function PaymentScreen() {
               tableNo: context?.tableNo ?? "",
               section: context?.section ?? "",
               orderType: context?.orderType ?? "",
-              discountInfo: JSON.stringify(discount || {}),
+              discountInfo: JSON.stringify(
+                discount?.applied && discountAmount > 0
+                  ? { ...discount, amount: discountAmount, subtotal }
+                  : {}
+              ),
               items: JSON.stringify(finalItems || []),
               roundOff: roundOff.toFixed(2),
               isSplit: splitItems ? "true" : "false",

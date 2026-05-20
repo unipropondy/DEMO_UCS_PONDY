@@ -816,8 +816,10 @@ private static async printThermalReceipt(
     
     // Totals
     if (hasDiscount) {
-      text += `[R]Original: ${symbol}${originalTotal.toFixed(2)}\n`;
-      text += `[R]Discount: -${symbol}${discountInfo.amount.toFixed(2)}\n`;
+      const discLabel = discountInfo.type === 'percentage' ? `Discount (${discountInfo.value}%):` : 'Discount:';
+      text += `[R]Sub Total: ${symbol}${originalTotal.toFixed(2)}\n`;
+      text += `[R]${discLabel} -${symbol}${discountInfo.amount.toFixed(2)}\n`;
+      text += '[L]------------------------------------------------\n';
     }
     
     if (saleData.roundOff && saleData.roundOff !== 0) {

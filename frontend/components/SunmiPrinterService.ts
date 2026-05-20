@@ -269,10 +269,8 @@ class SunmiPrinterService {
       if (saleData.discountAmount && saleData.discountAmount > 0) {
         const originalTotal = saleData.total + saleData.discountAmount;
         await this.twoCols('Sub Total:', `${symbol}${originalTotal.toFixed(2)}`);
-        await this.twoCols('Discount:', `-${symbol}${saleData.discountAmount.toFixed(2)}`);
-        if (saleData.discountType === 'percentage') {
-          await this.left(`    (${saleData.discountValue}% off)`);
-        }
+        const discLabel = saleData.discountType === 'percentage' ? `Discount (${saleData.discountValue}%):` : 'Discount:';
+        await this.twoCols(discLabel, `-${symbol}${saleData.discountAmount.toFixed(2)}`);
         await this.divider('-');
         subtotal = saleData.total;
       } else {
