@@ -1242,18 +1242,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
         const kCode = item.KitchenTypeCode || "0";
         if (!kitchenGroups[kCode]) kitchenGroups[kCode] = [];
 
-        // 🚀 INJECT NOTE AS MODIFIER: This ensures it shows up exactly like a modifier on the KOT
-        const enhancedItem = { ...item };
-        if (item.note && item.note.trim()) {
-          const virtualMod = {
-            ModifierId: "00000000-0000-0000-0000-000000000001",
-            ModifierName: `* ${item.note.trim()}`,
-            Price: 0,
-          };
-          enhancedItem.modifiers = [...(item.modifiers || []), virtualMod];
-        }
-
-        kitchenGroups[kCode].push(enhancedItem);
+        kitchenGroups[kCode].push(item);
       });
 
       for (const [kCode, items] of Object.entries(kitchenGroups)) {

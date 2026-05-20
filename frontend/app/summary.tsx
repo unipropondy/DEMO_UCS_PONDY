@@ -418,24 +418,6 @@ export default function SummaryScreen() {
           items[0].KitchenTypeName || (kCode === "0" ? "KITCHEN" : kCode);
         const printerIp = items[0].PrinterIP;
         
-        // 🚀 INJECT NOTES AS MODIFIERS FOR REPRINT
-        const enhancedItems = items.map(item => {
-          if (item.note && item.note.trim()) {
-            return {
-              ...item,
-              modifiers: [
-                ...(item.modifiers || []),
-                { 
-                  ModifierId: '00000000-0000-0000-0000-000000000001', 
-                  ModifierName: `* ${item.note.trim()}`, 
-                  Price: 0 
-                }
-              ]
-            };
-          }
-          return item;
-        });
-
         const kotData = {
           orderId: displayOrderId,
           orderNo: displayOrderId,
@@ -445,7 +427,7 @@ export default function SummaryScreen() {
               : `TW-${context?.takeawayNo}`,
           deviceNo: "1",
           waiterName: context?.serverName || "Staff",
-          items: enhancedItems,
+          items: items,
           kitchenName: kName,
         };
         await UniversalPrinter.printKOT(
