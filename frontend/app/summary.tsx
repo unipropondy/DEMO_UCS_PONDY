@@ -828,7 +828,21 @@ export default function SummaryScreen() {
                       )}
                   </View>
 
-                  <View style={styles.priceBlock}>
+                  <View style={[styles.priceBlock, { alignItems: 'flex-end', justifyContent: 'center' }]}>
+                    {(Number(item.discountAmount ?? item.discount ?? 0)) > 0 && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Text style={[styles.price, { fontSize: 13, textDecorationLine: "line-through", color: Theme.textMuted }]}>
+                          {currencySymbol}{((item.price || 0) * item.qty).toFixed(2)}
+                        </Text>
+                        <View style={{ backgroundColor: (Theme as any).successBg || '#dcfce7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                          <Text style={{ color: Theme.success || '#16a34a', fontSize: 11, fontFamily: Fonts.bold }}>
+                            {item.discountType === 'fixed' || (item.discountType == null && item.discountAmount > 0 && !item.discount) 
+                              ? `-${currencySymbol}${Number(item.discountAmount ?? item.discount).toFixed(2)}`
+                              : `-${Number(item.discountAmount ?? item.discount)}%`}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
                     <Text
                       style={[
                         styles.price,
@@ -836,7 +850,11 @@ export default function SummaryScreen() {
                       ]}
                     >
                       {currencySymbol}
-                      {((item.price || 0) * item.qty).toFixed(2)}
+                      {((item.price || 0) * item.qty - (
+                        (item.discountType === 'fixed' || (item.discountType == null && item.discountAmount > 0 && !item.discount)) 
+                        ? (Number(item.discountAmount ?? item.discount ?? 0) * item.qty) 
+                        : ((item.price || 0) * item.qty * (Number(item.discountAmount ?? item.discount ?? 0) / 100))
+                      )).toFixed(2)}
                     </Text>
                   </View>
 
