@@ -730,7 +730,7 @@ const CartItemRow = React.memo(
               )}
               <View style={{ flex: 1 }} />
               <View style={[styles.priceContainer, { alignItems: "flex-end" }]}>
-                {item.discount > 0 && (
+                {(Number(item.discountAmount ?? item.discount ?? 0)) > 0 && (
                   <View
                     style={{
                       flexDirection: "row",
@@ -763,7 +763,9 @@ const CartItemRow = React.memo(
                           isPhone && { fontSize: 8 },
                         ]}
                       >
-                        -{item.discount}%
+                        {item.discountType === 'fixed' || (item.discountType == null && item.discountAmount > 0 && !item.discount) 
+                          ? `-$${Number(item.discountAmount ?? item.discount).toFixed(2)}`
+                          : `-${Number(item.discountAmount ?? item.discount)}%`}
                       </Text>
                     </View>
                   </View>
@@ -776,7 +778,11 @@ const CartItemRow = React.memo(
                     isPhone && { fontSize: 14 },
                   ]}
                 >
-                  ${((item.price || 0) * item.qty * (1 - (item.discount || 0) / 100)).toFixed(2)}
+                  ${((item.price || 0) * item.qty - (
+                    (item.discountType === 'fixed' || (item.discountType == null && item.discountAmount > 0 && !item.discount)) 
+                    ? (Number(item.discountAmount ?? item.discount ?? 0) * item.qty) 
+                    : ((item.price || 0) * item.qty * (Number(item.discountAmount ?? item.discount ?? 0) / 100))
+                  )).toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -1007,9 +1013,19 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
       (acc, item) => {
         const isVoided = "status" in item && item.status === "VOIDED";
         if (isVoided) return acc;
+        
         const baseTotal = (item.price || 0) * item.qty;
-        const discountVal = (item.discount || 0) / 100;
-        const itemDiscount = baseTotal * discountVal;
+        let itemDiscount = 0;
+        const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+        const discType = item.discountType || 'percentage';
+        
+        if (discAmt > 0) {
+          if (discType === 'percentage') {
+            itemDiscount = baseTotal * (discAmt / 100);
+          } else {
+            itemDiscount = discAmt * item.qty;
+          }
+        }
 
         return {
           grossTotal: acc.grossTotal + baseTotal,

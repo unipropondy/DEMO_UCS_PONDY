@@ -115,10 +115,19 @@ export const useTableStatusStore = create<TableStatusState>((set, get) => ({
   clearTable: (section, tableNo) => {
     set((state) => {
       const { [tableNo]: _, ...rest } = state.lockedTableNames;
+      const newTables = state.tables.map((t) => {
+        if (t.section === section && t.tableNo === tableNo) {
+          return { ...t, status: 'EMPTY' as TableStatusType, totalAmount: 0, startTime: 0, orderId: '' };
+        }
+        return t;
+      });
+      const newMap = { ...state.tableMap };
+      newTables.forEach((t) => {
+        if (t.tableId) newMap[t.tableId.toLowerCase()] = t;
+      });
       return {
-        tables: state.tables.filter(
-          (t) => !(t.section === section && t.tableNo === tableNo)
-        ),
+        tables: newTables,
+        tableMap: newMap,
         lockedTableNames: rest,
       };
     });

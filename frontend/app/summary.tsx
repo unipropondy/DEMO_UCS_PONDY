@@ -519,13 +519,32 @@ export default function SummaryScreen() {
     [cart],
   );
 
-  const subtotal = useMemo(() => {
-    return cart.reduce((sum: number, item: any) => {
+  const { grossTotal, totalItemDiscount } = useMemo(() => {
+    return cart.reduce((acc: any, item: any) => {
       const isVoided = (item as any).status === "VOIDED";
-      if (isVoided) return sum;
-      return sum + (item.price || 0) * item.qty;
-    }, 0);
+      if (isVoided) return acc;
+      
+      const baseTotal = (item.price || 0) * item.qty;
+      let itemDiscount = 0;
+      const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+      const discType = item.discountType || 'percentage';
+      
+      if (discAmt > 0) {
+        if (discType === 'percentage') {
+          itemDiscount = baseTotal * (discAmt / 100);
+        } else {
+          itemDiscount = discAmt * item.qty;
+        }
+      }
+
+      return {
+        grossTotal: acc.grossTotal + baseTotal,
+        totalItemDiscount: acc.totalItemDiscount + itemDiscount,
+      };
+    }, { grossTotal: 0, totalItemDiscount: 0 });
   }, [cart]);
+
+  const subtotal = useMemo(() => grossTotal - totalItemDiscount, [grossTotal, totalItemDiscount]);
 
   const discountAmount = useMemo(() => {
     if (!discountInfo?.applied) return 0;

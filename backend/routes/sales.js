@@ -927,7 +927,7 @@ router.post("/save", async (req, res) => {
             .input("Qty", sql.Int, item.qty || 1)
             .input("Price", sql.Decimal(18, 2), item.price || 0)
             .input("ItemDiscountAmount", sql.Decimal(18, 2), Number(item.discountAmount) || null)
-            .input("ItemDiscountType", sql.NVarChar(50), item.discountType || null)
+            .input("ItemDiscountType", sql.NVarChar(50), item.discountType || (Number(item.discountAmount) > 0 ? "percentage" : null))
             .input("Status", sql.NVarChar(50), item.status || "NORMAL")
             .input("Spicy", sql.NVarChar(50), item.spicy || "")
             .input("Salt", sql.NVarChar(50), item.salt || "")
