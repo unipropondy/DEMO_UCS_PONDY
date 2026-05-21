@@ -27,6 +27,7 @@ import { useShallow } from 'zustand/react/shallow';
 import QRCode from 'react-native-qrcode-svg';
 
 import StoreSettingsModal from "@/components/payment/StoreSettingsModal";
+import GeneralSettingsModal from "@/components/settings/GeneralSettingsModal";
 import { useActiveOrdersStore } from "@/stores/activeOrdersStore";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -44,6 +45,7 @@ import {
   useTableStatusStore,
 } from "../../stores/tableStatusStore";
 import { useMenuStore } from "@/stores/menuStore";
+import { useGeneralSettingsStore } from "@/stores/generalSettingsStore";
 
 // --- MOBILE SOLID COLORS ---
 const SOLID_LIGHT_GREEN = "#F0FDF4";
@@ -332,6 +334,7 @@ export default function Category() {
   const [loading, setLoading] = useState(true);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+  const [isGeneralSettingsVisible, setIsGeneralSettingsVisible] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
@@ -392,6 +395,7 @@ export default function Category() {
   const canAccessStoreSettings = useAuthStore((s: any) => s.canAccessStoreSettings);
   const canAccessReceiptSettings = useAuthStore((s: any) => s.canAccessReceiptSettings);
   const isWaiter = useAuthStore((s: any) => s.isWaiter);
+  const enableKDS = useGeneralSettingsStore((s: any) => s.settings.enableKDS);
 
   // 🔔 Real-time sync now handled globally via useGlobalSocketSync
 
@@ -418,6 +422,7 @@ export default function Category() {
     
     // Only fetch settings if not already loaded
     usePaymentSettingsStore.getState().fetchSettings();
+    import("@/stores/generalSettingsStore").then(m => m.useGeneralSettingsStore.getState().fetchSettings());
   }, []);
 
   useFocusEffect(
@@ -1047,8 +1052,8 @@ export default function Category() {
             )}
           </TouchableOpacity>
 
-          {/* KDS — gated by OPRSTK */}
-          {canAccessKDS() && (
+          {/* KDS — gated by OPRSTK and General Settings */}
+          {canAccessKDS() && enableKDS && (
             <TouchableOpacity
               style={styles.headerActionBtn}
               onPress={() => router.push("/kds" as any)}
@@ -1325,6 +1330,30 @@ export default function Category() {
                 </TouchableOpacity>
               )}
 
+              {canAccessStoreSettings() && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setIsMenuVisible(false);
+                    setIsGeneralSettingsVisible(true);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.menuIconContainer,
+                      { backgroundColor: Theme.primary + "10" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="options-outline"
+                      size={18}
+                      color={Theme.primary}
+                    />
+                  </View>
+                  <Text style={styles.menuItemText}>General Settings</Text>
+                </TouchableOpacity>
+              )}
+
               {canAccessReceiptSettings() && (
                 <TouchableOpacity
                   style={styles.menuItem}
@@ -1559,6 +1588,12 @@ export default function Category() {
       <StoreSettingsModal
         visible={isSettingsVisible}
         onClose={() => setIsSettingsVisible(false)}
+      />
+
+      {/* General Settings Modal */}
+      <GeneralSettingsModal
+        visible={isGeneralSettingsVisible}
+        onClose={() => setIsGeneralSettingsVisible(false)}
       />
     </SafeAreaView>
   );

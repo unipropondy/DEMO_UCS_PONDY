@@ -17,7 +17,7 @@ router.get("/", async (req, res) => {
 // 🔹 UPDATE Settings
 router.post("/update", async (req, res) => {
   try {
-    const { upiId, shopName, qrCodeUrl } = req.body;
+    const { upiId, shopName, qrCodeUrl, enableKOT, enableKDS, enableCheckoutBill } = req.body;
     const pool = await poolPromise;
 
     // Use an UPSERT logic (Update if exists, Insert if not)
@@ -25,6 +25,9 @@ router.post("/update", async (req, res) => {
       .input("UPI", sql.NVarChar, upiId || null)
       .input("Shop", sql.NVarChar, shopName || "My Restaurant")
       .input("QR", sql.NVarChar, qrCodeUrl || null)
+      .input("EnableKOT", sql.Bit, enableKOT !== undefined ? enableKOT : 1)
+      .input("EnableKDS", sql.Bit, enableKDS !== undefined ? enableKDS : 1)
+      .input("EnableCheckoutBill", sql.Bit, enableCheckoutBill !== undefined ? enableCheckoutBill : 1)
       .query(`
         IF EXISTS (SELECT 1 FROM AppSettings)
         BEGIN
@@ -33,12 +36,15 @@ router.post("/update", async (req, res) => {
             UPI_ID = @UPI,
             ShopName = @Shop,
             PayNow_QR_Url = @QR,
+            EnableKOT = @EnableKOT,
+            EnableKDS = @EnableKDS,
+            EnableCheckoutBill = @EnableCheckoutBill,
             UpdatedOn = GETDATE()
         END
         ELSE
         BEGIN
-          INSERT INTO AppSettings (UPI_ID, ShopName, PayNow_QR_Url, UpdatedOn)
-          VALUES (@UPI, @Shop, @QR, GETDATE())
+          INSERT INTO AppSettings (UPI_ID, ShopName, PayNow_QR_Url, EnableKOT, EnableKDS, EnableCheckoutBill, UpdatedOn)
+          VALUES (@UPI, @Shop, @QR, @EnableKOT, @EnableKDS, @EnableCheckoutBill, GETDATE())
         END
       `);
 

@@ -38,8 +38,9 @@ import {
 import { useAuthStore } from "../stores/authStore";
 import { holdOrder } from "../stores/heldOrdersStore";
 import { useOrderContextStore } from "../stores/orderContextStore";
-import { useTableStatusStore } from "../stores/tableStatusStore";
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
+import { useGeneralSettingsStore } from "../stores/generalSettingsStore";
+import { useTableStatusStore } from "../stores/tableStatusStore";
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -875,19 +876,21 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
     (state) => state.closeActiveOrder,
   );
   const voidOrderItem = useActiveOrdersStore((state) => state.voidOrderItem);
-  const updateTableStatus = useTableStatusStore((s) => s.updateTableStatus);
-  const tables = useTableStatusStore((s) => s.tables);
+  const updateTableStatus = useTableStatusStore((s: any) => s.updateTableStatus);
+  const tables = useTableStatusStore((s: any) => s.tables);
+  const enableKOT = useGeneralSettingsStore((s: any) => s.settings.enableKOT);
+  const enableCheckoutBill = useGeneralSettingsStore((s: any) => s.settings.enableCheckoutBill);
 
   const tableData = useMemo(() => {
     if (!orderContext) return null;
     if (orderContext.orderType === "TAKEAWAY") {
       return tables.find(
-        (t) =>
+        (t: any) =>
           t.section === "TAKEAWAY" && t.tableNo === orderContext.takeawayNo,
       );
     }
     return tables.find(
-      (t) =>
+      (t: any) =>
         t.section === orderContext.section &&
         t.tableNo === orderContext.tableNo,
     );
@@ -1113,6 +1116,15 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
       return;
     }
 
+    if (!enableCheckoutBill) {
+      showToast({
+        type: "error",
+        message: "Checkout Disabled",
+        subtitle: "Checkout Bill generation is currently disabled.",
+      });
+      return;
+    }
+
     setIsCheckingOut(true);
 
     try {
@@ -1260,12 +1272,16 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
             items[0].KitchenTypeName || (kCode === "0" ? "KITCHEN" : kCode),
         };
         const isAdditional = cart.some((i: any) => isItemSent(i));
-        UniversalPrinter.printKOT(
-          kotData,
-          "SYSTEM",
-          isAdditional ? "ADDITIONAL" : "NEW",
-          printerIp,
-        );
+        if (enableKOT) {
+          UniversalPrinter.printKOT(
+            kotData,
+            "SYSTEM",
+            isAdditional ? "ADDITIONAL" : "NEW",
+            printerIp,
+          );
+        } else {
+          console.log("🖨️ [SidebarTurboPrint] KOT printing is disabled in General Settings.");
+        }
       }
     })();
 
