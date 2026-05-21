@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Theme } from "@/constants/theme";
 import { useGeneralSettingsStore } from "@/stores/generalSettingsStore";
+import { useToast } from "../Toast";
 
 interface GeneralSettingsModalProps {
   visible: boolean;
@@ -33,6 +34,7 @@ export default function GeneralSettingsModal({
   const [enableKDS, setEnableKDS] = useState(settings.enableKDS);
   const [enableCheckoutBill, setEnableCheckoutBill] = useState(settings.enableCheckoutBill);
   const [isSaving, setIsSaving] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (visible) {
@@ -43,33 +45,44 @@ export default function GeneralSettingsModal({
   }, [visible, settings]);
 
   const handleSave = async () => {
-    Alert.alert(
-      "Confirm Changes",
-      "Are you sure you want to update the general settings? These changes will apply globally to all users.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          style: "destructive",
-          onPress: async () => {
-            setIsSaving(true);
-            const success = await updateSettings({
-              enableKOT,
-              enableKDS,
-              enableCheckoutBill,
-            });
-            setIsSaving(false);
+    const performSave = async () => {
+      setIsSaving(true);
+      const success = await updateSettings({
+        enableKOT,
+        enableKDS,
+        enableCheckoutBill,
+      });
+      setIsSaving(false);
 
-            if (success) {
-              Alert.alert("Success", "Settings updated successfully.");
-              onClose();
-            } else {
-              Alert.alert("Error", "Failed to update settings. Please try again.");
-            }
+      if (success) {
+        showToast({ type: "success", message: "Settings updated successfully." });
+        onClose();
+      } else {
+        showToast({ type: "error", message: "Failed to update settings. Please try again." });
+      }
+    };
+
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm(
+        "Are you sure you want to update the general settings? These changes will apply globally to all users."
+      );
+      if (confirmed) {
+        performSave();
+      }
+    } else {
+      Alert.alert(
+        "Confirm Changes",
+        "Are you sure you want to update the general settings? These changes will apply globally to all users.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Save",
+            style: "destructive",
+            onPress: performSave,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   if (!visible) return null;
