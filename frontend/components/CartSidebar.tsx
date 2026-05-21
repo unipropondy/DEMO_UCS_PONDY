@@ -1116,14 +1116,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
       return;
     }
 
-    if (!enableCheckoutBill) {
-      showToast({
-        type: "error",
-        message: "Checkout Disabled",
-        subtitle: "Checkout Bill generation is currently disabled.",
-      });
-      return;
-    }
+    // Check KOT logic etc., but don't block checkout based on enableCheckoutBill
 
     setIsCheckingOut(true);
 
@@ -1158,11 +1151,15 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
           paymentMethod: "CASH",
         };
 
-        console.log("🖨️ [SidebarTurboPrint] Sending to printer instantly...");
-        try {
-          UniversalPrinter.printCheckoutBill(printData, user?.userId);
-        } catch (e) {
-          console.error("Sidebar Print Error:", e);
+        if (enableCheckoutBill) {
+          console.log("🖨️ [SidebarTurboPrint] Sending to printer instantly...");
+          try {
+            UniversalPrinter.printCheckoutBill(printData, user?.userId);
+          } catch (e) {
+            console.error("Sidebar Print Error:", e);
+          }
+        } else {
+          console.log("🖨️ [SidebarTurboPrint] Checkout Bill printing is disabled.");
         }
       })();
 
@@ -1176,8 +1173,8 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
         showToast({
           type: "success",
           message: "Success",
-          subtitle: "Order finalized & Printing...",
-          duration: 800,
+          subtitle: enableCheckoutBill ? "Order finalized & Printing..." : "Checkout completed successfully. Bill printing is disabled.",
+          duration: 1500,
         });
 
         router.replace(`/(tabs)/category?section=${orderContext.section}`);

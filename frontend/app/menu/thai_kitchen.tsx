@@ -429,7 +429,7 @@ export default function MenuScreen() {
     }
     
     if (!enableCheckoutBill) {
-      showToast({ type: "error", message: "Checkout Disabled", subtitle: "Checkout Bill generation is currently disabled." });
+      showToast({ type: "info", message: "Bill Printing Disabled", subtitle: "Checkout Bill printing is currently disabled in General Settings." });
       setShowReprintOptions(false);
       return;
     }

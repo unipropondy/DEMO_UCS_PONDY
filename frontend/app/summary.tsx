@@ -467,16 +467,6 @@ export default function SummaryScreen() {
   const handlePrintCheckoutBill = async () => {
     if (!cart.length) return;
     
-    if (!enableCheckoutBill) {
-      showToast({
-        type: "error",
-        message: "Checkout Disabled",
-        subtitle: "Checkout Bill generation is currently disabled.",
-      });
-      setShowBillOptions(false);
-      return;
-    }
-
     try {
       const saleData = {
         items: cart,
@@ -490,11 +480,13 @@ export default function SummaryScreen() {
         isCheckout: true,
       };
 
-      await UniversalPrinter.printCheckoutBill(
-        saleData,
-        user?.userId || "SYSTEM",
-        discountInfo,
-      );
+      if (enableCheckoutBill) {
+        await UniversalPrinter.printCheckoutBill(
+          saleData,
+          user?.userId || "SYSTEM",
+          discountInfo,
+        );
+      }
 
       if (context?.tableId) {
         await fetch(`${API_URL}/api/orders/checkout`, {
