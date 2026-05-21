@@ -1305,7 +1305,7 @@ export default function SalesReport() {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/category" as any)} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={20} color={Theme.textPrimary} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -1653,11 +1653,13 @@ export default function SalesReport() {
                 // Use dateScopedSales (date-only filtered) so payment mode filters
                 // don't distort the order type split counts
                 const activeSales = dateScopedSales.filter(s => !s.IsCancelled);
+                const isTakeaway = (s: any) =>
+                  s.OrderType === "TAKEAWAY" ||
+                  s.Section === "TAKEAWAY" ||
+                  (!s.OrderType && s.TableNo && String(s.TableNo).startsWith("TW-"));
+                const takeaway = activeSales.filter(isTakeaway).length;
                 const dineIn = activeSales.filter(
-                  (s) => !s.OrderType || s.OrderType === "DINE-IN",
-                ).length;
-                const takeaway = activeSales.filter(
-                  (s) => s.OrderType === "TAKEAWAY",
+                  (s) => !isTakeaway(s),
                 ).length;
                 const total = dineIn + takeaway;
                 return (

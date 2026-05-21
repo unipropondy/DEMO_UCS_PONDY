@@ -91,6 +91,20 @@ export default function RootLayout() {
           <Stack.Screen name="login" options={{ gestureEnabled: false }} />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="menu" />
+          <Stack.Screen name="sales-report" />
+          <Stack.Screen name="day-end" />
+          <Stack.Screen name="company-settings" />
+          <Stack.Screen name="waiters" />
+          <Stack.Screen name="members" />
+          <Stack.Screen name="waiter-history" />
+          <Stack.Screen name="locked-tables" />
+          <Stack.Screen name="kitchen-status" />
+          <Stack.Screen name="heldOrders" />
+          <Stack.Screen name="summary" />
+          <Stack.Screen name="payment" />
+          <Stack.Screen name="payment_success" />
+          <Stack.Screen name="cart" />
+          <Stack.Screen name="TimeEntry" />
         </Stack>
         <StatusBar style="light" />
       </ToastProvider>
