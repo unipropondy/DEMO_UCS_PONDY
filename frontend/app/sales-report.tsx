@@ -717,11 +717,11 @@ export default function SalesReport() {
   };
 
 
-  const baseFilteredSales = useMemo(() => {
-    let dateScopedSales = sales;
+  const dateScopedSales = useMemo(() => {
+    let result = sales;
 
     if (selectedFilter === "DAILY") {
-      dateScopedSales = sales.filter((s) => {
+      result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
         const itemDate = new Date(s.SettlementDate).toLocaleDateString("en-CA");
         return itemDate === selectedDate;
@@ -731,7 +731,7 @@ export default function SalesReport() {
       const sevenDaysAgo = new Date(
         selectedDateObj.getTime() - 6 * 24 * 60 * 60 * 1000,
       );
-      dateScopedSales = sales.filter((s) => {
+      result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
         const saleDate = new Date(s.SettlementDate);
         return saleDate >= sevenDaysAgo && saleDate <= selectedDateObj;
@@ -748,7 +748,7 @@ export default function SalesReport() {
         selectedDateObj.getMonth() + 1,
         0,
       );
-      dateScopedSales = sales.filter((s) => {
+      result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
         const saleDate = new Date(s.SettlementDate);
         return saleDate >= firstDay && saleDate <= lastDay;
@@ -764,7 +764,7 @@ export default function SalesReport() {
         59,
         59,
       );
-      dateScopedSales = sales.filter((s) => {
+      result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
         const saleDate = new Date(s.SettlementDate);
         return saleDate >= firstDay && saleDate <= lastDay;
@@ -773,13 +773,17 @@ export default function SalesReport() {
       const start = new Date(rangeStart);
       const end = new Date(rangeEnd);
       end.setHours(23, 59, 59, 999);
-      dateScopedSales = sales.filter((s) => {
+      result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
         const saleDate = new Date(s.SettlementDate);
         return saleDate >= start && saleDate <= end;
       });
     }
 
+    return result;
+  }, [sales, selectedFilter, selectedDate, rangeStart, rangeEnd]);
+
+  const baseFilteredSales = useMemo(() => {
     return dateScopedSales.filter((s) => {
       const modeMatch = activePaymentModes.includes(s.PayMode?.trim()) || (showCancelledOrders && s.IsCancelled);
       const typeMatch =
@@ -790,9 +794,7 @@ export default function SalesReport() {
       return modeMatch && typeMatch;
     });
   }, [
-    sales,
-    selectedFilter,
-    selectedDate,
+    dateScopedSales,
     activePaymentModes,
     activeOrderTypes,
   ]);
@@ -1648,7 +1650,9 @@ export default function SalesReport() {
             </View>
             <View style={styles.orderTypeStats}>
               {(() => {
-                const activeSales = baseFilteredSales.filter(s => !s.IsCancelled);
+                // Use dateScopedSales (date-only filtered) so payment mode filters
+                // don't distort the order type split counts
+                const activeSales = dateScopedSales.filter(s => !s.IsCancelled);
                 const dineIn = activeSales.filter(
                   (s) => !s.OrderType || s.OrderType === "DINE-IN",
                 ).length;
