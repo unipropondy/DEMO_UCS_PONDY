@@ -44,6 +44,7 @@ import {
 import { useOrderContextStore } from "../../stores/orderContextStore";
 import { useMenuStore } from "../../stores/menuStore";
 import { usePaymentSettingsStore } from "../../stores/paymentSettingsStore";
+import { useGeneralSettingsStore } from "../../stores/generalSettingsStore";
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -349,6 +350,9 @@ export default function MenuScreen() {
   // 🟢 OPTIMIZED SELECTORS: Removed cart subscription from main screen to prevent full-screen re-renders.
   const currentContextId = useCartStore((state) => state.currentContextId);
   const displayOrderId = useCartStore((state) => (orderContext?.tableId ? state.tableOrderIds[orderContext.tableId] : undefined) || null);
+  
+  const enableKOT = useGeneralSettingsStore((s: any) => s.settings.enableKOT);
+  const enableCheckoutBill = useGeneralSettingsStore((s: any) => s.settings.enableCheckoutBill);
 
   // 🟢 QUANTITY TRACKING: Handled surgically within DishCardWrapper to avoid O(N^2) re-renders
 
@@ -400,10 +404,16 @@ export default function MenuScreen() {
           items: items,
           kitchenName: kName,
         };
-        await UniversalPrinter.printKOT(kotData, "SYSTEM", "REPRINT", printerIp);
+        if (enableKOT) {
+          await UniversalPrinter.printKOT(kotData, "SYSTEM", "REPRINT", printerIp);
+        }
       }
 
-      showToast({ type: "success", message: "KOT Reprinted", subtitle: "Tickets sent to kitchen" });
+      if (enableKOT) {
+        showToast({ type: "success", message: "KOT Reprinted", subtitle: "Tickets sent to kitchen" });
+      } else {
+        showToast({ type: "info", message: "KOT Printing Disabled", subtitle: "Please enable it in General Settings" });
+      }
       setShowReprintOptions(false);
     } catch (err) {
       console.error("Reprint KOT error:", err);
@@ -417,6 +427,13 @@ export default function MenuScreen() {
       showToast({ type: "error", message: "Cart is empty" });
       return;
     }
+    
+    if (!enableCheckoutBill) {
+      showToast({ type: "info", message: "Bill Printing Disabled", subtitle: "Checkout Bill printing is currently disabled in General Settings." });
+      setShowReprintOptions(false);
+      return;
+    }
+
     try {
       const cart = useCartStore.getState().carts[currentContextId!] || [];
       const discountInfo = useCartStore.getState().discounts[currentContextId!] || { applied: false, type: "fixed", value: 0 };

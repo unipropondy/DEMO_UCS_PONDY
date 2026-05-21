@@ -38,8 +38,9 @@ import {
 import { useAuthStore } from "../stores/authStore";
 import { holdOrder } from "../stores/heldOrdersStore";
 import { useOrderContextStore } from "../stores/orderContextStore";
-import { useTableStatusStore } from "../stores/tableStatusStore";
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
+import { useGeneralSettingsStore } from "../stores/generalSettingsStore";
+import { useTableStatusStore } from "../stores/tableStatusStore";
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -875,19 +876,21 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
     (state) => state.closeActiveOrder,
   );
   const voidOrderItem = useActiveOrdersStore((state) => state.voidOrderItem);
-  const updateTableStatus = useTableStatusStore((s) => s.updateTableStatus);
-  const tables = useTableStatusStore((s) => s.tables);
+  const updateTableStatus = useTableStatusStore((s: any) => s.updateTableStatus);
+  const tables = useTableStatusStore((s: any) => s.tables);
+  const enableKOT = useGeneralSettingsStore((s: any) => s.settings.enableKOT);
+  const enableCheckoutBill = useGeneralSettingsStore((s: any) => s.settings.enableCheckoutBill);
 
   const tableData = useMemo(() => {
     if (!orderContext) return null;
     if (orderContext.orderType === "TAKEAWAY") {
       return tables.find(
-        (t) =>
+        (t: any) =>
           t.section === "TAKEAWAY" && t.tableNo === orderContext.takeawayNo,
       );
     }
     return tables.find(
-      (t) =>
+      (t: any) =>
         t.section === orderContext.section &&
         t.tableNo === orderContext.tableNo,
     );
@@ -1113,6 +1116,8 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
       return;
     }
 
+    // Check KOT logic etc., but don't block checkout based on enableCheckoutBill
+
     setIsCheckingOut(true);
 
     try {
@@ -1146,11 +1151,15 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
           paymentMethod: "CASH",
         };
 
-        console.log("🖨️ [SidebarTurboPrint] Sending to printer instantly...");
-        try {
-          UniversalPrinter.printCheckoutBill(printData, user?.userId);
-        } catch (e) {
-          console.error("Sidebar Print Error:", e);
+        if (enableCheckoutBill) {
+          console.log("🖨️ [SidebarTurboPrint] Sending to printer instantly...");
+          try {
+            UniversalPrinter.printCheckoutBill(printData, user?.userId);
+          } catch (e) {
+            console.error("Sidebar Print Error:", e);
+          }
+        } else {
+          console.log("🖨️ [SidebarTurboPrint] Checkout Bill printing is disabled.");
         }
       })();
 
@@ -1164,8 +1173,8 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
         showToast({
           type: "success",
           message: "Success",
-          subtitle: "Order finalized & Printing...",
-          duration: 800,
+          subtitle: enableCheckoutBill ? "Order finalized & Printing..." : "Checkout completed successfully. Bill printing is disabled.",
+          duration: 1500,
         });
 
         router.replace(`/(tabs)/category?section=${orderContext.section}`);
@@ -1260,12 +1269,16 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
             items[0].KitchenTypeName || (kCode === "0" ? "KITCHEN" : kCode),
         };
         const isAdditional = cart.some((i: any) => isItemSent(i));
-        UniversalPrinter.printKOT(
-          kotData,
-          "SYSTEM",
-          isAdditional ? "ADDITIONAL" : "NEW",
-          printerIp,
-        );
+        if (enableKOT) {
+          UniversalPrinter.printKOT(
+            kotData,
+            "SYSTEM",
+            isAdditional ? "ADDITIONAL" : "NEW",
+            printerIp,
+          );
+        } else {
+          console.log("🖨️ [SidebarTurboPrint] KOT printing is disabled in General Settings.");
+        }
       }
     })();
 

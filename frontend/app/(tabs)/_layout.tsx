@@ -5,6 +5,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuthStore } from "@/stores/authStore";
+import { useGeneralSettingsStore } from "@/stores/generalSettingsStore";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -12,6 +13,7 @@ export default function TabLayout() {
   const router = useRouter(); // ✅ Import router for redirection
   const user = useAuthStore((state) => state.user);
   const permissions = useAuthStore((state) => state.permissions);
+  const enableKDS = useGeneralSettingsStore((state: any) => state.settings.enableKDS);
 
   // ✅ REDIRECTION GUARD: KDS user cannot stay in /(tabs)
   React.useEffect(() => {
@@ -47,7 +49,7 @@ export default function TabLayout() {
         name="kds"
         options={{
           title: "Kitchen",
-          href: user?.role === "ADMIN" || user?.role === "MANAGER" || permissions["OPRSTK"]?.canRead ? "/(tabs)/kds" : null,
+          href: enableKDS && (user?.role === "ADMIN" || user?.role === "MANAGER" || permissions["OPRSTK"]?.canRead) ? "/(tabs)/kds" : null,
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="fork.knife" color={color} />
           ),

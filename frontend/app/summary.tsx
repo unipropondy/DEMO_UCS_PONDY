@@ -45,6 +45,7 @@ import {
   useOrderContextStore,
 } from "../stores/orderContextStore";
 import { useTableStatusStore } from "../stores/tableStatusStore";
+import { useGeneralSettingsStore } from "../stores/generalSettingsStore";
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -100,6 +101,9 @@ export default function SummaryScreen() {
   const settings = useCompanySettingsStore((state) => state.settings);
   const currencySymbol = settings.currencySymbol || "$";
   const gstRate = (settings.gstPercentage || 0) / 100;
+
+  const enableKOT = useGeneralSettingsStore((s: any) => s.settings.enableKOT);
+  const enableCheckoutBill = useGeneralSettingsStore((s: any) => s.settings.enableCheckoutBill);
 
   const currentContextId = useCartStore((s: any) => s.currentContextId);
   const cart = useCartStore((s: any) => (currentContextId ? s.carts[currentContextId] : undefined) || EMPTY_ARRAY);
@@ -430,19 +434,29 @@ export default function SummaryScreen() {
           items: items,
           kitchenName: kName,
         };
-        await UniversalPrinter.printKOT(
-          kotData,
-          "SYSTEM",
-          "REPRINT",
-          printerIp,
-        );
+        if (enableKOT) {
+          await UniversalPrinter.printKOT(
+            kotData,
+            "SYSTEM",
+            "REPRINT",
+            printerIp,
+          );
+        }
       }
 
-      showToast({
-        type: "success",
-        message: "KOT Reprinted",
-        subtitle: "Tickets sent to kitchen",
-      });
+      if (enableKOT) {
+        showToast({
+          type: "success",
+          message: "KOT Reprinted",
+          subtitle: "Tickets sent to kitchen",
+        });
+      } else {
+        showToast({
+          type: "info",
+          message: "KOT Printing Disabled",
+          subtitle: "Please enable it in General Settings",
+        });
+      }
       setShowBillOptions(false);
     } catch (err) {
       console.error("Reprint KOT error:", err);
@@ -452,6 +466,7 @@ export default function SummaryScreen() {
 
   const handlePrintCheckoutBill = async () => {
     if (!cart.length) return;
+    
     try {
       const saleData = {
         items: cart,
@@ -465,11 +480,13 @@ export default function SummaryScreen() {
         isCheckout: true,
       };
 
-      await UniversalPrinter.printCheckoutBill(
-        saleData,
-        user?.userId || "SYSTEM",
-        discountInfo,
-      );
+      if (enableCheckoutBill) {
+        await UniversalPrinter.printCheckoutBill(
+          saleData,
+          user?.userId || "SYSTEM",
+          discountInfo,
+        );
+      }
 
       if (context?.tableId) {
         await fetch(`${API_URL}/api/orders/checkout`, {
