@@ -1033,24 +1033,26 @@ export default function Category() {
         {/* RIGHT — Action Buttons */}
         <View style={[styles.navRightGroup, { gap: isTablet ? 8 : 6 }]}>
           {/* Kitchen Status — moved from menu */}
-          <TouchableOpacity
-            style={styles.headerActionBtn}
-            onPress={() => router.push("/kitchen-status")}
-            activeOpacity={0.75}
-          >
-            <Ionicons
-              name="restaurant-outline"
-              size={20}
-              color={Theme.success}
-            />
-            {isTablet && isLandscape && (
-              <Text
-                style={[styles.headerActionText, { color: Theme.success }]}
-              >
-                Status
-              </Text>
-            )}
-          </TouchableOpacity>
+          {enableKDS && (
+            <TouchableOpacity
+              style={styles.headerActionBtn}
+              onPress={() => router.push("/kitchen-status")}
+              activeOpacity={0.75}
+            >
+              <Ionicons
+                name="restaurant-outline"
+                size={20}
+                color={Theme.success}
+              />
+              {isTablet && isLandscape && (
+                <Text
+                  style={[styles.headerActionText, { color: Theme.success }]}
+                >
+                  Status
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
 
           {/* KDS — gated by OPRSTK and General Settings */}
           {canAccessKDS() && enableKDS && (

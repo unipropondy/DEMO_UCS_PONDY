@@ -22,7 +22,7 @@ interface GeneralSettingsModalProps {
   onClose: () => void;
 }
 
-// ── CUSTOM ANIMATED SWITCH COMPONENT ──
+// ── SLEEK COMPACT ANIMATED SWITCH COMPONENT ──
 interface CustomSwitchProps {
   value: boolean;
   onValueChange: (val: boolean) => void;
@@ -35,15 +35,15 @@ const CustomSwitch = ({ value, onValueChange, disabled = false }: CustomSwitchPr
   useEffect(() => {
     Animated.timing(animatedValue, {
       toValue: value ? 1 : 0,
-      duration: 200,
+      duration: 180,
       easing: Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: false, // Animating backgroundColor requires false
+      useNativeDriver: false,
     }).start();
   }, [value]);
 
   const translateX = animatedValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [4, 28], // Switch is 58px wide, Thumb is 26px. Slide range: 4px to 28px.
+    outputRange: [3, 25], // Sleek sliding range: width 50px, thumb 22px, padding 3px.
   });
 
   const backgroundColor = animatedValue.interpolate({
@@ -75,7 +75,7 @@ const CustomSwitch = ({ value, onValueChange, disabled = false }: CustomSwitchPr
   );
 };
 
-// ── MAIN MODAL COMPONENT ──
+// ── MAIN COMPACT MODAL COMPONENT ──
 export default function GeneralSettingsModal({
   visible,
   onClose,
@@ -95,11 +95,11 @@ export default function GeneralSettingsModal({
   const { showToast } = useToast();
 
   // Entrance animations
-  const modalScale = useRef(new Animated.Value(0.95)).current;
+  const modalScale = useRef(new Animated.Value(0.96)).current;
   const modalOpacity = useRef(new Animated.Value(0)).current;
   
   // Confirmation Overlay animations
-  const confirmScale = useRef(new Animated.Value(0.95)).current;
+  const confirmScale = useRef(new Animated.Value(0.96)).current;
   const confirmOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -111,18 +111,18 @@ export default function GeneralSettingsModal({
       Animated.parallel([
         Animated.timing(modalScale, {
           toValue: 1,
-          duration: 250,
-          easing: Easing.out(Easing.back(1.1)),
+          duration: 220,
+          easing: Easing.out(Easing.back(1.0)),
           useNativeDriver: true,
         }),
         Animated.timing(modalOpacity, {
           toValue: 1,
-          duration: 200,
+          duration: 180,
           useNativeDriver: true,
         }),
       ]).start();
     } else {
-      modalScale.setValue(0.95);
+      modalScale.setValue(0.96);
       modalOpacity.setValue(0);
     }
   }, [visible, settings]);
@@ -132,18 +132,18 @@ export default function GeneralSettingsModal({
       Animated.parallel([
         Animated.timing(confirmScale, {
           toValue: 1,
-          duration: 200,
+          duration: 180,
           easing: Easing.out(Easing.back(1.0)),
           useNativeDriver: true,
         }),
         Animated.timing(confirmOpacity, {
           toValue: 1,
-          duration: 150,
+          duration: 120,
           useNativeDriver: true,
         }),
       ]).start();
     } else {
-      confirmScale.setValue(0.95);
+      confirmScale.setValue(0.96);
       confirmOpacity.setValue(0);
     }
   }, [showConfirmDialog]);
@@ -185,26 +185,26 @@ export default function GeneralSettingsModal({
         <Animated.View
           style={[
             styles.modalContent,
-            isTablet && { width: "65%", maxWidth: 640 },
+            isTablet && { width: "50%", maxWidth: 440 },
             { transform: [{ scale: modalScale }] }
           ]}
         >
-          {/* Top Brand Stripe */}
+          {/* Top Accent Stripe */}
           <View style={styles.topAccentBar} />
 
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
               <View style={styles.settingsIconBg}>
-                <Ionicons name="settings" size={20} color={Theme.primary} />
+                <Ionicons name="settings" size={16} color={Theme.primary} />
               </View>
               <View>
                 <Text style={styles.headerTitle}>General Settings</Text>
-                <Text style={styles.headerSubtitle}>Configure global system preferences and feature toggles</Text>
+                <Text style={styles.headerSubtitle}>Configure global system preferences</Text>
               </View>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-              <Ionicons name="close" size={22} color={Theme.textSecondary} />
+              <Ionicons name="close" size={18} color={Theme.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -215,7 +215,7 @@ export default function GeneralSettingsModal({
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeaderRow}>
                   <View style={[styles.iconWrapper, enableKOT ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
-                    <Ionicons name="receipt-outline" size={20} color={enableKOT ? Theme.primary : Theme.textSecondary} />
+                    <Ionicons name="receipt-outline" size={16} color={enableKOT ? Theme.primary : Theme.textSecondary} />
                   </View>
                   <Text style={styles.settingTitle}>KOT (Kitchen Order Ticket)</Text>
                   <View style={[styles.statusBadge, enableKOT ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
@@ -225,9 +225,7 @@ export default function GeneralSettingsModal({
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.settingDesc}>
-                  Enable or disable Kitchen Order Ticket printing and generation globally for all tables. When OFF, orders are sent to kitchen digitally without physical receipts.
-                </Text>
+                <Text style={styles.settingDesc}>Enable kitchen ticket printing.</Text>
               </View>
               <CustomSwitch value={enableKOT} onValueChange={setEnableKOT} />
             </View>
@@ -237,7 +235,7 @@ export default function GeneralSettingsModal({
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeaderRow}>
                   <View style={[styles.iconWrapper, enableKDS ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
-                    <Ionicons name="desktop-outline" size={20} color={enableKDS ? Theme.primary : Theme.textSecondary} />
+                    <Ionicons name="desktop-outline" size={16} color={enableKDS ? Theme.primary : Theme.textSecondary} />
                   </View>
                   <Text style={styles.settingTitle}>KDS (Kitchen Display System)</Text>
                   <View style={[styles.statusBadge, enableKDS ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
@@ -247,9 +245,7 @@ export default function GeneralSettingsModal({
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.settingDesc}>
-                  Show or hide incoming order tickets on the Kitchen Display System (KDS) screen. When OFF, the KDS tab is dynamically hidden from the navigation bar.
-                </Text>
+                <Text style={styles.settingDesc}>Show kitchen display screen.</Text>
               </View>
               <CustomSwitch value={enableKDS} onValueChange={setEnableKDS} />
             </View>
@@ -259,7 +255,7 @@ export default function GeneralSettingsModal({
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeaderRow}>
                   <View style={[styles.iconWrapper, enableCheckoutBill ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
-                    <Ionicons name="wallet-outline" size={20} color={enableCheckoutBill ? Theme.primary : Theme.textSecondary} />
+                    <Ionicons name="wallet-outline" size={16} color={enableCheckoutBill ? Theme.primary : Theme.textSecondary} />
                   </View>
                   <Text style={styles.settingTitle}>Checkout Bill</Text>
                   <View style={[styles.statusBadge, enableCheckoutBill ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
@@ -269,9 +265,7 @@ export default function GeneralSettingsModal({
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.settingDesc}>
-                  Control final guest receipt printing during checkout. When OFF, checking out a table completes the transaction and skips printing the receipt copy.
-                </Text>
+                <Text style={styles.settingDesc}>Enable checkout receipt printing.</Text>
               </View>
               <CustomSwitch value={enableCheckoutBill} onValueChange={setEnableCheckoutBill} />
             </View>
@@ -298,7 +292,7 @@ export default function GeneralSettingsModal({
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                  <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
                   <Text style={styles.saveBtnText}>Save Settings</Text>
                 </>
               )}
@@ -315,13 +309,13 @@ export default function GeneralSettingsModal({
                 ]}
               >
                 <View style={styles.confirmIconContainer}>
-                  <Ionicons name="alert-circle" size={36} color={Theme.warning} />
+                  <Ionicons name="alert-circle" size={30} color={Theme.warning} />
                 </View>
                 
-                <Text style={styles.confirmTitle}>Confirm Global Changes</Text>
+                <Text style={styles.confirmTitle}>Confirm Changes</Text>
                 
                 <Text style={styles.confirmDesc}>
-                  Are you sure you want to update the general settings? These changes will apply globally to all users and printers in the system.
+                  Are you sure you want to update settings? These changes will apply globally to all users.
                 </Text>
                 
                 <View style={styles.confirmActions}>
@@ -360,22 +354,22 @@ const styles = StyleSheet.create({
   // Overlay & Modal Card
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.45)", // Modern Slate dim
+    backgroundColor: "rgba(15, 23, 42, 0.4)", // Dim overlay
     justifyContent: "center",
     alignItems: "center",
-    padding: 24,
+    padding: 16,
   },
   modalContent: {
     backgroundColor: Theme.bgCard,
-    borderRadius: 24,
+    borderRadius: 20,
     width: "100%",
-    maxWidth: 480,
+    maxWidth: 400,
     overflow: "hidden",
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
     borderWidth: 1,
     borderColor: Theme.border,
   },
@@ -390,8 +384,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 20,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: Theme.border,
     backgroundColor: Theme.bgCard,
@@ -399,49 +393,50 @@ const styles = StyleSheet.create({
   headerTitleContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     flex: 1,
   },
   settingsIconBg: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     backgroundColor: Theme.primaryLight,
     justifyContent: "center",
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontFamily: Fonts.bold,
     color: Theme.textPrimary,
   },
   headerSubtitle: {
-    fontSize: 12,
+    fontSize: 10.5,
     fontFamily: Fonts.medium,
     color: Theme.textSecondary,
-    marginTop: 1,
+    marginTop: 0.5,
   },
   closeBtn: {
-    padding: 6,
-    borderRadius: 10,
+    padding: 5,
+    borderRadius: 8,
     backgroundColor: "#F1F5F9",
   },
   
   // Body & Setting Cards
   body: {
-    padding: 24,
-    gap: 16,
+    padding: 16,
+    gap: 10,
   },
   settingCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
-    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Theme.border,
-    backgroundColor: "#FAF9F6", // Light clean cream
-    gap: 16,
+    backgroundColor: "#FAF9F6", // Light cream
+    gap: 12,
   },
   settingCardActive: {
     backgroundColor: Theme.primaryLight,
@@ -449,46 +444,47 @@ const styles = StyleSheet.create({
   },
   cardLeft: {
     flex: 1,
-    gap: 8,
+    gap: 4,
   },
   cardHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   iconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
   },
   iconWrapperActive: {
-    backgroundColor: "rgba(249,115,22,0.18)",
+    backgroundColor: "rgba(249,115,22,0.14)",
   },
   iconWrapperInactive: {
     backgroundColor: "#E2E8F0",
   },
   settingTitle: {
-    fontSize: 15,
+    fontSize: 13.5,
     fontFamily: Fonts.semiBold,
     color: Theme.textPrimary,
   },
   settingDesc: {
-    fontSize: 12,
+    fontSize: 10.5,
     fontFamily: Fonts.regular,
     color: Theme.textSecondary,
-    lineHeight: 18,
+    lineHeight: 15,
+    paddingLeft: 36, // Align with title text (28px icon + 8px gap)
   },
   
   // Status Badges & Dots
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
     borderWidth: 1,
   },
   statusBadgeActive: {
@@ -500,9 +496,9 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   statusDotActive: {
     backgroundColor: "#22C55E",
@@ -511,7 +507,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#94A3B8",
   },
   statusBadgeText: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: Fonts.bold,
   },
   statusBadgeTextActive: {
@@ -523,63 +519,63 @@ const styles = StyleSheet.create({
 
   // Custom Switch Styles
   switchTouchArea: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
   },
   switchContainer: {
-    width: 58,
-    height: 32,
-    borderRadius: 16,
+    width: 50,
+    height: 28,
+    borderRadius: 14,
     justifyContent: "center",
   },
   switchThumb: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: "#FFFFFF",
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.16,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.14,
+    shadowRadius: 2,
+    elevation: 2,
   },
   
   // Footer
   footer: {
     flexDirection: "row",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: Theme.border,
     backgroundColor: Theme.bgCard,
     justifyContent: "flex-end",
-    gap: 12,
+    gap: 8,
   },
   cancelBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Theme.border,
     backgroundColor: Theme.bgCard,
   },
   cancelBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Fonts.semiBold,
     color: Theme.textSecondary,
   },
   saveBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 10,
     backgroundColor: Theme.primary,
     ...Theme.shadowSm,
   },
   saveBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Fonts.bold,
     color: "#FFFFFF",
   },
@@ -587,80 +583,80 @@ const styles = StyleSheet.create({
   // ── Custom Confirmation Alert Overlay ──
   confirmOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15, 23, 42, 0.65)", // Dark Slate Backdrop
+    backgroundColor: "rgba(15, 23, 42, 0.6)", // Dark Slate Backdrop
     justifyContent: "center",
     alignItems: "center",
-    padding: 24,
+    padding: 20,
     zIndex: 100,
   },
   confirmCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 16,
+    padding: 20,
     width: "90%",
-    maxWidth: 360,
+    maxWidth: 320,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-    elevation: 15,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 10,
     borderWidth: 1,
     borderColor: Theme.border,
   },
   confirmIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "rgba(245, 158, 11, 0.12)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   confirmTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: Fonts.bold,
     color: Theme.textPrimary,
-    marginBottom: 8,
+    marginBottom: 6,
     textAlign: "center",
   },
   confirmDesc: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontFamily: Fonts.regular,
     color: Theme.textSecondary,
-    lineHeight: 18,
+    lineHeight: 16,
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   confirmActions: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     width: "100%",
   },
   confirmBtnCancel: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Theme.border,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
   },
   confirmBtnCancelText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: Fonts.semiBold,
     color: Theme.textSecondary,
   },
   confirmBtnSave: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     backgroundColor: Theme.primary,
     alignItems: "center",
     ...Theme.shadowSm,
   },
   confirmBtnSaveText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: Fonts.bold,
     color: "#FFFFFF",
   },
