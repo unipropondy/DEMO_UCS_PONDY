@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Switch,
   Image,
   ActivityIndicator,
   Alert,
@@ -315,17 +314,26 @@ export default function CompanySettingsScreen() {
                 </View>
                 <View style={styles.toggleRow}>
                   <Text style={styles.toggleText}>{settings.showCompanyLogo ? 'Show on bill' : 'Hidden on bill'}</Text>
-                  <Switch 
-                    value={settings.showCompanyLogo} 
-                    onValueChange={(val) => { 
+                  <TouchableOpacity
+                    onPress={() => {
+                      const val = !settings.showCompanyLogo;
                       if (val && !settings.companyLogo) {
                         showToast({ type: 'error', message: 'Upload a logo first' });
                         return;
                       }
-                      updateSettings({ showCompanyLogo: val }); 
+                      updateSettings({ showCompanyLogo: val });
                     }}
-                    trackColor={{ false: '#ddd', true: Theme.primary }}
-                  />
+                    style={[
+                      styles.toggleSwitch,
+                      settings.showCompanyLogo && styles.toggleSwitchOn,
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[
+                      styles.toggleThumb,
+                      settings.showCompanyLogo && styles.toggleThumbOn,
+                    ]} />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -358,17 +366,26 @@ export default function CompanySettingsScreen() {
                 </View>
                 <View style={styles.toggleRow}>
                   <Text style={styles.toggleText}>{settings.showHalalLogo ? 'Show on bill' : 'Hidden on bill'}</Text>
-                  <Switch 
-                    value={settings.showHalalLogo} 
-                    onValueChange={(val) => { 
+                  <TouchableOpacity
+                    onPress={() => {
+                      const val = !settings.showHalalLogo;
                       if (val && !settings.halalLogo) {
                         showToast({ type: 'error', message: 'Upload a logo first' });
                         return;
                       }
-                      updateSettings({ showHalalLogo: val }); 
+                      updateSettings({ showHalalLogo: val });
                     }}
-                    trackColor={{ false: '#ddd', true: Theme.primary }}
-                  />
+                    style={[
+                      styles.toggleSwitch,
+                      settings.showHalalLogo && styles.toggleSwitchOn,
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[
+                      styles.toggleThumb,
+                      settings.showHalalLogo && styles.toggleThumbOn,
+                    ]} />
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -460,7 +477,7 @@ export default function CompanySettingsScreen() {
                 <Text style={styles.inputLabel}>GST (%)</Text>
                 <TextInput 
                   style={styles.input}
-                  value={settings.gstPercentage.toString()}
+                  value={String(settings.gstPercentage ?? 0)}
                   onChangeText={(val) => { updateSettings({ gstPercentage: parseFloat(val) || 0 }); }}
                   placeholder="9.0"
                   placeholderTextColor={Theme.textMuted}
@@ -776,6 +793,32 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: Fonts.medium,
     color: Theme.textSecondary,
+  },
+  toggleSwitch: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ddd',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleSwitchOn: {
+    backgroundColor: Theme.primary,
+  },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+    alignSelf: 'flex-start',
+  },
+  toggleThumbOn: {
+    alignSelf: 'flex-end',
   },
   inputGroup: {
     marginBottom: 15,
