@@ -11,8 +11,10 @@
       "supportsTablet": true,
       "backgroundColor": "#F8FAFC",
       "infoPlist": {
-        "NSBluetoothAlwaysUsageDescription": "This app needs Bluetooth access to connect to thermal printers for receipts."
-      }
+        "NSBluetoothAlwaysUsageDescription": "This app needs Bluetooth access to connect to thermal printers for receipts.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.javi06.pos1"
     },
     "android": {
       "adaptiveIcon": {

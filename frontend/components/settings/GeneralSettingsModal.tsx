@@ -88,6 +88,7 @@ export default function GeneralSettingsModal({
   const [enableKOT, setEnableKOT] = useState(settings.enableKOT);
   const [enableKDS, setEnableKDS] = useState(settings.enableKDS);
   const [enableCheckoutBill, setEnableCheckoutBill] = useState(settings.enableCheckoutBill);
+  const [enableCheckoutFlow, setEnableCheckoutFlow] = useState(settings.enableCheckoutFlow);
   
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -107,6 +108,7 @@ export default function GeneralSettingsModal({
       setEnableKOT(settings.enableKOT);
       setEnableKDS(settings.enableKDS);
       setEnableCheckoutBill(settings.enableCheckoutBill);
+      setEnableCheckoutFlow(settings.enableCheckoutFlow);
       
       Animated.parallel([
         Animated.timing(modalScale, {
@@ -160,6 +162,7 @@ export default function GeneralSettingsModal({
       enableKOT,
       enableKDS,
       enableCheckoutBill,
+      enableCheckoutFlow,
     });
     
     setIsSaving(false);
@@ -268,6 +271,26 @@ export default function GeneralSettingsModal({
                 <Text style={styles.settingDesc}>Enable checkout receipt printing.</Text>
               </View>
               <CustomSwitch value={enableCheckoutBill} onValueChange={setEnableCheckoutBill} />
+            </View>
+
+            {/* CARD 4: Enable Checkout Flow */}
+            <View style={[styles.settingCard, enableCheckoutFlow && styles.settingCardActive]}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={[styles.iconWrapper, enableCheckoutFlow ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
+                    <Ionicons name="git-compare-outline" size={16} color={enableCheckoutFlow ? Theme.primary : Theme.textSecondary} />
+                  </View>
+                  <Text style={styles.settingTitle}>Enable Checkout Flow</Text>
+                  <View style={[styles.statusBadge, enableCheckoutFlow ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
+                    <View style={[styles.statusDot, enableCheckoutFlow ? styles.statusDotActive : styles.statusDotInactive]} />
+                    <Text style={[styles.statusBadgeText, enableCheckoutFlow ? styles.statusBadgeTextActive : styles.statusBadgeTextInactive]}>
+                      {enableCheckoutFlow ? "Active" : "Disabled"}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.settingDesc}>Enable order summary checkout step.</Text>
+              </View>
+              <CustomSwitch value={enableCheckoutFlow} onValueChange={setEnableCheckoutFlow} />
             </View>
           </View>
 

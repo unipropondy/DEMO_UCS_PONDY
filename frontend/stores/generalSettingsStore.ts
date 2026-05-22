@@ -7,6 +7,7 @@ export interface GeneralSettings {
   enableKOT: boolean;
   enableKDS: boolean;
   enableCheckoutBill: boolean;
+  enableCheckoutFlow: boolean;
 }
 
 interface GeneralSettingsState {
@@ -23,6 +24,7 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
         enableKOT: true,
         enableKDS: true,
         enableCheckoutBill: true,
+        enableCheckoutFlow: true,
       },
       loading: false,
 
@@ -39,6 +41,7 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
                 enableKOT: data.EnableKOT !== undefined ? Boolean(data.EnableKOT) : true,
                 enableKDS: data.EnableKDS !== undefined ? Boolean(data.EnableKDS) : true,
                 enableCheckoutBill: data.EnableCheckoutBill !== undefined ? Boolean(data.EnableCheckoutBill) : true,
+                enableCheckoutFlow: data.EnableCheckoutFlow !== undefined ? Boolean(data.EnableCheckoutFlow) : true,
               },
             }));
           }
@@ -70,7 +73,8 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
             qrCodeUrl: currentData.PayNow_QR_Url,
             enableKOT: updatedSettings.enableKOT,
             enableKDS: updatedSettings.enableKDS,
-            enableCheckoutBill: updatedSettings.enableCheckoutBill
+            enableCheckoutBill: updatedSettings.enableCheckoutBill,
+            enableCheckoutFlow: updatedSettings.enableCheckoutFlow
           };
 
           const res = await fetch(`${API_URL}/api/settings/update`, {

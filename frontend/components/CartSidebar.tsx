@@ -880,6 +880,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
   const tables = useTableStatusStore((s: any) => s.tables);
   const enableKOT = useGeneralSettingsStore((s: any) => s.settings.enableKOT);
   const enableCheckoutBill = useGeneralSettingsStore((s: any) => s.settings.enableCheckoutBill);
+  const enableCheckoutFlow = useGeneralSettingsStore((s: any) => s.settings.enableCheckoutFlow !== undefined ? s.settings.enableCheckoutFlow : true);
 
   const tableData = useMemo(() => {
     if (!orderContext) return null;
@@ -1177,7 +1178,11 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
           duration: 1500,
         });
 
-        router.replace(`/(tabs)/category?section=${orderContext.section}`);
+        if (enableCheckoutFlow !== false) {
+          router.replace(`/(tabs)/category?section=${orderContext.section}`);
+        } else {
+          router.push("/payment");
+        }
       } else {
         showToast({
           type: "error",
@@ -1673,10 +1678,12 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                   {isCheckingOut ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Ionicons name="receipt-outline" size={20} color="#fff" />
+                    <Ionicons name={enableCheckoutFlow !== false ? "receipt-outline" : "card-outline"} size={20} color="#fff" />
                   )}
                   <Text style={styles.btnText}>
-                    {isCheckingOut ? "Checking out..." : "Checkout"}
+                    {isCheckingOut 
+                      ? (enableCheckoutFlow !== false ? "Checking out..." : "Processing...") 
+                      : (enableCheckoutFlow !== false ? "Checkout" : "Process to Pay")}
                   </Text>
                 </TouchableOpacity>
               ) : currentTableStatus === "HOLD" ||
@@ -1686,7 +1693,13 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                     styles.proceedBtn,
                     { flex: 1, backgroundColor: Theme.primary },
                   ]}
-                  onPress={() => router.push("/summary")}
+                  onPress={() => {
+                    if (enableCheckoutFlow !== false) {
+                      router.push("/summary");
+                    } else {
+                      router.push("/payment");
+                    }
+                  }}
                 >
                   <Ionicons
                     name="arrow-forward-circle-outline"

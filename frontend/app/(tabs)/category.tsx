@@ -722,6 +722,8 @@ export default function Category() {
     
     if (effectiveStatus === 0) return;
 
+    const checkoutFlowEnabled = useGeneralSettingsStore.getState().settings.enableCheckoutFlow !== false;
+
     setIsCheckingOut(true);
     try {
       const res = await useCartStore.getState().checkoutOrder(id);
@@ -732,7 +734,11 @@ export default function Category() {
         if (targetTable) {
           const section = getSectionFromDiningSection(targetTable.DiningSection);
           setOrderContext({ orderType: "DINE_IN", section: section, tableNo: targetTable.label, tableId: id });
-          router.push("/summary");
+          if (checkoutFlowEnabled) {
+            router.push("/summary");
+          } else {
+            router.push("/payment");
+          }
         }
       }
     } catch (err) {
