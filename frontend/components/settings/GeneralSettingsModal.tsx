@@ -90,6 +90,26 @@ export default function GeneralSettingsModal({
   const [enableCheckoutBill, setEnableCheckoutBill] = useState(settings.enableCheckoutBill);
   const [enableCheckoutFlow, setEnableCheckoutFlow] = useState(settings.enableCheckoutFlow);
   const [enableDirectProcessToPay, setEnableDirectProcessToPay] = useState(settings.enableDirectProcessToPay);
+
+  const handleToggleCheckoutFlow = (val: boolean) => {
+    if (val) {
+      setEnableCheckoutFlow(true);
+      setEnableDirectProcessToPay(false);
+    } else {
+      setEnableCheckoutFlow(false);
+      setEnableDirectProcessToPay(true);
+    }
+  };
+
+  const handleToggleDirectProcessToPay = (val: boolean) => {
+    if (val) {
+      setEnableDirectProcessToPay(true);
+      setEnableCheckoutFlow(false);
+    } else {
+      setEnableDirectProcessToPay(false);
+      setEnableCheckoutFlow(true);
+    }
+  };
   
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -109,8 +129,18 @@ export default function GeneralSettingsModal({
       setEnableKOT(settings.enableKOT);
       setEnableKDS(settings.enableKDS);
       setEnableCheckoutBill(settings.enableCheckoutBill);
-      setEnableCheckoutFlow(settings.enableCheckoutFlow);
-      setEnableDirectProcessToPay(settings.enableDirectProcessToPay);
+      
+      let initialCheckoutFlow = settings.enableCheckoutFlow;
+      let initialDirectProcess = settings.enableDirectProcessToPay;
+      
+      // Enforce mutual exclusion on initial load
+      if ((initialCheckoutFlow && initialDirectProcess) || (!initialCheckoutFlow && !initialDirectProcess)) {
+        initialCheckoutFlow = true;
+        initialDirectProcess = false;
+      }
+      
+      setEnableCheckoutFlow(initialCheckoutFlow);
+      setEnableDirectProcessToPay(initialDirectProcess);
       
       Animated.parallel([
         Animated.timing(modalScale, {
@@ -293,7 +323,7 @@ export default function GeneralSettingsModal({
                 </View>
                 <Text style={styles.settingDesc}>Enable order summary checkout step.</Text>
               </View>
-              <CustomSwitch value={enableCheckoutFlow} onValueChange={setEnableCheckoutFlow} />
+              <CustomSwitch value={enableCheckoutFlow} onValueChange={handleToggleCheckoutFlow} />
             </View>
 
             {/* CARD 5: Enable Direct Process To Pay */}
@@ -313,7 +343,7 @@ export default function GeneralSettingsModal({
                 </View>
                 <Text style={styles.settingDesc}>Show "Process To Pay" shortcut button in Cart Sidebar.</Text>
               </View>
-              <CustomSwitch value={enableDirectProcessToPay} onValueChange={setEnableDirectProcessToPay} />
+              <CustomSwitch value={enableDirectProcessToPay} onValueChange={handleToggleDirectProcessToPay} />
             </View>
           </View>
 
