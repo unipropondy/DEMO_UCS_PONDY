@@ -87,7 +87,8 @@ export default function SummaryScreen() {
   const [showBillOptions, setShowBillOptions] = useState(false);
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
-  const [mergeTarget, setMergeTarget] = useState<any | null>(null);
+  const [selectedMergeOrderIds, setSelectedMergeOrderIds] = useState<string[]>([]);
+  const [confirmMergeVisible, setConfirmMergeVisible] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [splitQuantities, setSplitQuantities] = useState<
     Record<string, number>
@@ -185,26 +186,54 @@ export default function SummaryScreen() {
   const closeActiveOrder = useActiveOrdersStore((s: any) => s.closeActiveOrder);
   const activeOrders = useActiveOrdersStore((s: any) => s.activeOrders);
   
+  const selectedTablesText = useMemo(() => {
+    return selectedMergeOrderIds
+      .map((id) => {
+        const order = activeOrders.find((o: any) => o.orderId === id);
+        return order ? `Table ${order.context?.tableNo}` : "";
+      })
+      .filter(Boolean)
+      .join(", ");
+  }, [selectedMergeOrderIds, activeOrders]);
+
+  const toggleMergeSelection = (orderId: string) => {
+    setSelectedMergeOrderIds((prev) =>
+      prev.includes(orderId)
+        ? prev.filter((id) => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+
   const performMerge = async () => {
-    if (isMerging || !mergeTarget) return; // Guard against double-click
-    const item = mergeTarget;
+    if (isMerging || selectedMergeOrderIds.length === 0) return; // Guard against double-click
     setIsMerging(true);
     try {
       if (!context?.tableId) {
         showToast({ type: "error", message: "Merge is only available for active Dine-In tables" });
         return;
       }
-      if (!item.context.tableId) {
-        showToast({ type: "error", message: "Cannot merge a takeaway order" });
+
+      // Retrieve source table details for all selected order IDs
+      const sourceTables = selectedMergeOrderIds
+        .map((id) => {
+          const order = activeOrders.find((o: any) => o.orderId === id);
+          return order ? order.context : null;
+        })
+        .filter((c): c is any => c !== null && c.tableId !== undefined);
+
+      if (sourceTables.length === 0) {
+        showToast({ type: "error", message: "No valid source tables selected" });
         return;
       }
+
+      const sourceTableIds = sourceTables.map((t) => t.tableId);
 
       const res = await fetch(`${API_URL}/api/orders/merge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           targetTableId: context.tableId,
-          sourceTableIds: [item.context.tableId],
+          sourceTableIds: sourceTableIds,
           userId: user?.id,
         }),
       });
@@ -214,28 +243,31 @@ export default function SummaryScreen() {
         throw new Error(errData.error || "Merge failed");
       }
 
-      // 🚀 INSTANT SYNC AND CLEAR
-      useCartStore.getState().clearTableSession(item.context.tableId);
-      useTableStatusStore.getState().updateTableStatus(
-        item.context.tableId,
-        item.context.section,
-        item.context.tableNo,
-        "EMPTY",
-        "EMPTY",
-        0,
-        undefined,
-        0
-      );
+      // 🚀 INSTANT SYNC AND CLEAR FOR ALL SOURCE TABLES
+      for (const table of sourceTables) {
+        useCartStore.getState().clearTableSession(table.tableId);
+        useTableStatusStore.getState().updateTableStatus(
+          table.tableId,
+          table.section,
+          table.tableNo,
+          "EMPTY",
+          "EMPTY",
+          0,
+          undefined,
+          0
+        );
+      }
+
       await useCartStore.getState().fetchCartFromDB(context.tableId);
       await useActiveOrdersStore.getState().fetchActiveKitchenOrders();
 
       showToast({ type: "success", message: "Orders Merged Successfully" });
-      setMergeTarget(null);
+      setSelectedMergeOrderIds([]);
+      setConfirmMergeVisible(false);
       setShowMergeModal(false);
     } catch (err: any) {
       console.error("Merge failed:", err);
       showToast({ type: "error", message: err.message || "Merge Failed" });
-      setMergeTarget(null);
     } finally {
       setIsMerging(false);
     }
@@ -399,6 +431,7 @@ export default function SummaryScreen() {
 
   const handleMergeBill = () => {
     useActiveOrdersStore.getState().fetchActiveKitchenOrders();
+    setSelectedMergeOrderIds([]);
     setShowMergeModal(true);
     setShowBillOptions(false);
   };
@@ -1874,7 +1907,7 @@ export default function SummaryScreen() {
           >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Merge Bills</Text>
-              <TouchableOpacity onPress={() => setShowMergeModal(false)}>
+              <TouchableOpacity onPress={() => { setShowMergeModal(false); setSelectedMergeOrderIds([]); }}>
                 <Ionicons name="close" size={24} color={Theme.textPrimary} />
               </TouchableOpacity>
             </View>
@@ -1884,51 +1917,63 @@ export default function SummaryScreen() {
             </Text>
 
             <FlatList
+              style={{ flexShrink: 1, marginBottom: 15 }}
               data={activeOrders.filter(
                 (o: any) => o.context?.orderType === "DINE_IN" && o.context?.tableId && o.orderId !== (displayOrderId || activeOrder?.orderId)
               )}
               keyExtractor={(item) => item.orderId}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.mergeItem}
-                  onPress={() => setMergeTarget(item)}
-                >
-                  <View
+              renderItem={({ item }) => {
+                const isSelected = selectedMergeOrderIds.includes(item.orderId);
+                return (
+                  <TouchableOpacity
                     style={[
-                      styles.mergeIcon,
-                      { backgroundColor: Theme.primaryLight },
+                      styles.mergeItem,
+                      isSelected && styles.mergeItemSelected,
                     ]}
+                    onPress={() => toggleMergeSelection(item.orderId)}
                   >
                     <Ionicons
-                      name="receipt-outline"
-                      size={20}
-                      color={Theme.primary}
+                      name={isSelected ? "checkbox" : "square-outline"}
+                      size={22}
+                      color={isSelected ? Theme.primary : Theme.textMuted}
                     />
-                  </View>
-                  <View style={styles.mergeInfo}>
-                    <Text style={styles.mergeTitle}>
-                      {item.context.orderType === "DINE_IN"
-                        ? `Table ${item.context.tableNo}`
-                        : `Takeaway #${item.context.takeawayNo || item.orderId.slice(-4)}`}
-                    </Text>
-                    <Text style={styles.mergeSub} numberOfLines={1}>
+                    <View
+                      style={[
+                        styles.mergeIcon,
+                        { backgroundColor: isSelected ? Theme.primary : Theme.primaryLight },
+                      ]}
+                    >
+                      <Ionicons
+                        name="receipt-outline"
+                        size={20}
+                        color={isSelected ? "#fff" : Theme.primary}
+                      />
+                    </View>
+                    <View style={styles.mergeInfo}>
+                      <Text style={styles.mergeTitle}>
+                        {item.context.orderType === "DINE_IN"
+                          ? `Table ${item.context.tableNo}`
+                          : `Takeaway #${item.context.takeawayNo || item.orderId.slice(-4)}`}
+                      </Text>
+                      <Text style={styles.mergeSub} numberOfLines={1}>
+                        {item.items
+                          .filter((i: any) => i.status !== "VOIDED")
+                          .map((i: any) => `${i.name} x${i.qty}`)
+                          .join(", ") || "No items"}
+                      </Text>
+                      <Text style={{ color: Theme.textMuted, fontSize: 11, fontFamily: Fonts.regular }}>
+                        Order #{item.orderId}
+                      </Text>
+                    </View>
+                    <Text style={styles.mergePrice}>
+                      {currencySymbol}
                       {item.items
-                        .filter((i: any) => i.status !== "VOIDED")
-                        .map((i: any) => `${i.name} x${i.qty}`)
-                        .join(", ") || "No items"}
+                        .reduce((s: number, i: any) => s + (i.price || 0) * i.qty, 0)
+                        .toFixed(2)}
                     </Text>
-                    <Text style={{ color: Theme.textMuted, fontSize: 11, fontFamily: Fonts.regular }}>
-                      Order #{item.orderId}
-                    </Text>
-                  </View>
-                  <Text style={styles.mergePrice}>
-                    {currencySymbol}
-                    {item.items
-                      .reduce((s: number, i: any) => s + (i.price || 0) * i.qty, 0)
-                      .toFixed(2)}
-                  </Text>
-                </TouchableOpacity>
-              )}
+                  </TouchableOpacity>
+                );
+              }}
               ListEmptyComponent={() => (
                 <View style={{ padding: 40, alignItems: "center" }}>
                   <Text
@@ -1939,6 +1984,28 @@ export default function SummaryScreen() {
                 </View>
               )}
             />
+
+            {/* STICKY BOTTOM BUTTONS */}
+            <View style={styles.mergeFooter}>
+              <TouchableOpacity
+                style={[
+                  styles.mergeActionBtn,
+                  selectedMergeOrderIds.length === 0 && styles.mergeActionBtnDisabled,
+                ]}
+                onPress={() => {
+                  if (selectedMergeOrderIds.length === 0) {
+                    showToast({ type: "error", message: "Please select at least one bill to merge" });
+                    return;
+                  }
+                  setConfirmMergeVisible(true);
+                }}
+              >
+                <Ionicons name="git-merge-outline" size={20} color="#fff" />
+                <Text style={styles.mergeActionBtnText}>
+                  Merge Selected Bills ({selectedMergeOrderIds.length})
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1946,9 +2013,9 @@ export default function SummaryScreen() {
       {/* ✅ CUSTOM MERGE CONFIRMATION MODAL - No window.confirm, APK + Web safe */}
       <Modal
         transparent
-        visible={!!mergeTarget}
+        visible={confirmMergeVisible && selectedMergeOrderIds.length > 0}
         animationType="fade"
-        onRequestClose={() => { if (!isMerging) setMergeTarget(null); }}
+        onRequestClose={() => { if (!isMerging) setConfirmMergeVisible(false); }}
       >
         <View style={styles.mergeConfirmOverlay}>
           <View style={styles.mergeConfirmBox}>
@@ -1959,9 +2026,9 @@ export default function SummaryScreen() {
             <Text style={styles.mergeConfirmDesc}>
               Merge{" "}
               <Text style={{ color: Theme.primary, fontFamily: Fonts.black }}>
-                Table {mergeTarget?.context?.tableNo}
+                {selectedTablesText}
               </Text>
-              {" "}order into{" "}
+              {" "}order(s) into{" "}
               <Text style={{ color: Theme.primary, fontFamily: Fonts.black }}>
                 Table {context?.tableNo || "current"}
               </Text>
@@ -1970,7 +2037,7 @@ export default function SummaryScreen() {
             <View style={styles.mergeConfirmBtnRow}>
               <TouchableOpacity
                 style={[styles.mergeConfirmBtn, styles.mergeConfirmBtnCancel]}
-                onPress={() => setMergeTarget(null)}
+                onPress={() => setConfirmMergeVisible(false)}
                 disabled={isMerging}
               >
                 <Text style={styles.mergeConfirmBtnCancelText}>Cancel</Text>
@@ -2773,6 +2840,34 @@ const styles = StyleSheet.create({
   mergeConfirmBtnPrimaryText: {
     fontFamily: Fonts.black,
     fontSize: 15,
+    color: "#fff",
+  },
+  mergeFooter: {
+    borderTopWidth: 1,
+    borderColor: Theme.border,
+    paddingTop: 15,
+    marginTop: 10,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  mergeActionBtn: {
+    backgroundColor: Theme.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+    flex: 1,
+  },
+  mergeActionBtnDisabled: {
+    backgroundColor: Theme.border,
+    opacity: 0.6,
+  },
+  mergeActionBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 16,
     color: "#fff",
   },
 });
