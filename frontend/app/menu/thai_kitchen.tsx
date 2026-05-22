@@ -1,14 +1,14 @@
 import { API_URL } from "@/constants/Config";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import * as Haptics from 'expo-haptics';
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Animated,
   ActivityIndicator,
   FlatList,
   Image,
   Keyboard,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -17,34 +17,31 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
-  View,
-  Modal,
   TouchableWithoutFeedback,
+  useWindowDimensions,
+  View
 } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import CartSidebar from "../../components/CartSidebar";
+import { useToast } from "../../components/Toast";
 import { Skeleton } from "../../components/ui/Skeleton";
+import UniversalPrinter from "../../components/UniversalPrinter";
 import { Fonts } from "../../constants/Fonts";
 import { Theme } from "../../constants/theme";
-import { useToast } from "../../components/Toast";
-import UniversalPrinter from "../../components/UniversalPrinter";
-import { useActiveOrdersStore } from "../../stores/activeOrdersStore";
 import { useAuthStore } from "../../stores/authStore";
 import {
   addToCartGlobal,
   getContextId,
   setCurrentContext,
-  setCartItemsGlobal,
-  useCartStore,
+  useCartStore
 } from "../../stores/cartStore";
-import { useOrderContextStore } from "../../stores/orderContextStore";
-import { useMenuStore } from "../../stores/menuStore";
-import { usePaymentSettingsStore } from "../../stores/paymentSettingsStore";
 import { useGeneralSettingsStore } from "../../stores/generalSettingsStore";
+import { useMenuStore } from "../../stores/menuStore";
+import { useOrderContextStore } from "../../stores/orderContextStore";
+import { usePaymentSettingsStore } from "../../stores/paymentSettingsStore";
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -107,7 +104,7 @@ const DishCard = React.memo(
           styles.card,
           { width, padding: isPhone ? 8 : isTablet ? 12 : 10 },
           isLandscape && !isTablet && { maxHeight: 135 },
-          pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
+          pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
         ]}
         onPress={() => onPress(dish)}
       >
@@ -200,29 +197,31 @@ const DishCard = React.memo(
 
 // 🚀 PERFORMANCE OPTIMIZATION: Surgical Quantity Updates
 // This wrapper ensures only the SPECIFIC dish card being updated re-renders.
-const DishCardWrapper = React.memo(({ item, width, isPhone, isTablet, isLandscape, onPress }: any) => {
-  const currentContextId = useCartStore(state => state.currentContextId);
-  const dishId = item.DishId || item.id;
-  
-  // ⚡ SURGICAL SUBSCRIPTION: Only re-render if the quantity of THIS specific product changes
-  const cartQty = useCartStore(state => {
-    if (!currentContextId) return 0;
-    const qtyMap = state.cartQtyMap[currentContextId] || {};
-    return qtyMap[dishId] || 0;
-  });
+const DishCardWrapper = React.memo(
+  ({ item, width, isPhone, isTablet, isLandscape, onPress }: any) => {
+    const currentContextId = useCartStore((state) => state.currentContextId);
+    const dishId = item.DishId || item.id;
 
-  return (
-    <DishCard
-      dish={item}
-      width={width}
-      cartQty={cartQty}
-      onPress={onPress}
-      isPhone={isPhone}
-      isTablet={isTablet}
-      isLandscape={isLandscape}
-    />
-  );
-});
+    // ⚡ SURGICAL SUBSCRIPTION: Only re-render if the quantity of THIS specific product changes
+    const cartQty = useCartStore((state) => {
+      if (!currentContextId) return 0;
+      const qtyMap = state.cartQtyMap[currentContextId] || {};
+      return qtyMap[dishId] || 0;
+    });
+
+    return (
+      <DishCard
+        dish={item}
+        width={width}
+        cartQty={cartQty}
+        onPress={onPress}
+        isPhone={isPhone}
+        isTablet={isTablet}
+        isLandscape={isLandscape}
+      />
+    );
+  },
+);
 
 const DishGridSkeleton = ({ cardWidth, columns, gap, isPhone }: any) => {
   const items = Array.from({ length: columns * 4 });
@@ -279,8 +278,8 @@ const GroupSkeleton = () => (
 
 // 🚀 PERFORMANCE OPTIMIZATION: Cart Badge Component
 const CartBadge = React.memo(({ isPhone, isLandscape }: any) => {
-  const currentContextId = useCartStore(state => state.currentContextId);
-  const count = useCartStore(state => {
+  const currentContextId = useCartStore((state) => state.currentContextId);
+  const count = useCartStore((state) => {
     if (!currentContextId) return 0;
     return (state.carts[currentContextId] || []).length;
   });
@@ -291,7 +290,8 @@ const CartBadge = React.memo(({ isPhone, isLandscape }: any) => {
     <View
       style={[
         styles.cartBadge,
-        isPhone && isLandscape && { top: -4, right: -4, minWidth: 16, height: 16 },
+        isPhone &&
+          isLandscape && { top: -4, right: -4, minWidth: 16, height: 16 },
       ]}
     >
       <Text
@@ -312,7 +312,15 @@ export default function MenuScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
 
-  const { kitchens, fetchMenu, fetchGroups, fetchDishes, allDishes, isLoading: menuLoading, modifierCache } = useMenuStore();
+  const {
+    kitchens,
+    fetchMenu,
+    fetchGroups,
+    fetchDishes,
+    allDishes,
+    isLoading: menuLoading,
+    modifierCache,
+  } = useMenuStore();
 
   const [groups, setGroups] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
@@ -346,13 +354,20 @@ export default function MenuScreen() {
   const paymentSettings = usePaymentSettingsStore((s: any) => s.settings);
 
   const orderContext = useOrderContextStore((state) => state.currentOrder);
-  
+
   // 🟢 OPTIMIZED SELECTORS: Removed cart subscription from main screen to prevent full-screen re-renders.
   const currentContextId = useCartStore((state) => state.currentContextId);
-  const displayOrderId = useCartStore((state) => (orderContext?.tableId ? state.tableOrderIds[orderContext.tableId] : undefined) || null);
-  
+  const displayOrderId = useCartStore(
+    (state) =>
+      (orderContext?.tableId
+        ? state.tableOrderIds[orderContext.tableId]
+        : undefined) || null,
+  );
+
   const enableKOT = useGeneralSettingsStore((s: any) => s.settings.enableKOT);
-  const enableCheckoutBill = useGeneralSettingsStore((s: any) => s.settings.enableCheckoutBill);
+  const enableCheckoutBill = useGeneralSettingsStore(
+    (s: any) => s.settings.enableCheckoutBill,
+  );
 
   // 🟢 QUANTITY TRACKING: Handled surgically within DishCardWrapper to avoid O(N^2) re-renders
 
@@ -371,7 +386,7 @@ export default function MenuScreen() {
   const insets = useSafeAreaInsets();
   const usableWidth = width - insets.left - insets.right;
 
-  // Moved totals to handlers or CartSidebar. 
+  // Moved totals to handlers or CartSidebar.
   // MenuScreen no longer needs to calculate these on every render.
 
   const handleReprintKOT = async () => {
@@ -393,26 +408,43 @@ export default function MenuScreen() {
         });
 
       for (const [kCode, items] of Object.entries(kitchenGroups)) {
-        const kName = items[0].KitchenTypeName || (kCode === "0" ? "KITCHEN" : kCode);
+        const kName =
+          items[0].KitchenTypeName || (kCode === "0" ? "KITCHEN" : kCode);
         const printerIp = items[0].PrinterIP;
         const kotData = {
           orderId: displayOrderId,
           orderNo: displayOrderId,
-          tableNo: orderContext?.orderType === "DINE_IN" ? orderContext.tableNo : `TW-${orderContext?.takeawayNo}`,
+          tableNo:
+            orderContext?.orderType === "DINE_IN"
+              ? orderContext.tableNo
+              : `TW-${orderContext?.takeawayNo}`,
           deviceNo: "1",
           waiterName: orderContext?.serverName || "Staff",
           items: items,
           kitchenName: kName,
         };
         if (enableKOT) {
-          await UniversalPrinter.printKOT(kotData, "SYSTEM", "REPRINT", printerIp);
+          await UniversalPrinter.printKOT(
+            kotData,
+            "SYSTEM",
+            "REPRINT",
+            printerIp,
+          );
         }
       }
 
       if (enableKOT) {
-        showToast({ type: "success", message: "KOT Reprinted", subtitle: "Tickets sent to kitchen" });
+        showToast({
+          type: "success",
+          message: "KOT Reprinted",
+          subtitle: "Tickets sent to kitchen",
+        });
       } else {
-        showToast({ type: "info", message: "KOT Printing Disabled", subtitle: "Please enable it in General Settings" });
+        showToast({
+          type: "info",
+          message: "KOT Printing Disabled",
+          subtitle: "Please enable it in General Settings",
+        });
       }
       setShowReprintOptions(false);
     } catch (err) {
@@ -427,24 +459,33 @@ export default function MenuScreen() {
       showToast({ type: "error", message: "Cart is empty" });
       return;
     }
-    
+
     if (!enableCheckoutBill) {
-      showToast({ type: "info", message: "Bill Printing Disabled", subtitle: "Checkout Bill printing is currently disabled in General Settings." });
+      showToast({
+        type: "info",
+        message: "Bill Printing Disabled",
+        subtitle:
+          "Checkout Bill printing is currently disabled in General Settings.",
+      });
       setShowReprintOptions(false);
       return;
     }
 
     try {
       const cart = useCartStore.getState().carts[currentContextId!] || [];
-      const discountInfo = useCartStore.getState().discounts[currentContextId!] || { applied: false, type: "fixed", value: 0 };
-      
+      const discountInfo = useCartStore.getState().discounts[
+        currentContextId!
+      ] || { applied: false, type: "fixed", value: 0 };
+
       const subtotal = cart.reduce((sum: number, item: any) => {
         if (item.status === "VOIDED") return sum;
         return sum + (item.price || 0) * item.qty;
       }, 0);
 
-      const discAmt = discountInfo.applied 
-        ? (discountInfo.type === "percentage" ? (subtotal * discountInfo.value) / 100 : discountInfo.value)
+      const discAmt = discountInfo.applied
+        ? discountInfo.type === "percentage"
+          ? (subtotal * discountInfo.value) / 100
+          : discountInfo.value
         : 0;
 
       const gstAmt = subtotal * ((paymentSettings.gstPercentage || 0) / 100);
@@ -462,12 +503,20 @@ export default function MenuScreen() {
         isCheckout: true,
       };
 
-      await UniversalPrinter.printCheckoutBill(saleData, user?.userId || "SYSTEM", {
-        ...discountInfo,
-        amount: discAmt
-      });
+      await UniversalPrinter.printCheckoutBill(
+        saleData,
+        user?.userId || "SYSTEM",
+        {
+          ...discountInfo,
+          amount: discAmt,
+        },
+      );
 
-      showToast({ type: "success", message: "Bill Printing", subtitle: "Receipt sent to printer" });
+      showToast({
+        type: "success",
+        message: "Bill Printing",
+        subtitle: "Receipt sent to printer",
+      });
       setShowReprintOptions(false);
     } catch (err) {
       console.error("Print Bill error:", err);
@@ -540,7 +589,7 @@ export default function MenuScreen() {
             styles.searchInput,
             isPhone && isLandscape && { fontSize: 13 },
           ]}
-          placeholder="Search products....."
+          placeholder="Search items..."
           value={searchText}
           onChangeText={setSearchText}
         />
@@ -555,7 +604,8 @@ export default function MenuScreen() {
         <TouchableOpacity
           style={[
             styles.headerBillBtn,
-            isPhone && isLandscape && { width: 36, height: 36, borderRadius: 8 },
+            isPhone &&
+              isLandscape && { width: 36, height: 36, borderRadius: 8 },
           ]}
           onPress={() => setShowReprintOptions(true)}
         >
@@ -569,7 +619,8 @@ export default function MenuScreen() {
         <TouchableOpacity
           style={[
             styles.headerCartBtn,
-            isPhone && isLandscape && { width: 36, height: 36, borderRadius: 8 },
+            isPhone &&
+              isLandscape && { width: 36, height: 36, borderRadius: 8 },
           ]}
           onPress={() => router.push("/cart")}
         >
@@ -736,11 +787,14 @@ export default function MenuScreen() {
   const openModifiers = React.useCallback(
     async (dish: any) => {
       if (isAdding) return;
-      
-      const currentKitchen = kitchens.find((k) => k.CategoryId === selectedKitchenId);
+
+      const currentKitchen = kitchens.find(
+        (k) => k.CategoryId === selectedKitchenId,
+      );
       const currentKitchenName = currentKitchen?.KitchenTypeName || "KITCHEN";
-      const currentKitchenCode = currentKitchen?.KitchenTypeCode || String(selectedKitchenId || "0");
-      
+      const currentKitchenCode =
+        currentKitchen?.KitchenTypeCode || String(selectedKitchenId || "0");
+
       const addToCartSimple = () => {
         addToCartGlobal({
           id: dish.DishId,
@@ -775,11 +829,11 @@ export default function MenuScreen() {
       setSelectedDish(dish);
       setSelectedModifierIds([]);
       setCustomMods([]);
-      
+
       try {
         const res = await fetch(`${API_URL}/api/menu/modifiers/${dish.DishId}`);
         const data = await res.json();
-        
+
         if (Array.isArray(data) && data.length > 0) {
           setModifiers(data);
           setShowModifier(true);
@@ -810,13 +864,7 @@ export default function MenuScreen() {
         />
       );
     },
-    [
-      cardWidth,
-      openModifiers,
-      isPhone,
-      isTablet,
-      isLandscape,
-    ],
+    [cardWidth, openModifiers, isPhone, isTablet, isLandscape],
   );
 
   const toggleModifier = (mod: any) => {
@@ -867,9 +915,12 @@ export default function MenuScreen() {
       const extra = modsToAdd.reduce((sum, m) => sum + (m.Price || 0), 0);
       const finalPrice = (selectedDish.Price || 0) + extra;
 
-      const currentKitchen = kitchens.find((k) => k.CategoryId === selectedKitchenId);
+      const currentKitchen = kitchens.find(
+        (k) => k.CategoryId === selectedKitchenId,
+      );
       const currentKitchenName = currentKitchen?.KitchenTypeName || "Kitchen";
-      const currentKitchenCode = currentKitchen?.KitchenTypeCode || selectedKitchenId;
+      const currentKitchenCode =
+        currentKitchen?.KitchenTypeCode || selectedKitchenId;
 
       addToCartGlobal({
         id: selectedDish.DishId,
@@ -887,10 +938,6 @@ export default function MenuScreen() {
     }
     setShowModifier(false);
   };
-
-
-
-
 
   if (!orderContext) return null;
 
@@ -915,7 +962,9 @@ export default function MenuScreen() {
                 ) : (
                   <FlatList
                     data={filteredItems}
-                    keyExtractor={(item, index) => item.DishId || `dish-${index}`}
+                    keyExtractor={(item, index) =>
+                      item.DishId || `dish-${index}`
+                    }
                     numColumns={columns}
                     key={columns}
                     renderItem={renderDishItem}
@@ -927,21 +976,30 @@ export default function MenuScreen() {
                       offset: 150 * Math.floor(index / columns),
                       index,
                     })}
-                    removeClippedSubviews={Platform.OS === 'android'}
+                    removeClippedSubviews={Platform.OS === "android"}
                     initialNumToRender={columns * 5}
                     maxToRenderPerBatch={columns * 3}
                     windowSize={5}
                     contentContainerStyle={[
                       styles.listPadding,
                       columns === 1 && { gap: gap },
-                      filteredItems.length === 0 && { flex: 1, justifyContent: 'center' }
+                      filteredItems.length === 0 && {
+                        flex: 1,
+                        justifyContent: "center",
+                      },
                     ]}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
                       !isLoadingDishes && !isInitialLoading ? (
                         <View style={styles.emptyItemsState}>
-                          <Ionicons name="restaurant-outline" size={64} color={Theme.textMuted} />
-                          <Text style={styles.emptyItemsText}>No dish items added</Text>
+                          <Ionicons
+                            name="restaurant-outline"
+                            size={64}
+                            color={Theme.textMuted}
+                          />
+                          <Text style={styles.emptyItemsText}>
+                            No dish items added
+                          </Text>
                         </View>
                       ) : null
                     }
@@ -993,14 +1051,17 @@ export default function MenuScreen() {
                       contentContainerStyle={[
                         styles.listPadding,
                         columns === 1 && { gap: gap },
-                        filteredItems.length === 0 && { flex: 1, justifyContent: 'center' }
+                        filteredItems.length === 0 && {
+                          flex: 1,
+                          justifyContent: "center",
+                        },
                       ]}
                       getItemLayout={(data, index) => ({
                         length: 150, // Fixed height estimate
                         offset: 150 * Math.floor(index / columns),
                         index,
                       })}
-                      removeClippedSubviews={Platform.OS !== 'web'}
+                      removeClippedSubviews={Platform.OS !== "web"}
                       initialNumToRender={columns * 5}
                       maxToRenderPerBatch={columns * 3}
                       windowSize={5}
@@ -1008,8 +1069,14 @@ export default function MenuScreen() {
                       ListEmptyComponent={
                         !isLoadingDishes && !isInitialLoading ? (
                           <View style={styles.emptyItemsState}>
-                            <Ionicons name="restaurant-outline" size={64} color={Theme.textMuted} />
-                            <Text style={styles.emptyItemsText}>No dish items added</Text>
+                            <Ionicons
+                              name="restaurant-outline"
+                              size={64}
+                              color={Theme.textMuted}
+                            />
+                            <Text style={styles.emptyItemsText}>
+                              No dish items added
+                            </Text>
                           </View>
                         ) : null
                       }
@@ -1160,17 +1227,32 @@ export default function MenuScreen() {
               <View style={[styles.modalContent, { maxWidth: 300 }]}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Reprint</Text>
-                  <TouchableOpacity onPress={() => setShowReprintOptions(false)}>
-                    <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                  <TouchableOpacity
+                    onPress={() => setShowReprintOptions(false)}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={Theme.textPrimary}
+                    />
                   </TouchableOpacity>
                 </View>
-                
+
                 <TouchableOpacity
                   style={styles.reprintOption}
                   onPress={handleReprintKOT}
                 >
-                  <View style={[styles.reprintIcon, { backgroundColor: Theme.primaryLight }]}>
-                    <Ionicons name="print-outline" size={20} color={Theme.primary} />
+                  <View
+                    style={[
+                      styles.reprintIcon,
+                      { backgroundColor: Theme.primaryLight },
+                    ]}
+                  >
+                    <Ionicons
+                      name="print-outline"
+                      size={20}
+                      color={Theme.primary}
+                    />
                   </View>
                   <Text style={styles.reprintText}>KOT Reprint</Text>
                 </TouchableOpacity>
@@ -1179,8 +1261,17 @@ export default function MenuScreen() {
                   style={styles.reprintOption}
                   onPress={handleReprintBill}
                 >
-                  <View style={[styles.reprintIcon, { backgroundColor: Theme.successBg }]}>
-                    <Ionicons name="receipt-outline" size={20} color={Theme.success} />
+                  <View
+                    style={[
+                      styles.reprintIcon,
+                      { backgroundColor: Theme.successBg },
+                    ]}
+                  >
+                    <Ionicons
+                      name="receipt-outline"
+                      size={20}
+                      color={Theme.success}
+                    />
                   </View>
                   <Text style={styles.reprintText}>Bill Reprint</Text>
                 </TouchableOpacity>
@@ -1582,14 +1673,14 @@ const styles = StyleSheet.create({
     ...Theme.shadowSm,
   },
   customBtnTextAdd: { color: "#fff", fontSize: 16, fontFamily: Fonts.black },
-  
+
   emptyNavState: {
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: Theme.bgMuted,
     borderRadius: 12,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     borderWidth: 1,
     borderColor: Theme.border,
   },
@@ -1601,8 +1692,8 @@ const styles = StyleSheet.create({
   emptyItemsState: {
     flex: 1,
     height: 300,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     gap: 15,
   },
   emptyItemsText: {

@@ -314,6 +314,7 @@ export default function SalesReport() {
                   CategoryName:
                     row.categoryName || row.CategoryName || "Unmapped",
                   Sold: row.totalQty ?? row.totalQuantitySold ?? 0,
+                  Voided: row.voidQty ?? 0,
                   SalesAmount: row.totalAmount ?? row.totalSalesAmount ?? 0,
                 }))
               : [],

@@ -247,8 +247,9 @@ router.get("/category", async (req, res) => {
         WITH AppReport AS (
           SELECT
             ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), ISNULL(cm.CategoryName, 'Unmapped')) AS categoryName,
-            SUM(CAST(ISNULL(sid.Qty, 0) AS decimal(18, 3))) AS totalQty,
-            SUM(CAST(ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0) AS decimal(18, 2))) AS totalAmount
+            SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED' THEN CAST(ISNULL(sid.Qty, 0) AS decimal(18, 3)) ELSE 0 END) AS totalQty,
+            SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') = 'VOIDED' THEN CAST(ISNULL(sid.Qty, 0) AS decimal(18, 3)) ELSE 0 END) AS voidQty,
+            SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED' THEN CAST(ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0) AS decimal(18, 2)) ELSE 0 END) AS totalAmount
           FROM SettlementHeader sh
           INNER JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID
           LEFT JOIN DishMaster d ON sid.DishId = d.DishId
@@ -262,6 +263,7 @@ router.get("/category", async (req, res) => {
           SELECT
             CAST(ISNULL(MAX(CAST(categoryname AS NVARCHAR(255))), 'Unmapped') AS NVARCHAR(255)) AS categoryName,
             SUM(CAST(ISNULL(Sold, 0) AS decimal(18, 3))) AS totalQty,
+            CAST(0 AS decimal(18, 3)) AS voidQty,
             SUM(CAST(ISNULL(Revenue, ItemSales) AS decimal(18, 2))) AS totalAmount
           FROM vw_categorysalesreport
           WHERE ${legacyDateWhereSql}
@@ -270,8 +272,9 @@ router.get("/category", async (req, res) => {
         ProfessionalReport AS (
           SELECT
             ISNULL(cm.CategoryName, 'Unmapped') AS categoryName,
-            SUM(CAST(ISNULL(rod.Quantity, 0) AS decimal(18, 3))) AS totalQty,
-            SUM(CAST(ISNULL(rod.TotalDetailLineAmount, 0) AS decimal(18, 2))) AS totalAmount
+            SUM(CASE WHEN rod.StatusCode <> 0 THEN CAST(ISNULL(rod.Quantity, 0) AS decimal(18, 3)) ELSE 0 END) AS totalQty,
+            SUM(CASE WHEN rod.StatusCode = 0 THEN CAST(ISNULL(rod.Quantity, 0) AS decimal(18, 3)) ELSE 0 END) AS voidQty,
+            SUM(CASE WHEN rod.StatusCode <> 0 THEN CAST(ISNULL(rod.TotalDetailLineAmount, 0) AS decimal(18, 2)) ELSE 0 END) AS totalAmount
           FROM RestaurantOrderDetail rod
           INNER JOIN RestaurantOrder ro ON rod.OrderId = ro.OrderId
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
@@ -285,16 +288,16 @@ router.get("/category", async (req, res) => {
             )
           GROUP BY ISNULL(cm.CategoryName, 'Unmapped')
         )
-        SELECT categoryName, SUM(totalQty) AS totalQty, SUM(totalAmount) AS totalAmount
+        SELECT categoryName, SUM(totalQty) AS totalQty, SUM(voidQty) AS voidQty, SUM(totalAmount) AS totalAmount
         FROM (
-          SELECT CAST(categoryName AS NVARCHAR(255)) AS categoryName, CAST(totalQty AS decimal(18,3)) AS totalQty, CAST(totalAmount AS decimal(18,2)) AS totalAmount FROM AppReport
+          SELECT CAST(categoryName AS NVARCHAR(255)) AS categoryName, CAST(totalQty AS decimal(18,3)) AS totalQty, CAST(voidQty AS decimal(18,3)) AS voidQty, CAST(totalAmount AS decimal(18,2)) AS totalAmount FROM AppReport
           UNION ALL
-          SELECT CAST(categoryName AS NVARCHAR(255)) AS categoryName, CAST(totalQty AS decimal(18,3)) AS totalQty, CAST(totalAmount AS decimal(18,2)) AS totalAmount FROM LegacyReport
+          SELECT CAST(categoryName AS NVARCHAR(255)) AS categoryName, CAST(totalQty AS decimal(18,3)) AS totalQty, CAST(voidQty AS decimal(18,3)) AS voidQty, CAST(totalAmount AS decimal(18,2)) AS totalAmount FROM LegacyReport
           UNION ALL
-          SELECT CAST(categoryName AS NVARCHAR(255)) AS categoryName, CAST(totalQty AS decimal(18,3)) AS totalQty, CAST(totalAmount AS decimal(18,2)) AS totalAmount FROM ProfessionalReport
+          SELECT CAST(categoryName AS NVARCHAR(255)) AS categoryName, CAST(totalQty AS decimal(18,3)) AS totalQty, CAST(voidQty AS decimal(18,3)) AS voidQty, CAST(totalAmount AS decimal(18,2)) AS totalAmount FROM ProfessionalReport
         ) ReportRows
         GROUP BY categoryName
-        HAVING SUM(totalQty) > 0 OR SUM(totalAmount) > 0
+        HAVING SUM(totalQty) > 0 OR SUM(totalAmount) > 0 OR SUM(voidQty) > 0
         ORDER BY totalAmount DESC, totalQty DESC, categoryName ASC
       `);
 
