@@ -229,9 +229,10 @@ type CartState = {
   setTableOrderId: (tableId: string, orderId: string | null) => void;
   checkoutOrder: (tableId: string) => Promise<{ success: boolean; orderId?: string }>;
   completeOrder: (tableId: string) => Promise<{ success: boolean }>;
-  markAllAsSent: () => void;
+  markAllAsSent: (skipSync?: boolean) => void;
   combineDuplicates: () => void;
   clearTableSession: (tableId: string) => void;
+  cancelPendingSync: () => void;
 
   // 🛡️ Implementation Details (Internal use)
   _syncTimeout?: any;
@@ -434,7 +435,7 @@ export const useCartStore = create<CartState>()(
         return targetLineItemId;
       },
 
-      markAllAsSent: () => {
+      markAllAsSent: (skipSync?: boolean) => {
         const { currentContextId, carts } = get();
         if (!currentContextId || !carts[currentContextId]) return;
         
@@ -461,9 +462,11 @@ export const useCartStore = create<CartState>()(
         });
         
         // 🚀 IMMEDIATE SYNC: Don't wait for debounce when sending to kitchen
-        const tableId = useOrderContextStore.getState().currentOrder?.tableId;
-        if (tableId) {
-          get().syncCartWithDB(currentContextId);
+        if (!skipSync) {
+          const tableId = useOrderContextStore.getState().currentOrder?.tableId;
+          if (tableId) {
+            get().syncCartWithDB(currentContextId);
+          }
         }
       },
 
@@ -1211,6 +1214,17 @@ export const useCartStore = create<CartState>()(
         } catch (err) {
           console.error("❌ [CartStore] Complete failed:", err);
           return { success: false };
+        }
+      },
+      cancelPendingSync: () => {
+        const { _syncTimeout, currentContextId, _syncAbortControllers } = get();
+        if (_syncTimeout) {
+          clearTimeout(_syncTimeout);
+          set({ _syncTimeout: null });
+        }
+        if (currentContextId && _syncAbortControllers[currentContextId]) {
+          console.log(`🛑 [CartStore] cancelPendingSync: Aborting sync for ${currentContextId}`);
+          _syncAbortControllers[currentContextId].abort();
         }
       },
     }),

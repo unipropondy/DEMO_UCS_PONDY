@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Dimensions,
   DimensionValue,
   FlatList,
   LayoutAnimation,
@@ -60,13 +61,15 @@ const formatSectionGlobal = (sec: string) => {
   return s;
 };
 
+const isPhoneDevice = Math.min(Dimensions.get("window").width, Dimensions.get("window").height) < 500;
+
 const styles = StyleSheet.create({
   container: {
     height: "100%",
     backgroundColor: Theme.bgCard,
     borderLeftWidth: 1.5,
     borderLeftColor: Theme.border,
-    padding: 16,
+    padding: isPhoneDevice ? 10 : 16,
     shadowColor: "#000",
     shadowOffset: { width: -8, height: 0 },
     shadowOpacity: 0.06,
@@ -330,7 +333,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.black,
     color: Theme.textPrimary,
   },
-  actions: { flexDirection: "row", gap: 10 },
+  actions: { flexDirection: "row", gap: isPhoneDevice ? 6 : 10 },
   holdBtn: {
     flex: 1,
     height: 50,
@@ -361,7 +364,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     ...Theme.shadowMd,
   },
-  btnText: { color: "#fff", fontFamily: Fonts.black, fontSize: 15 },
+  btnText: { color: "#fff", fontFamily: Fonts.black, fontSize: isPhoneDevice ? 13 : 15 },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -830,6 +833,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const isLandscape = screenWidth > screenHeight;
   const isPhone = Math.min(screenWidth, screenHeight) < 500;
+  const iconSize = isPhone ? 18 : 20;
 
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -1103,7 +1107,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
     setExpandedItemId(expandedItemId === id ? null : id);
   };
 
-  const saveCartHelper = async (tableId: string, orderId: string | null) => {
+  const saveCartHelper = async (tableId: string, orderId: string | null, skipTableStatusSync?: boolean) => {
     try {
       const res = await fetch(`${API_URL}/api/orders/save-cart`, {
         method: "POST",
@@ -1116,6 +1120,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
             ...item,
             status: item.status || "NEW"
           })),
+          skipTableStatusSync,
         }),
       });
       if (res.ok) {
@@ -1133,6 +1138,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
 
   const handleCheckout = async () => {
     if (!orderContext || isCheckingOut) return;
+    useCartStore.getState().cancelPendingSync();
 
     const tableId = orderContext.tableId || tableData?.tableId;
     if (!tableId) {
@@ -1621,6 +1627,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                           <TouchableOpacity
                             style={[styles.compactIconBtn, { backgroundColor: "#2563EB" }]}
                             onPress={async () => {
+                              useCartStore.getState().cancelPendingSync();
                               const targetOrderId = activeOrder?.orderId || "HOLD";
                               const tableId = orderContext.tableId;
 
@@ -1649,6 +1656,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                                         tableId: tableId,
                                         orderId: targetOrderId,
                                         items: cart,
+                                        skipTableStatusSync: true,
                                       }),
                                     });
 
@@ -1691,7 +1699,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                           >
                             <Ionicons
                               name="pause-outline"
-                              size={20}
+                              size={iconSize}
                               color="#fff"
                             />
                           </TouchableOpacity>
@@ -1706,13 +1714,14 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             ]}
                             onPress={async () => {
                               if (isCheckingOut) return;
+                              useCartStore.getState().cancelPendingSync();
                               const tableId = orderContext.tableId;
                               if (!tableId) return;
 
                               setIsCheckingOut(true);
                               try {
                                 const targetOrderId = activeOrder?.orderId || currentTableOrderId || "NEW";
-                                const officialOrderId = await saveCartHelper(tableId, targetOrderId);
+                                const officialOrderId = await saveCartHelper(tableId, targetOrderId, true);
 
                                 // Print checkout bill if enabled
                                 let displayOrderId = officialOrderId || targetOrderId;
@@ -1755,7 +1764,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                                 })();
 
                                 // Local optimistic update to SENT then checkout
-                                useCartStore.getState().markAllAsSent();
+                                useCartStore.getState().markAllAsSent(true);
 
                                 // Call checkout API
                                 const res = await useCartStore.getState().checkoutOrder(tableId);
@@ -1800,7 +1809,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             {isCheckingOut ? (
                               <ActivityIndicator size="small" color="#fff" />
                             ) : (
-                              <Ionicons name="receipt-outline" size={20} color="#fff" />
+                              <Ionicons name="receipt-outline" size={iconSize} color="#fff" />
                             )}
                           </TouchableOpacity>
 
@@ -1814,13 +1823,14 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             ]}
                             onPress={async () => {
                               if (isCheckingOut) return;
+                              useCartStore.getState().cancelPendingSync();
                               const tableId = orderContext.tableId;
                               if (!tableId) return;
 
                               setIsCheckingOut(true);
                               try {
                                 const targetOrderId = activeOrder?.orderId || currentTableOrderId || "NEW";
-                                const officialOrderId = await saveCartHelper(tableId, targetOrderId);
+                                const officialOrderId = await saveCartHelper(tableId, targetOrderId, true);
                                 
                                 updateTableStatus(
                                   tableId,
@@ -1849,7 +1859,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                               <ActivityIndicator size="small" color="#fff" />
                             ) : (
                               <>
-                                <Ionicons name="card-outline" size={20} color="#fff" />
+                                <Ionicons name="card-outline" size={iconSize} color="#fff" />
                                 <Text style={styles.btnText}>Pay</Text>
                               </>
                             )}
@@ -1870,6 +1880,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             ]}
                             onPress={async () => {
                               if (isCheckingOut) return;
+                              useCartStore.getState().cancelPendingSync();
                               const tableId = orderContext.tableId;
                               if (!tableId) return;
 
@@ -1960,7 +1971,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             {isCheckingOut ? (
                               <ActivityIndicator size="small" color="#fff" />
                             ) : (
-                              <Ionicons name="receipt-outline" size={20} color="#fff" />
+                              <Ionicons name="receipt-outline" size={iconSize} color="#fff" />
                             )}
                           </TouchableOpacity>
 
@@ -1974,7 +1985,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                               router.push("/summary");
                             }}
                           >
-                            <Ionicons name="card-outline" size={20} color="#fff" />
+                            <Ionicons name="card-outline" size={iconSize} color="#fff" />
                             <Text style={styles.btnText}>Pay</Text>
                           </TouchableOpacity>
                         </>
@@ -1993,7 +2004,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                         >
                           <Ionicons
                             name="card-outline"
-                            size={20}
+                            size={iconSize}
                             color="#fff"
                           />
                           <Text style={styles.btnText}>Proceed to Pay</Text>
@@ -2013,7 +2024,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                         >
                           <Ionicons
                             name="card-outline"
-                            size={20}
+                            size={iconSize}
                             color="#fff"
                           />
                           <Text style={styles.btnText}>Proceed to Pay</Text>
@@ -2033,13 +2044,14 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                         onPress={async () => {
                           if (unsentCount > 0) {
                             if (isCheckingOut) return;
+                            useCartStore.getState().cancelPendingSync();
                             const tableId = orderContext.tableId;
                             if (!tableId) return;
 
                             setIsCheckingOut(true);
                             try {
                               const targetOrderId = activeOrder?.orderId || currentTableOrderId || "NEW";
-                              const officialOrderId = await saveCartHelper(tableId, targetOrderId);
+                              const officialOrderId = await saveCartHelper(tableId, targetOrderId, true);
                               
                               updateTableStatus(
                                 tableId,
@@ -2071,7 +2083,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                           <ActivityIndicator size="small" color="#fff" />
                         ) : (
                           <>
-                            <Ionicons name="card-outline" size={20} color="#fff" />
+                            <Ionicons name="card-outline" size={iconSize} color="#fff" />
                             <Text style={styles.btnText}>Proceed to Pay</Text>
                           </>
                         )}
@@ -2087,6 +2099,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                       <TouchableOpacity
                         style={styles.holdBtn}
                         onPress={async () => {
+                          useCartStore.getState().cancelPendingSync();
                           const targetOrderId = activeOrder?.orderId || "HOLD";
                           const tableId = orderContext.tableId;
 
@@ -2115,6 +2128,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                                     tableId: tableId,
                                     orderId: targetOrderId,
                                     items: cart,
+                                    skipTableStatusSync: true,
                                   }),
                                 });
 
@@ -2157,7 +2171,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                       >
                         <Ionicons
                           name="pause-circle-outline"
-                          size={20}
+                          size={iconSize}
                           color="#fff"
                         />
                         {!isPhone && <Text style={styles.btnText}>Hold Cart</Text>}
@@ -2171,6 +2185,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                         ]}
                         onPress={async () => {
                           if (isCheckingOut) return;
+                          useCartStore.getState().cancelPendingSync();
                           const tableId = orderContext.tableId;
                           if (!tableId) return;
 
@@ -2182,7 +2197,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             setIsCheckingOut(true);
                             try {
                               const targetOrderId = activeOrder?.orderId || currentTableOrderId || "NEW";
-                              const officialOrderId = await saveCartHelper(tableId, targetOrderId);
+                              const officialOrderId = await saveCartHelper(tableId, targetOrderId, true);
                               
                               updateTableStatus(
                                 tableId,
@@ -2212,7 +2227,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             setIsCheckingOut(true);
                             try {
                               const targetOrderId = activeOrder?.orderId || currentTableOrderId || "NEW";
-                              const officialOrderId = await saveCartHelper(tableId, targetOrderId);
+                              const officialOrderId = await saveCartHelper(tableId, targetOrderId, true);
                               
                               updateTableStatus(
                                 tableId,
@@ -2262,7 +2277,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                                     ? "card-outline"
                                     : "receipt-outline"
                               } 
-                              size={20} 
+                              size={iconSize} 
                               color="#fff" 
                             />
                             <Text style={styles.btnText}>
@@ -2297,7 +2312,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                           {isCheckingOut ? (
                             <ActivityIndicator size="small" color="#fff" />
                           ) : (
-                            <Ionicons name="receipt-outline" size={20} color="#fff" />
+                            <Ionicons name="receipt-outline" size={iconSize} color="#fff" />
                           )}
                           <Text style={styles.btnText}>
                             {isCheckingOut ? "Checking out..." : "Checkout"}
@@ -2319,7 +2334,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             router.push("/summary");
                           }}
                         >
-                          <Ionicons name="card-outline" size={20} color="#fff" />
+                          <Ionicons name="card-outline" size={iconSize} color="#fff" />
                           <Text style={styles.btnText}>Process to Pay</Text>
                         </TouchableOpacity>
                       )}
@@ -2337,7 +2352,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             router.push("/summary");
                           }}
                         >
-                          <Ionicons name="card-outline" size={20} color="#fff" />
+                          <Ionicons name="card-outline" size={iconSize} color="#fff" />
                           <Text style={styles.btnText}>Process to Pay</Text>
                         </TouchableOpacity>
                       )}
@@ -2362,7 +2377,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                     >
                       <Ionicons
                         name="arrow-forward-circle-outline"
-                        size={20}
+                        size={iconSize}
                         color="#fff"
                       />
                       <Text style={styles.btnText}>Proceed to Pay</Text>

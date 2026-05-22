@@ -421,7 +421,7 @@ async function syncTableStatus(req, tableId) {
 // Routes
 router.post("/save-cart", async (req, res) => {
   try {
-    const { tableId, items, userId, orderId, lastUpdate, version } = req.body;
+    const { tableId, items, userId, orderId, lastUpdate, version, skipTableStatusSync } = req.body;
     const pool = await poolPromise;
     const cleanId = String(tableId).replace(/^\{|\}$/g, "").trim();
     const now = Date.now();
@@ -479,9 +479,14 @@ router.post("/save-cart", async (req, res) => {
       await transaction.request()
         .input("tid", sql.VarChar(50), cleanId)
         .input("oid", sql.NVarChar(50), currentOrderId)
+        .input("skipSync", sql.Bit, !!skipTableStatusSync)
         .query(`
           UPDATE TableMaster 
-          SET Status = CASE WHEN @oid IS NOT NULL THEN 1 ELSE 0 END, 
+          SET Status = CASE 
+                         WHEN @skipSync = 1 AND Status IN (2, 3) THEN Status 
+                         WHEN @oid IS NOT NULL THEN 1 
+                         ELSE 0 
+                       END, 
               CurrentOrderId = @oid,
               StartTime = CASE WHEN @oid IS NOT NULL AND (StartTime IS NULL OR StartTime < '2000-01-01') THEN GETDATE() 
                                WHEN @oid IS NULL THEN NULL 
@@ -499,7 +504,9 @@ router.post("/save-cart", async (req, res) => {
         io.emit("cart_updated", { tableId: cleanId.toLowerCase(), orderId: currentOrderId });
       }
 
-      syncTableStatus(req, cleanId).catch(() => { });
+      if (!skipTableStatusSync) {
+        syncTableStatus(req, cleanId).catch(() => { });
+      }
     } catch (e) {
       if (transaction._isStarted) await transaction.rollback();
       console.error("❌ SaveCart SQL Error:", e.message);
