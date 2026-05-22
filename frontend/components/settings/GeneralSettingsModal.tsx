@@ -89,6 +89,7 @@ export default function GeneralSettingsModal({
   const [enableKDS, setEnableKDS] = useState(settings.enableKDS);
   const [enableCheckoutBill, setEnableCheckoutBill] = useState(settings.enableCheckoutBill);
   const [enableCheckoutFlow, setEnableCheckoutFlow] = useState(settings.enableCheckoutFlow);
+  const [enableDirectProcessToPay, setEnableDirectProcessToPay] = useState(settings.enableDirectProcessToPay);
   
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -109,6 +110,7 @@ export default function GeneralSettingsModal({
       setEnableKDS(settings.enableKDS);
       setEnableCheckoutBill(settings.enableCheckoutBill);
       setEnableCheckoutFlow(settings.enableCheckoutFlow);
+      setEnableDirectProcessToPay(settings.enableDirectProcessToPay);
       
       Animated.parallel([
         Animated.timing(modalScale, {
@@ -163,6 +165,7 @@ export default function GeneralSettingsModal({
       enableKDS,
       enableCheckoutBill,
       enableCheckoutFlow,
+      enableDirectProcessToPay,
     });
     
     setIsSaving(false);
@@ -291,6 +294,26 @@ export default function GeneralSettingsModal({
                 <Text style={styles.settingDesc}>Enable order summary checkout step.</Text>
               </View>
               <CustomSwitch value={enableCheckoutFlow} onValueChange={setEnableCheckoutFlow} />
+            </View>
+
+            {/* CARD 5: Enable Direct Process To Pay */}
+            <View style={[styles.settingCard, enableDirectProcessToPay && styles.settingCardActive]}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={[styles.iconWrapper, enableDirectProcessToPay ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
+                    <Ionicons name="card-outline" size={16} color={enableDirectProcessToPay ? Theme.primary : Theme.textSecondary} />
+                  </View>
+                  <Text style={styles.settingTitle}>Enable Direct Process To Pay</Text>
+                  <View style={[styles.statusBadge, enableDirectProcessToPay ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
+                    <View style={[styles.statusDot, enableDirectProcessToPay ? styles.statusDotActive : styles.statusDotInactive]} />
+                    <Text style={[styles.statusBadgeText, enableDirectProcessToPay ? styles.statusBadgeTextActive : styles.statusBadgeTextInactive]}>
+                      {enableDirectProcessToPay ? "Active" : "Disabled"}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.settingDesc}>Show "Process To Pay" shortcut button in Cart Sidebar.</Text>
+              </View>
+              <CustomSwitch value={enableDirectProcessToPay} onValueChange={setEnableDirectProcessToPay} />
             </View>
           </View>
 

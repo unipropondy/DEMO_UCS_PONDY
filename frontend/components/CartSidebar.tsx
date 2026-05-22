@@ -881,6 +881,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
   const enableKOT = useGeneralSettingsStore((s: any) => s.settings.enableKOT);
   const enableCheckoutBill = useGeneralSettingsStore((s: any) => s.settings.enableCheckoutBill);
   const enableCheckoutFlow = useGeneralSettingsStore((s: any) => s.settings.enableCheckoutFlow !== undefined ? s.settings.enableCheckoutFlow : true);
+  const enableDirectProcessToPay = useGeneralSettingsStore((s: any) => s.settings.enableDirectProcessToPay !== undefined ? s.settings.enableDirectProcessToPay : false);
 
   const tableData = useMemo(() => {
     if (!orderContext) return null;
@@ -1664,28 +1665,48 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                   </TouchableOpacity>
                 </>
               ) : currentTableStatus === "SENT" ? (
-                <TouchableOpacity
-                  disabled={isCheckingOut}
-                  style={[
-                    styles.proceedBtn,
-                    {
-                      flex: 1,
-                      backgroundColor: isCheckingOut ? Theme.border : "#F59E0B",
-                    },
-                  ]}
-                  onPress={() => handleCheckout()}
-                >
-                  {isCheckingOut ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Ionicons name={enableCheckoutFlow !== false ? "receipt-outline" : "card-outline"} size={20} color="#fff" />
+                <>
+                  <TouchableOpacity
+                    disabled={isCheckingOut}
+                    style={[
+                      styles.proceedBtn,
+                      {
+                        flex: 1,
+                        backgroundColor: isCheckingOut ? Theme.border : "#F59E0B",
+                      },
+                    ]}
+                    onPress={() => handleCheckout()}
+                  >
+                    {isCheckingOut ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Ionicons name={enableCheckoutFlow !== false ? "receipt-outline" : "card-outline"} size={20} color="#fff" />
+                    )}
+                    <Text style={styles.btnText}>
+                      {isCheckingOut 
+                        ? (enableCheckoutFlow !== false ? "Checking out..." : "Processing...") 
+                        : (enableCheckoutFlow !== false ? "Checkout" : "Process to Pay")}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {enableDirectProcessToPay && (
+                    <TouchableOpacity
+                      style={[
+                        styles.holdBtn,
+                        {
+                          flex: 1,
+                          backgroundColor: "#10B981",
+                        },
+                      ]}
+                      onPress={() => {
+                        router.push("/summary");
+                      }}
+                    >
+                      <Ionicons name="card-outline" size={20} color="#fff" />
+                      <Text style={styles.btnText}>Process To Pay</Text>
+                    </TouchableOpacity>
                   )}
-                  <Text style={styles.btnText}>
-                    {isCheckingOut 
-                      ? (enableCheckoutFlow !== false ? "Checking out..." : "Processing...") 
-                      : (enableCheckoutFlow !== false ? "Checkout" : "Process to Pay")}
-                  </Text>
-                </TouchableOpacity>
+                </>
               ) : currentTableStatus === "HOLD" ||
                 currentTableStatus === "BILL_REQUESTED" ? (
                 <TouchableOpacity
