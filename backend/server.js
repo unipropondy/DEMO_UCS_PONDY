@@ -1,8 +1,30 @@
 const express = require("express");
 const compression = require("compression");
 const cors = require("cors");
+const fs = require("fs");
+const crypto = require("crypto");
 const path = require("path");
-require("dotenv").config({ path: path.resolve(__dirname, ".env") });
+
+const envPath = path.resolve(__dirname, ".env");
+
+// 1. Ensure the .env file exists
+if (!fs.existsSync(envPath)) {
+  fs.writeFileSync(envPath, "");
+}
+
+// 2. Read current .env content
+let envContent = fs.readFileSync(envPath, "utf8");
+
+// 3. If JWT_SECRET is not defined in .env, generate a unique one and save it
+if (!envContent.includes("JWT_SECRET=")) {
+  const secureSecret = crypto.randomBytes(32).toString("hex");
+  const prefix = envContent.endsWith("\n") || envContent.trim() === "" ? "" : "\n";
+  fs.appendFileSync(envPath, `${prefix}JWT_SECRET=${secureSecret}\n`);
+  console.log("🔒 [Security] JWT_SECRET was missing! A brand-new unique key has been automatically generated and saved to .env.");
+}
+
+// 4. Load env variables
+require("dotenv").config({ path: envPath });
 
 const { poolPromise } = require("./config/db");
 const { initDB } = require("./config/init");
