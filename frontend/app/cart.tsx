@@ -263,9 +263,6 @@ export default function CartScreen() {
 
   const displayItems = useMemo(() => {
     return [...cart].sort((a, b) => {
-      const isSentA = isItemSent(a);
-      const isSentB = isItemSent(b);
-      if (isSentA !== isSentB) { return isSentA ? -1 : 1; }
       const timeA = a.DateCreated ? new Date(a.DateCreated).getTime() : 0;
       const timeB = b.DateCreated ? new Date(b.DateCreated).getTime() : 0;
       if (timeA !== timeB && !isNaN(timeA) && !isNaN(timeB)) { return timeA - timeB; }

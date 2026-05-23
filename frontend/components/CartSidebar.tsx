@@ -916,15 +916,6 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
 
   const displayItems = useMemo(() => {
     return [...cart].sort((a, b) => {
-      // 1. Group by status: Sent (Top) vs New (Bottom)
-      const isSentA = isItemSent(a);
-      const isSentB = isItemSent(b);
-
-      if (isSentA !== isSentB) {
-        return isSentA ? -1 : 1; // Sent items always above New items
-      }
-
-      // 2. Chronological within groups
       const timeA = a.DateCreated ? new Date(a.DateCreated).getTime() : 0;
       const timeB = b.DateCreated ? new Date(b.DateCreated).getTime() : 0;
 
@@ -932,7 +923,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
         return timeA - timeB;
       }
 
-      // Tie-breaker: Use lineItemId to ensure stable sort
+      // Stable tie-breaker
       return String(a.lineItemId).localeCompare(String(b.lineItemId));
     });
   }, [cart]);
