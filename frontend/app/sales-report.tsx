@@ -1859,6 +1859,18 @@ export default function SalesReport() {
                       >
                         Order #{formatOrderId(selectedOrder)}
                       </Text>
+                      {selectedOrder?.isMerged && (
+                        <View style={styles.modalMergedBadge}>
+                          <Ionicons name="git-merge-outline" size={10} color="#ea580c" />
+                          <Text style={styles.modalMergedText}>MERGED ({selectedOrder.mergedDetails})</Text>
+                        </View>
+                      )}
+                      {selectedOrder?.isSplit && (
+                        <View style={styles.modalSplitBadge}>
+                          <Ionicons name="cut-outline" size={10} color="#2563eb" />
+                          <Text style={styles.modalSplitText}>SPLIT ({selectedOrder.splitNo})</Text>
+                        </View>
+                      )}
                       <View
                         style={[
                           styles.paidBadgeSmall,
@@ -3920,5 +3932,37 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Theme.textSecondary,
     fontFamily: Fonts.medium,
+  },
+  modalMergedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff7ed',
+    borderColor: '#ffedd5',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    gap: 4,
+  },
+  modalMergedText: {
+    color: '#ea580c',
+    fontSize: 9,
+    fontFamily: Fonts.black,
+  },
+  modalSplitBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderColor: '#dbeafe',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    gap: 4,
+  },
+  modalSplitText: {
+    color: '#2563eb',
+    fontSize: 9,
+    fontFamily: Fonts.black,
   },
 });

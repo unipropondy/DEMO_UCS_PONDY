@@ -54,6 +54,22 @@ const TransactionCard = React.memo(
             {item.OrderType === "TAKEAWAY" ? "🛍️ Takeaway" : `🪑 Table ${item.TableNo || "N/A"}`}
             {item.SER_NAME ? ` • ${item.SER_NAME}` : ""}
           </Text>
+          {(item.isMerged || item.isSplit) && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+              {item.isMerged && (
+                <View style={styles.mergedBadge}>
+                  <Ionicons name="git-merge-outline" size={9} color="#ea580c" />
+                  <Text style={styles.mergedBadgeText}>Merged: {item.mergedDetails}</Text>
+                </View>
+              )}
+              {item.isSplit && (
+                <View style={styles.splitBadge}>
+                  <Ionicons name="cut-outline" size={9} color="#2563eb" />
+                  <Text style={styles.splitBadgeText}>Split: {item.splitNo || 'Yes'}</Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
         <View style={styles.txRightInfo}>
           <Text style={[styles.txAmount, item.IsCancelled && { color: Theme.danger, textDecorationLine: 'line-through' }]}>
@@ -161,6 +177,38 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     marginTop: 2,
     fontStyle: 'italic',
+  },
+  mergedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff7ed',
+    borderColor: '#ffedd5',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    gap: 3,
+  },
+  mergedBadgeText: {
+    color: '#ea580c',
+    fontSize: 9,
+    fontFamily: Fonts.black,
+  },
+  splitBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderColor: '#dbeafe',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    gap: 3,
+  },
+  splitBadgeText: {
+    color: '#2563eb',
+    fontSize: 9,
+    fontFamily: Fonts.black,
   },
 });
 

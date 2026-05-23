@@ -165,12 +165,74 @@ router.get("/all", async (req, res) => {
         sh.IsCancelled,
         sh.CancellationReason,
         DATEADD(MINUTE, -468, sh.CancelledDate) as CancelledDate,
-        sh.CancelledByUserName
+        sh.CancelledByUserName,
+        ri.OrderId AS MasterOrderId
       FROM SettlementHeader sh
       LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
+      LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
       ORDER BY sh.LastSettlementDate DESC
     `);
-    res.json(result.recordset);
+
+    const records = result.recordset || [];
+    if (records.length > 0) {
+      const masterOrderIds = records
+        .map(r => r.MasterOrderId)
+        .filter(id => id && id.length > 30);
+
+      const mergeMap = {};
+      if (masterOrderIds.length > 0) {
+        try {
+          const formattedIds = masterOrderIds.map(id => `'${id}'`).join(',');
+          const mergeResult = await pool.request().query(`
+            SELECT 
+              omh.ParentOrderId, 
+              omh.ChildTableNo,
+              COALESCE(ro.OrderNumber, ro_cur.OrderNumber) AS ChildOrderNo
+            FROM OrderMergeHistory omh
+            LEFT JOIN RestaurantOrder ro ON omh.ChildOrderId = ro.OrderId
+            LEFT JOIN RestaurantOrderCur ro_cur ON omh.ChildOrderId = ro_cur.OrderId
+            WHERE omh.ParentOrderId IN (${formattedIds})
+          `);
+          
+          mergeResult.recordset.forEach(row => {
+            const parentId = String(row.ParentOrderId).toLowerCase();
+            const childTable = String(row.ChildTableNo || "").trim();
+            const childOrder = String(row.ChildOrderNo || "").trim();
+            const displayStr = childTable ? `T${childTable}${childOrder ? ` [#${childOrder}]` : ""}` : childOrder;
+            if (displayStr) {
+              if (!mergeMap[parentId]) mergeMap[parentId] = [];
+              mergeMap[parentId].push(displayStr);
+            }
+          });
+        } catch (mergeErr) {
+          console.error("⚠️ [Report API] Failed to fetch merge history details:", mergeErr.message);
+        }
+      }
+
+      records.forEach(row => {
+        const parentId = row.MasterOrderId ? String(row.MasterOrderId).toLowerCase() : null;
+        
+        // 1. Merge details
+        if (parentId && mergeMap[parentId]) {
+          row.isMerged = true;
+          row.mergedDetails = [...new Set(mergeMap[parentId])].join(', ');
+        } else {
+          row.isMerged = false;
+          row.mergedDetails = "";
+        }
+
+        // 2. Split details
+        if (row.BillNo && row.BillNo.includes('-S')) {
+          row.isSplit = true;
+          row.splitNo = 'S' + row.BillNo.split('-S').pop();
+        } else {
+          row.isSplit = false;
+          row.splitNo = "";
+        }
+      });
+    }
+
+    res.json(records);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
