@@ -59,7 +59,7 @@ const TransactionCard = React.memo(
               {item.isMerged && (
                 <View style={styles.mergedBadge}>
                   <Ionicons name="git-merge-outline" size={9} color="#ea580c" />
-                  <Text style={styles.mergedBadgeText}>Merged: {item.mergedDetails}</Text>
+                  <Text style={styles.mergedBadgeText}>Merged</Text>
                 </View>
               )}
               {item.isSplit && (

@@ -1859,18 +1859,6 @@ export default function SalesReport() {
                       >
                         Order #{formatOrderId(selectedOrder)}
                       </Text>
-                      {selectedOrder?.isMerged && (
-                        <View style={styles.modalMergedBadge}>
-                          <Ionicons name="git-merge-outline" size={10} color="#ea580c" />
-                          <Text style={styles.modalMergedText}>MERGED ({selectedOrder.mergedDetails})</Text>
-                        </View>
-                      )}
-                      {selectedOrder?.isSplit && (
-                        <View style={styles.modalSplitBadge}>
-                          <Ionicons name="cut-outline" size={10} color="#2563eb" />
-                          <Text style={styles.modalSplitText}>SPLIT ({selectedOrder.splitNo})</Text>
-                        </View>
-                      )}
                       <View
                         style={[
                           styles.paidBadgeSmall,
@@ -2002,6 +1990,34 @@ export default function SalesReport() {
                   style={styles.itemsList}
                   showsVerticalScrollIndicator={false}
                 >
+                  {selectedOrder?.isMerged && (
+                    <View style={styles.detailMergeContainer}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <Ionicons name="git-merge-outline" size={14} color="#ea580c" />
+                        <Text style={styles.detailMergeTitle}>Merged Tables & Bills</Text>
+                      </View>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ gap: 6, paddingBottom: 2 }}
+                        style={{ width: '100%' }}
+                      >
+                        {selectedOrder.mergedDetails?.split(', ').filter(Boolean).map((detail: string, index: number) => (
+                          <View key={index} style={styles.childBillBadge}>
+                            <Text style={styles.childBillBadgeText}>{detail}</Text>
+                          </View>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                  {selectedOrder?.isSplit && (
+                    <View style={styles.detailSplitContainer}>
+                      <Ionicons name="cut-outline" size={14} color="#2563eb" />
+                      <Text style={styles.detailSplitText}>
+                        Split Bill Payment: <Text style={{ fontFamily: Fonts.black }}>{selectedOrder.splitNo}</Text>
+                      </Text>
+                    </View>
+                  )}
                   {loadingDetails ? (
                     <View style={{ paddingVertical: 20 }}>
                       <ActivityIndicator color={Theme.primary} />
@@ -3933,36 +3949,48 @@ const styles = StyleSheet.create({
     color: Theme.textSecondary,
     fontFamily: Fonts.medium,
   },
-  modalMergedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  detailMergeContainer: {
     backgroundColor: '#fff7ed',
     borderColor: '#ffedd5',
     borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    gap: 4,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
   },
-  modalMergedText: {
+  detailMergeTitle: {
     color: '#ea580c',
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: Fonts.black,
   },
-  modalSplitBadge: {
+  childBillBadge: {
+    backgroundColor: '#ffedd5',
+    borderColor: '#fed7aa',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  childBillBadgeText: {
+    color: '#c2410c',
+    fontSize: 10,
+    fontFamily: Fonts.bold,
+  },
+  detailSplitContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#eff6ff',
     borderColor: '#dbeafe',
     borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    gap: 4,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+    gap: 8,
   },
-  modalSplitText: {
+  detailSplitText: {
     color: '#2563eb',
-    fontSize: 9,
-    fontFamily: Fonts.black,
+    fontSize: 11,
+    fontFamily: Fonts.bold,
   },
 });
