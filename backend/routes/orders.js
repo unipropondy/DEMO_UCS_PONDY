@@ -280,13 +280,13 @@ async function syncToProfessionalTables(transaction, tableId, displayOrderId, it
           Description = @${p_name}, DishName = @${p_name}, ModifiedBy = @userId, ModifiedOn = GETDATE(), 
           ModifiersJSON = @${p_mods}, OrderNumber = @orderNo, Remarks = @${p_note}, isTakeAway = @${p_tw},
           DiscountAmount = @${p_disc}, DiscountType = CASE WHEN @${p_disc} > 0 THEN 'percentage' ELSE NULL END,
-          CreatedOn = ISNULL(CreatedOn, @${p_created})
+          CreatedOn = CASE WHEN StatusCode = 1 AND @${p_status} = 2 THEN GETDATE() ELSE ISNULL(CreatedOn, @${p_created}) END
         WHERE OrderDetailId = @${p_id};
       END
       ELSE
       BEGIN
         INSERT INTO RestaurantOrderDetailCur (OrderDetailId, OrderId, DishId, Description, DishName, Quantity, PricePerUnit, ActualAmount, TotalDetailLineAmount, StatusCode, CreatedBy, CreatedOn, ModifiersJSON, OrderNumber, Remarks, isTakeAway, BusinessUnitId, OrderDateTime, DiscountAmount, DiscountType)
-        VALUES (@${p_id}, @orderId, @${p_dish}, @${p_name}, @${p_name}, @${p_qty}, @${p_cost}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_status}, @userId, @${p_created}, @${p_mods}, @orderNo, @${p_note}, @${p_tw}, @bizId, GETDATE(), @${p_disc}, CASE WHEN @${p_disc} > 0 THEN 'percentage' ELSE NULL END);
+        VALUES (@${p_id}, @orderId, @${p_dish}, @${p_name}, @${p_name}, @${p_qty}, @${p_cost}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_status}, @userId, CASE WHEN @${p_status} = 2 THEN GETDATE() ELSE @${p_created} END, @${p_mods}, @orderNo, @${p_note}, @${p_tw}, @bizId, GETDATE(), @${p_disc}, CASE WHEN @${p_disc} > 0 THEN 'percentage' ELSE NULL END);
       END
 
       -- Sync Modifiers for Item ${idx}
@@ -1086,9 +1086,9 @@ router.get("/active-kitchen", async (req, res) => {
       LEFT JOIN PrintMaster pm ON CAST(ckt.KitchenTypeCode AS VARCHAR(50)) = CAST(pm.KitchenTypeValue AS VARCHAR(50))
       LEFT JOIN TableMaster tm ON h.Tableno = tm.TableNumber
       WHERE (h.isOrderClosed = 0 OR h.isOrderClosed IS NULL)
-      -- 🚀 FIX: Include NEW (1), SENT (2), READY (3), SERVED (4), HOLD (5) items for Merge Bill to work
+      -- 🚀 FIX: Include SENT (2), READY (3), SERVED (4), HOLD (5) items for Merge Bill to work
       -- Also include recently voided items (StatusCode 0) within last 3 minutes for sync consistency
-      AND (d.StatusCode IN (1,2,3,4,5) OR (d.StatusCode = 0 AND DATEDIFF(MINUTE, d.ModifiedOn, GETDATE()) < 3))
+      AND (d.StatusCode IN (2,3,4,5) OR (d.StatusCode = 0 AND DATEDIFF(MINUTE, d.ModifiedOn, GETDATE()) < 3))
       AND h.OrderNumber IS NOT NULL
       AND h.OrderNumber NOT LIKE 'TEMP-%'
       AND h.OrderNumber NOT IN ('PENDING', 'NEW', '#NEW', '')

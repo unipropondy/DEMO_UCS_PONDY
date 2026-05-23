@@ -304,8 +304,8 @@ export default function KDSScreen() {
       // Add items that are not SERVED or are recently READY
       order.items.forEach((i: any) => {
         let shouldShow = false;
-        // 🚀 SHOW ALL ACTIVE STATUSES (Including NEW)
-        if (i.status === "NEW" || i.status === "SENT" || i.status === "VOIDED") shouldShow = true;
+        // 🚀 SHOW ONLY SENT or VOIDED ACTIVE STATUSES (Exclude NEW / drafts)
+        if (i.status === "SENT" || i.status === "VOIDED") shouldShow = true;
         if (i.status === "READY" && i.readyAt) {
           shouldShow = (time - i.readyAt < 60000); // Stay for 60 seconds (extended)
         }
