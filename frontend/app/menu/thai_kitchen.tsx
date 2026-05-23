@@ -1395,12 +1395,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   catPillActive: {
-    backgroundColor: Theme.primary,
-    borderColor: Theme.primary,
+    backgroundColor: "rgba(249, 115, 22, 0.15)",
+    borderColor: "rgba(249, 115, 22, 0.45)",
+    borderWidth: 1.5,
     ...Theme.shadowSm,
   },
   catText: { fontSize: 14, fontFamily: Fonts.bold, color: Theme.textSecondary },
-  catTextActive: { color: "#fff" },
+  catTextActive: { color: Theme.primary },
   groupScroll: { gap: 8 },
   groupPill: {
     paddingHorizontal: 16,
