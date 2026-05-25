@@ -427,6 +427,13 @@ class SunmiPrinterService {
         await this.left(`${item.name}`);
         await SunmiModule.lineWrap(1);
 
+        const isTw = !!(item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway);
+        if (isTw) {
+          await setSize(28);
+          await this.left(`  - TAKEAWAY`);
+          await SunmiModule.lineWrap(1);
+        }
+
         // Modifiers (Normal)
         if (item.modifiers && item.modifiers.length > 0) {
           await setSize(24);

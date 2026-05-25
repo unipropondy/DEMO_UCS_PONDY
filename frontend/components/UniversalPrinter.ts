@@ -504,6 +504,11 @@ static async printSalesReport(reportData: any, userId?: string | number, t?: any
                     <div class="item-qty">${item.quantity || item.qty || 1}</div>
                     <div class="item-name">${item.name}</div>
                   </div>
+                  ${(item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway) ? `
+                    <div class="modifier-list">
+                      <span class="modifier-item" style="font-weight: bold;">- TAKEAWAY</span>
+                    </div>
+                  ` : ''}
                   ${(item.modifiers && item.modifiers.length > 0) ? `
                     <div class="modifier-list">
                       ${item.modifiers.map((m: any) => `
@@ -555,8 +560,13 @@ static async printSalesReport(reportData: any, userId?: string | number, t?: any
       const qtyNum = item.quantity || item.qty || 1;
       const itemName = item.name || item.DishName || '';
       
-      // 🚀 Square brackets [1] make quantity very clear and avoid alignment drift
+       // 🚀 Square brackets [1] make quantity very clear and avoid alignment drift
       text += `[L]<font size='big'>[${qtyNum}] ${itemName}</font>\n`;
+      
+      const isTw = !!(item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway);
+      if (isTw) {
+        text += `[L]    - TAKEAWAY\n`;
+      }
       
       if (item.modifiers && item.modifiers.length > 0) {
         item.modifiers.forEach((m: any) => {
