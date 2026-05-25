@@ -79,7 +79,9 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
         
         // Get outlet ID for multi-outlet
         const outletId = await AsyncStorage.getItem('selectedOutletId');
-        const targetId = outletId || userId;
+        const cleanOutletId = (outletId && outletId !== 'undefined' && outletId !== 'null') ? outletId : null;
+        const cleanUserId = (userId && String(userId) !== 'undefined' && String(userId) !== 'null') ? String(userId) : '1';
+        const targetId = cleanOutletId || cleanUserId;
         
         // Add timestamp to prevent caching
         const timestamp = Date.now();
