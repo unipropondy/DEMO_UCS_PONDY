@@ -741,13 +741,13 @@ const CartItemRow = React.memo(
                 </View>
               )}
               <View style={{ flex: 1 }} />
-              <View style={[styles.priceContainer, { alignItems: "flex-end" }]}>
+              <View style={[styles.priceContainer, { alignItems: "center" }]}>
                 {(Number(item.discountAmount ?? item.discount ?? 0)) > 0 && (
                   <View
                     style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 4,
+                      flexDirection: "column",
+                      alignItems: "flex-end",
+                      gap: 2,
                     }}
                   >
                     <Text
@@ -787,7 +787,7 @@ const CartItemRow = React.memo(
                     styles.itemPrice,
                     (isSent || isVoided) && styles.textMuted,
                     isVoided && styles.strikeThrough,
-                    isPhone && { fontSize: 14 },
+                    isPhone && { fontSize: 14, minWidth: 0 },
                   ]}
                 >
                   ${((item.price || 0) * item.qty - (
