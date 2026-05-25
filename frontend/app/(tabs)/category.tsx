@@ -402,17 +402,25 @@ export default function Category() {
   // ——— Route guard: redirect to login if not authenticated ———
   useFocusEffect(
     React.useCallback(() => {
-      if (!user) {
+      const { user: currentUser, loginDate, logout } = useAuthStore.getState();
+      if (!currentUser) {
+        router.replace("/login");
+        return;
+      }
+
+      const currentDate = new Date().toISOString().split("T")[0];
+      if (loginDate && currentDate !== loginDate) {
+        logout();
         router.replace("/login");
         return;
       }
 
       // ✅ KDS Guard: Prevent KDS role from accessing table selection
-      if (user.role === "KDS") {
+      if (currentUser.role === "KDS") {
         router.replace("/kds" as any);
         return;
       }
-    }, [user]),
+    }, []),
   );
 
   useEffect(() => {

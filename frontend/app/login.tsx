@@ -58,15 +58,20 @@ export default function LoginScreen() {
   useFocusEffect(
     useCallback(() => {
       // ✅ Check if already logged in and redirect
-      const user = useAuthStore.getState().user;
+      const { user, loginDate, logout } = useAuthStore.getState();
       if (user) {
-        const userName = (user.userName || "").trim().toUpperCase();
-        if (userName === "KDS") {
-          router.replace("/kds" as any);
+        const currentDate = new Date().toISOString().split("T")[0];
+        if (loginDate && currentDate !== loginDate) {
+          logout();
         } else {
-          router.replace("/(tabs)/category");
+          const userName = (user.userName || "").trim().toUpperCase();
+          if (userName === "KDS") {
+            router.replace("/kds" as any);
+          } else {
+            router.replace("/(tabs)/category");
+          }
+          return;
         }
-        return;
       }
 
       // Reset state on focus

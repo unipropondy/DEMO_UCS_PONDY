@@ -56,14 +56,15 @@ export const FORM_CODES = {
   DAILY_END:    "OPRDED",  // Daily End
 } as const;
 
-type AuthState = {
+export type AuthState = {
   user: AuthUser | null;
   isLoggedIn: boolean;
+  loginDate: string | null;
   permissions: PermissionsMap;
   permissionsLoaded: boolean;
   token: string | null;
 
-  setUser: (user: AuthUser, token?: string) => void;
+  setUser: (user: AuthUser, token?: string, loginDate?: string | null) => void;
   setPermissions: (permissions: PermissionsMap) => void;
   logout: () => void;
 
@@ -91,6 +92,7 @@ type AuthState = {
   isSupervisor: () => boolean;
   isCashier: () => boolean;
   isWaiter: () => boolean;
+  isKDS: () => boolean;
 };
 
 /* ================= STORE ================= */
@@ -100,15 +102,30 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       isLoggedIn: false,
+      loginDate: null,
       permissions: {},
       permissionsLoaded: false,
       token: null,
 
-      setUser: (user, token) => set({ user, token: token || null, isLoggedIn: true }),
+      setUser: (user, token, loginDate) =>
+        set({
+          user,
+          token: token || null,
+          isLoggedIn: true,
+          loginDate: loginDate || new Date().toISOString().split("T")[0],
+        }),
 
       setPermissions: (permissions) => set({ permissions, permissionsLoaded: true }),
 
-      logout: () => set({ user: null, token: null, isLoggedIn: false, permissions: {}, permissionsLoaded: false }),
+      logout: () =>
+        set({
+          user: null,
+          token: null,
+          isLoggedIn: false,
+          permissions: {},
+          permissionsLoaded: false,
+          loginDate: null,
+        }),
 
       /* ─── Low-level: check if user can READ a given FormCode ─── */
       can: (formCode) => {
@@ -168,6 +185,7 @@ export const useAuthStore = create<AuthState>()(
         permissions: state.permissions,
         permissionsLoaded: state.permissionsLoaded,
         token: state.token,
+        loginDate: state.loginDate,
       }),
     }
   )
