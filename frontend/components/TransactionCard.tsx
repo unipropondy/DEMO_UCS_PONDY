@@ -30,12 +30,12 @@ const TransactionCard = React.memo(
           item.DiscountAmount > 0 && {
             borderColor: Theme.success,
             borderWidth: 1.2,
-            backgroundColor: Theme.success + "15",
+            backgroundColor: Theme.successBg,
           },
           (item.VoidAmount > 0 || item.IsCancelled) && {
             borderColor: Theme.danger,
             borderWidth: 1.2,
-            backgroundColor: Theme.danger + "08",
+            backgroundColor: Theme.dangerBg,
           },
         ]}
       >

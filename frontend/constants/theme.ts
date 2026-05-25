@@ -8,7 +8,7 @@ export const Theme = {
   // ── Primary Brand ──
   primary: '#F97316',
   primaryDark: '#C2500A',
-  primaryLight: 'rgba(249,115,22,0.12)',
+  primaryLight: '#FFF4EC',
   primaryBorder: 'rgba(249,115,22,0.35)',
 
   // ── Backgrounds ──
@@ -62,19 +62,19 @@ export const Theme = {
 
   // ── Semantic Status Colors (kept for table grid) ──
   success: '#22C55E',
-  successBg: 'rgba(34,197,94,0.12)',
+  successBg: '#F0FDF4',
   successBorder: 'rgba(34,197,94,0.35)',
 
   warning: '#F59E0B',
-  warningBg: 'rgba(245,158,11,0.12)',
+  warningBg: '#FFFBEB',
   warningBorder: 'rgba(245,158,11,0.35)',
 
   danger: '#EF4444',
-  dangerBg: 'rgba(239,68,68,0.12)',
+  dangerBg: '#FEF2F2',
   dangerBorder: 'rgba(239,68,68,0.35)',
 
   info: '#3B82F6',
-  infoBg: 'rgba(59,130,246,0.12)',
+  infoBg: '#F0F9FF',
   infoBorder: 'rgba(59,130,246,0.35)',
 
   // ── Table status backgrounds (light versions) ──

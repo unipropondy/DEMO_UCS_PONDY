@@ -1395,8 +1395,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   catPillActive: {
-    backgroundColor: "rgba(249, 115, 22, 0.15)",
-    borderColor: "rgba(249, 115, 22, 0.45)",
+    backgroundColor: Theme.primaryLight,
+    borderColor: Theme.primary,
     borderWidth: 1.5,
     ...Theme.shadowSm,
   },
