@@ -176,17 +176,20 @@ export default function CompanySettingsScreen() {
         {
           id: 0,
           ip: cashierIp,
-          type: 1
+          type: 1,
+          name: 'Receipt Printer'
         },
         {
           id: 6,
           ip: takeawayIp,
-          type: 3
+          type: 3,
+          name: 'TakeAway'
         },
         ...kitchenPrinters.map(kp => ({
           id: kp.KitchenTypeValue,
           ip: kp.PrinterPath,
           type: 2,
+          name: kp.KitchenTypeName,
           printerId: kp.PrinterId
         }))
       ];

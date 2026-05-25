@@ -89,10 +89,70 @@ router.get("/kitchen-printers", async (req, res) => {
       `);
     }
 
-    const result = await pool.request().query(
-      "SELECT PrinterId, KitchenTypeValue, KitchenTypeName, PrinterPath, PrinterType FROM PrintMaster WHERE IsActive = 1"
+    // 3. Fetch active categories (matching menu.js kitchens endpoint structure)
+    const activeCatsResult = await pool.request().query(`
+      SELECT cm.CategoryId, cm.CategoryName AS KitchenTypeName, ckt.KitchenTypeCode
+      FROM CategoryMaster cm
+      LEFT JOIN CategoryKitchenType ckt ON cm.CategoryId = ckt.CategoryId
+      WHERE cm.IsActive = 1
+    `);
+    const rawActiveCats = activeCatsResult.recordset;
+
+    // Filter out TEST categories/kitchens (same as menuStore)
+    const activeCats = rawActiveCats.filter(
+      k => k.KitchenTypeName && !k.KitchenTypeName.toUpperCase().includes("TEST")
     );
-    res.json(result.recordset);
+
+    // 4. Fetch all active printers from PrintMaster
+    const printersResult = await pool.request().query(`
+      SELECT PrinterId, KitchenTypeValue, KitchenTypeName, PrinterPath, PrinterType 
+      FROM PrintMaster 
+      WHERE IsActive = 1
+    `);
+    const allPrinters = printersResult.recordset;
+
+    const responsePrinters = [];
+
+    // Add Cashier printer (PrinterType = 1)
+    const cashierPrinter = allPrinters.find(p => p.PrinterType === 1);
+    if (cashierPrinter) responsePrinters.push(cashierPrinter);
+
+    // Add TakeAway printer (PrinterType = 3)
+    const takeawayPrinter = allPrinters.find(p => p.PrinterType === 3);
+    if (takeawayPrinter) responsePrinters.push(takeawayPrinter);
+
+    // Map active categories to kitchen printers (PrinterType = 2)
+    const seenCodes = new Set();
+    for (const cat of activeCats) {
+      // Default to code 2 (Indian) if no KitchenTypeCode is mapped in ckt (same as dishes query default)
+      const code = parseInt(cat.KitchenTypeCode || '2');
+      
+      // Deduplicate on KitchenTypeValue so each printer code only has one configuration input
+      if (seenCodes.has(code)) continue;
+      seenCodes.add(code);
+
+      const match = allPrinters.find(p => p.PrinterType === 2 && p.KitchenTypeValue === code);
+      if (match) {
+        responsePrinters.push({
+          PrinterId: match.PrinterId,
+          KitchenTypeValue: code,
+          KitchenTypeName: cat.KitchenTypeName,
+          PrinterPath: match.PrinterPath,
+          PrinterType: 2
+        });
+      } else {
+        // Virtual record for missing printer
+        responsePrinters.push({
+          PrinterId: null, // Indicates it needs to be inserted on save
+          KitchenTypeValue: code,
+          KitchenTypeName: cat.KitchenTypeName,
+          PrinterPath: "",
+          PrinterType: 2
+        });
+      }
+    }
+
+    res.json(responsePrinters);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -101,28 +161,51 @@ router.get("/kitchen-printers", async (req, res) => {
 // 🔹 UPDATE Kitchen Printers
 router.post("/kitchen-printers/update", async (req, res) => {
   try {
-    const { printers } = req.body; // Array of { id: KitchenTypeValue or PrinterId, ip: PrinterPath, type: PrinterType, printerId?: string }
+    const { printers } = req.body; // Array of { id, ip, type, name, printerId }
     const pool = await poolPromise;
 
     for (const printer of printers) {
       const targetId = printer.printerId || printer.id;
       const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(targetId));
 
-      const request = pool.request()
-        .input("ip", sql.NVarChar, printer.ip);
-
       if (isGuid) {
-        await request
+        // Existing printer: update path and name
+        await pool.request()
           .input("printerId", sql.UniqueIdentifier, targetId)
-          .query("UPDATE PrintMaster SET PrinterPath = @ip, PrinterIP = @ip WHERE PrinterId = @printerId");
+          .input("ip", sql.NVarChar, printer.ip)
+          .input("name", sql.NVarChar, printer.name || "Kitchen Printer")
+          .query(`
+            UPDATE PrintMaster 
+            SET PrinterPath = @ip, PrinterIP = @ip, KitchenTypeName = @name, PrinterName = @name 
+            WHERE PrinterId = @printerId
+          `);
+      } else if (printer.type === 2) {
+        // New/Virtual kitchen printer: insert it!
+        await pool.request()
+          .input("name", sql.NVarChar, printer.name || "Kitchen Printer")
+          .input("ip", sql.NVarChar, printer.ip || "192.168.0.20")
+          .input("code", sql.Int, parseInt(printer.id))
+          .query(`
+            INSERT INTO PrintMaster (
+              PrinterId, PrinterName, PrinterPath, PrinterIP, 
+              PrinterType, PrintSection, KitchenTypeName, 
+              KitchenTypeValue, IsActive, PrintCopy
+            )
+            VALUES (
+              NEWID(), @name, @ip, @ip, 
+              2, 1, @name, 
+              @code, 1, 1
+            )
+          `);
       } else {
-        await request
-          .input("kitchenVal", sql.Int, parseInt(targetId))
-          .input("type", sql.Int, printer.type || 2)
-          .query("UPDATE PrintMaster SET PrinterPath = @ip, PrinterIP = @ip WHERE KitchenTypeValue = @kitchenVal AND PrinterType = @type");
+        // Cashier or Takeaway fallback by type
+        await pool.request()
+          .input("ip", sql.NVarChar, printer.ip)
+          .input("type", sql.Int, printer.type)
+          .query("UPDATE PrintMaster SET PrinterPath = @ip, PrinterIP = @ip WHERE PrinterType = @type");
       }
 
-      // Sync to CompanySettings table if it's the Cashier printer (PrinterType = 1)
+      // Sync to CompanySettings table if it's the Cashier printer
       if (printer.type === 1 || parseInt(printer.id) === 0) {
         await pool.request()
           .input("ip", sql.NVarChar, printer.ip)
