@@ -168,11 +168,13 @@ router.post("/kitchen-printers/update", async (req, res) => {
       const targetId = printer.printerId || printer.id;
       const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(targetId));
 
+      const printerIp = printer.ip || "";
+
       if (isGuid) {
         // Existing printer: update path and name
         await pool.request()
           .input("printerId", sql.UniqueIdentifier, targetId)
-          .input("ip", sql.NVarChar, printer.ip)
+          .input("ip", sql.NVarChar, printerIp)
           .input("name", sql.NVarChar, printer.name || "Kitchen Printer")
           .query(`
             UPDATE PrintMaster 
@@ -183,7 +185,7 @@ router.post("/kitchen-printers/update", async (req, res) => {
         // New/Virtual kitchen printer: insert it!
         await pool.request()
           .input("name", sql.NVarChar, printer.name || "Kitchen Printer")
-          .input("ip", sql.NVarChar, printer.ip || "192.168.0.20")
+          .input("ip", sql.NVarChar, printerIp || "192.168.0.20")
           .input("code", sql.Int, parseInt(printer.id))
           .query(`
             INSERT INTO PrintMaster (
@@ -200,7 +202,7 @@ router.post("/kitchen-printers/update", async (req, res) => {
       } else {
         // Cashier or Takeaway fallback by type
         await pool.request()
-          .input("ip", sql.NVarChar, printer.ip)
+          .input("ip", sql.NVarChar, printerIp)
           .input("type", sql.Int, printer.type)
           .query("UPDATE PrintMaster SET PrinterPath = @ip, PrinterIP = @ip WHERE PrinterType = @type");
       }
@@ -208,7 +210,7 @@ router.post("/kitchen-printers/update", async (req, res) => {
       // Sync to CompanySettings table if it's the Cashier printer
       if (printer.type === 1 || parseInt(printer.id) === 0) {
         await pool.request()
-          .input("ip", sql.NVarChar, printer.ip)
+          .input("ip", sql.NVarChar, printerIp)
           .query("UPDATE CompanySettings SET PrinterIP = @ip");
       }
     }

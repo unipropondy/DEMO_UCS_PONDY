@@ -167,7 +167,9 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
         
         // ✅ CRITICAL FIX: Get outlet ID for multi-outlet support
         const outletId = await AsyncStorage.getItem('selectedOutletId');
-        const targetId = outletId || userId;
+        const cleanOutletId = (outletId && outletId !== 'undefined' && outletId !== 'null') ? outletId : null;
+        const cleanUserId = (userId && String(userId) !== 'undefined' && String(userId) !== 'null') ? String(userId) : '1';
+        const targetId = cleanOutletId || cleanUserId;
         
         console.log(`💾 SAVING SETTINGS TO BACKEND for target: ${targetId} (outlet: ${outletId || 'none'})`, {
             showCompanyLogo: settings.showCompanyLogo ? 1 : 0,

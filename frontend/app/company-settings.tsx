@@ -46,8 +46,10 @@ export default function CompanySettingsScreen() {
     const load = async () => {
       // ✅ CONSISTENT ID LOGIC: Match BillPDFGenerator
       const outletId = await AsyncStorage.getItem('selectedOutletId');
-      const storedUserId = await AsyncStorage.getItem('userId') || '1';
-      const targetId = outletId || storedUserId;
+      const storedUserId = await AsyncStorage.getItem('userId');
+      const cleanOutletId = (outletId && outletId !== 'undefined' && outletId !== 'null') ? outletId : null;
+      const cleanUserId = (storedUserId && storedUserId !== 'undefined' && storedUserId !== 'null') ? storedUserId : '1';
+      const targetId = cleanOutletId || cleanUserId;
       
       setUserId(targetId);
       await fetchSettings(targetId);
@@ -163,8 +165,10 @@ export default function CompanySettingsScreen() {
   const handleSave = async () => {
     // ✅ CONSISTENT ID LOGIC: Match BillPDFGenerator
     const outletId = await AsyncStorage.getItem('selectedOutletId');
-    const storedUserId = await AsyncStorage.getItem('userId') || '1';
-    const targetId = outletId || storedUserId;
+    const storedUserId = await AsyncStorage.getItem('userId');
+    const cleanOutletId = (outletId && outletId !== 'undefined' && outletId !== 'null') ? outletId : null;
+    const cleanUserId = (storedUserId && storedUserId !== 'undefined' && storedUserId !== 'null') ? storedUserId : '1';
+    const targetId = cleanOutletId || cleanUserId;
 
     if (!targetId) return;
     setSaving(true);
@@ -204,10 +208,12 @@ export default function CompanySettingsScreen() {
       if (success && printerUpdateResponse.ok) {
         showToast({ type: 'success', message: 'All settings saved successfully' });
       } else {
-        throw new Error('Save failed');
+        const errorMsg = !success ? 'Company settings save failed' : 'Printer routing save failed';
+        throw new Error(errorMsg);
       }
-    } catch (error) {
-      showToast({ type: 'error', message: 'Failed to save settings' });
+    } catch (error: any) {
+      console.error("❌ Save settings error:", error);
+      showToast({ type: 'error', message: `Failed to save settings: ${error.message || error}` });
     } finally {
       setSaving(false);
     }
