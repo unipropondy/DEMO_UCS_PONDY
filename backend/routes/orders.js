@@ -564,7 +564,7 @@ router.post("/send", async (req, res) => {
             LEFT JOIN CategoryKitchenType ckt ON dgm.CategoryId = ckt.CategoryId
             LEFT JOIN (
               SELECT *, ROW_NUMBER() OVER(PARTITION BY KitchenTypeValue ORDER BY PrinterId) as rn 
-              FROM PrintMaster WHERE IsActive = 1
+              FROM PrintMaster WHERE IsActive = 1 AND PrinterType = 2
             ) pm ON CAST(ckt.KitchenTypeCode AS VARCHAR(50)) = CAST(pm.KitchenTypeValue AS VARCHAR(50)) AND pm.rn = 1
             WHERE (h.Tableno = (SELECT TableNumber FROM TableMaster WHERE TableId = @tableNo)
               OR h.Tableno = @tableNo) 
@@ -686,7 +686,7 @@ router.get("/cart/:tableId", async (req, res) => {
         LEFT JOIN CategoryKitchenType ckt ON dgm.CategoryId = ckt.CategoryId
         LEFT JOIN (
           SELECT *, ROW_NUMBER() OVER(PARTITION BY KitchenTypeValue ORDER BY PrinterId) as rn 
-          FROM PrintMaster WHERE IsActive = 1
+          FROM PrintMaster WHERE IsActive = 1 AND PrinterType = 2
         ) pm ON CAST(ckt.KitchenTypeCode AS VARCHAR(50)) = CAST(pm.KitchenTypeValue AS VARCHAR(50)) AND pm.rn = 1
         WHERE 
           h.isOrderClosed = 0
@@ -1083,7 +1083,10 @@ router.get("/active-kitchen", async (req, res) => {
       LEFT JOIN DishGroupMaster dgm ON dish.DishGroupId = dgm.DishGroupId
       LEFT JOIN CategoryMaster cat ON dgm.CategoryId = cat.CategoryId
       LEFT JOIN CategoryKitchenType ckt ON dgm.CategoryId = ckt.CategoryId
-      LEFT JOIN PrintMaster pm ON CAST(ckt.KitchenTypeCode AS VARCHAR(50)) = CAST(pm.KitchenTypeValue AS VARCHAR(50))
+      LEFT JOIN (
+        SELECT *, ROW_NUMBER() OVER(PARTITION BY KitchenTypeValue ORDER BY PrinterId) as rn
+        FROM PrintMaster WHERE IsActive = 1 AND PrinterType = 2
+      ) pm ON CAST(ckt.KitchenTypeCode AS VARCHAR(50)) = CAST(pm.KitchenTypeValue AS VARCHAR(50)) AND pm.rn = 1
       LEFT JOIN TableMaster tm ON h.Tableno = tm.TableNumber
       WHERE (h.isOrderClosed = 0 OR h.isOrderClosed IS NULL)
       -- 🚀 FIX: Include SENT (2), READY (3), SERVED (4), HOLD (5) items for Merge Bill to work

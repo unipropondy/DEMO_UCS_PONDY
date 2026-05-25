@@ -30,6 +30,8 @@ export default function CompanySettingsScreen() {
   const [userId, setUserId] = useState('1');
   const [saving, setSaving] = useState(false);
   const [kitchenPrinters, setKitchenPrinters] = useState<any[]>([]);
+  const [cashierIp, setCashierIp] = useState('');
+  const [takeawayIp, setTakeawayIp] = useState('');
   const [loadingKitchens, setLoadingKitchens] = useState(false);
   const [showAddPrinterModal, setShowAddPrinterModal] = useState(false);
   const [newPrinterName, setNewPrinterName] = useState('');
@@ -60,11 +62,24 @@ export default function CompanySettingsScreen() {
       const response = await fetch(`${API_URL}/api/settings/kitchen-printers`);
       const data = await response.json();
       if (Array.isArray(data)) {
-        // 🟢 Deduplicate by KitchenTypeValue
-        const uniquePrinters = data.filter((item, index, self) =>
+        // Find Cashier printer (PrinterType = 1)
+        const cashier = data.find(p => p.PrinterType === 1);
+        if (cashier) {
+          setCashierIp(cashier.PrinterPath || '');
+        }
+
+        // Find Takeaway printer (PrinterType = 3)
+        const takeaway = data.find(p => p.PrinterType === 3);
+        if (takeaway) {
+          setTakeawayIp(takeaway.PrinterPath || '');
+        }
+
+        // Filter and Deduplicate Kitchen printers (PrinterType = 2)
+        const kitchens = data.filter(p => p.PrinterType === 2);
+        const uniqueKitchens = kitchens.filter((item, index, self) =>
           index === self.findIndex(p => p.KitchenTypeValue === item.KitchenTypeValue)
         );
-        setKitchenPrinters(uniquePrinters);
+        setKitchenPrinters(uniqueKitchens);
       }
     } catch (error) {
       console.error('Failed to fetch kitchen printers:', error);
@@ -156,16 +171,31 @@ export default function CompanySettingsScreen() {
     try {
       const success = await BillPDFGenerator.saveSettings(settings, targetId);
       
-      // ✅ Also save Kitchen Printers
+      // Build payload for all printers in PrintMaster
+      const printersPayload = [
+        {
+          id: 0,
+          ip: cashierIp,
+          type: 1
+        },
+        {
+          id: 6,
+          ip: takeawayIp,
+          type: 3
+        },
+        ...kitchenPrinters.map(kp => ({
+          id: kp.KitchenTypeValue,
+          ip: kp.PrinterPath,
+          type: 2,
+          printerId: kp.PrinterId
+        }))
+      ];
+
+      // ✅ Save Kitchen, Cashier, and Takeaway Printers
       const printerUpdateResponse = await fetch(`${API_URL}/api/settings/kitchen-printers/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          printers: kitchenPrinters.map(kp => ({
-            id: kp.KitchenTypeValue,
-            ip: kp.PrinterPath
-          }))
-        })
+        body: JSON.stringify({ printers: printersPayload })
       });
 
       if (success && printerUpdateResponse.ok) {
@@ -455,14 +485,32 @@ export default function CompanySettingsScreen() {
               <Text style={styles.inputLabel}>Cashier / Receipt Printer IP</Text>
               <TextInput 
                 style={styles.input}
-                value={settings.printerIp}
-                onChangeText={(val) => { updateSettings({ printerIp: val }); }}
+                value={cashierIp}
+                onChangeText={(val) => {
+                  setCashierIp(val);
+                  updateSettings({ printerIp: val });
+                }}
                 placeholder="e.g. 192.168.1.100"
                 placeholderTextColor={Theme.textMuted}
                 keyboardType="numeric"
               />
               <Text style={[styles.note, { textAlign: 'left', marginTop: 5 }]}>
                 Used for printing Payment Receipts and Checkout Bills at the cashier counter.
+              </Text>
+            </View>
+
+            <View style={{ marginTop: 15 }}>
+              <Text style={styles.inputLabel}>TakeAway Printer IP</Text>
+              <TextInput 
+                style={styles.input}
+                value={takeawayIp}
+                onChangeText={setTakeawayIp}
+                placeholder="e.g. 192.168.1.102"
+                placeholderTextColor={Theme.textMuted}
+                keyboardType="numeric"
+              />
+              <Text style={[styles.note, { textAlign: 'left', marginTop: 5 }]}>
+                Used for printing Takeaway receipts and dockets.
               </Text>
             </View>
           </View>
@@ -523,13 +571,6 @@ export default function CompanySettingsScreen() {
           <View style={styles.section}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Smart Kitchen Routing</Text>
-              <TouchableOpacity 
-                style={styles.addPrinterBtn} 
-                onPress={() => setShowAddPrinterModal(true)}
-              >
-                <Ionicons name="add-circle-outline" size={24} color={Theme.primary} />
-                <Text style={styles.addPrinterText}>Add New</Text>
-              </TouchableOpacity>
             </View>
 
             {loadingKitchens ? (
@@ -539,11 +580,6 @@ export default function CompanySettingsScreen() {
                 <View key={printer.KitchenTypeValue} style={styles.inputGroup}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={styles.inputLabel}>{printer.KitchenTypeName} Printer IP</Text>
-                    {printer.KitchenTypeValue !== 0 && (
-                      <TouchableOpacity onPress={() => handleDeletePrinter(printer.KitchenTypeValue, printer.KitchenTypeName)}>
-                        <Ionicons name="ellipsis-vertical" size={20} color={Theme.textMuted} />
-                      </TouchableOpacity>
-                    )}
                   </View>
                   <TextInput 
                     style={styles.input}

@@ -62,7 +62,36 @@ router.post("/update", async (req, res) => {
 router.get("/kitchen-printers", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const result = await pool.request().query("SELECT KitchenTypeValue, KitchenTypeName, PrinterPath FROM PrintMaster WHERE IsActive = 1");
+
+    // 1. Self-healing check for Cashier Printer (PrinterType = 1)
+    const cashierCheck = await pool.request()
+      .query("SELECT COUNT(*) as count FROM PrintMaster WHERE PrinterType = 1 AND IsActive = 1");
+    if (cashierCheck.recordset[0].count === 0) {
+      console.log("🛠️ Inserting default Cashier Printer row into PrintMaster...");
+      const compSettings = await pool.request().query("SELECT TOP 1 PrinterIP FROM CompanySettings");
+      const defaultIP = compSettings.recordset[0]?.PrinterIP || "192.168.0.20";
+      await pool.request()
+        .input("ip", sql.NVarChar, defaultIP)
+        .query(`
+          INSERT INTO PrintMaster (PrinterId, PrinterName, PrinterPath, PrinterIP, PrinterType, PrintSection, KitchenTypeName, KitchenTypeValue, IsActive, PrintCopy)
+          VALUES (NEWID(), 'Receipt Printer', @ip, @ip, 1, 1, 'Receipt Print', 0, 1, 1)
+        `);
+    }
+
+    // 2. Self-healing check for TakeAway Printer (PrinterType = 3)
+    const takeawayCheck = await pool.request()
+      .query("SELECT COUNT(*) as count FROM PrintMaster WHERE PrinterType = 3 AND IsActive = 1");
+    if (takeawayCheck.recordset[0].count === 0) {
+      console.log("🛠️ Inserting default TakeAway Printer row into PrintMaster...");
+      await pool.request().query(`
+        INSERT INTO PrintMaster (PrinterId, PrinterName, PrinterPath, PrinterIP, PrinterType, PrintSection, KitchenTypeName, KitchenTypeValue, IsActive, PrintCopy)
+        VALUES (NEWID(), 'TakeAway', '192.168.0.20', '192.168.0.20', 3, 1, 'TakeAway', 6, 1, 1)
+      `);
+    }
+
+    const result = await pool.request().query(
+      "SELECT PrinterId, KitchenTypeValue, KitchenTypeName, PrinterPath, PrinterType FROM PrintMaster WHERE IsActive = 1"
+    );
     res.json(result.recordset);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -72,17 +101,36 @@ router.get("/kitchen-printers", async (req, res) => {
 // 🔹 UPDATE Kitchen Printers
 router.post("/kitchen-printers/update", async (req, res) => {
   try {
-    const { printers } = req.body; // Array of { id: KitchenTypeValue, ip: PrinterPath }
+    const { printers } = req.body; // Array of { id: KitchenTypeValue or PrinterId, ip: PrinterPath, type: PrinterType, printerId?: string }
     const pool = await poolPromise;
 
     for (const printer of printers) {
-      await pool.request()
-        .input("id", sql.Int, printer.id)
-        .input("ip", sql.NVarChar, printer.ip)
-        .query("UPDATE PrintMaster SET PrinterPath = @ip WHERE KitchenTypeValue = @id");
+      const targetId = printer.printerId || printer.id;
+      const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(targetId));
+
+      const request = pool.request()
+        .input("ip", sql.NVarChar, printer.ip);
+
+      if (isGuid) {
+        await request
+          .input("printerId", sql.UniqueIdentifier, targetId)
+          .query("UPDATE PrintMaster SET PrinterPath = @ip, PrinterIP = @ip WHERE PrinterId = @printerId");
+      } else {
+        await request
+          .input("kitchenVal", sql.Int, parseInt(targetId))
+          .input("type", sql.Int, printer.type || 2)
+          .query("UPDATE PrintMaster SET PrinterPath = @ip, PrinterIP = @ip WHERE KitchenTypeValue = @kitchenVal AND PrinterType = @type");
+      }
+
+      // Sync to CompanySettings table if it's the Cashier printer (PrinterType = 1)
+      if (printer.type === 1 || parseInt(printer.id) === 0) {
+        await pool.request()
+          .input("ip", sql.NVarChar, printer.ip)
+          .query("UPDATE CompanySettings SET PrinterIP = @ip");
+      }
     }
 
-    res.json({ success: true, message: "Kitchen printers updated successfully" });
+    res.json({ success: true, message: "Printers updated successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

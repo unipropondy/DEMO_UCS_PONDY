@@ -595,13 +595,39 @@ static async smartPrint(
 ): Promise<boolean> {
   try {
     const company = await BillPDFGenerator.loadSettings(outletId);
+
+    // Load printer IPs dynamically from PrintMaster
+    let cashierIp = "";
+    let takeawayIp = "";
+    try {
+      const response = await fetch(`${API_URL}/api/settings/kitchen-printers`);
+      const printers = await response.json();
+      if (Array.isArray(printers)) {
+        const cashierPrinter = printers.find(p => p.PrinterType === 1);
+        const takeawayPrinter = printers.find(p => p.PrinterType === 3);
+        cashierIp = cashierPrinter?.PrinterPath || "";
+        takeawayIp = takeawayPrinter?.PrinterPath || "";
+      }
+    } catch (err) {
+      console.warn("Failed to fetch printer IPs from PrintMaster:", err);
+    }
+
+    // Determine target printer IP based on order type (Dine-in vs Takeaway)
+    const isTakeaway = !saleData.tableNo || String(saleData.tableNo).trim() === "" || String(saleData.tableNo).toUpperCase().startsWith("TW");
+    
+    let targetIp = "";
+    if (isTakeaway) {
+      targetIp = takeawayIp || cashierIp || company.printerIp || "";
+    } else {
+      targetIp = cashierIp || company.printerIp || "";
+    }
     
     // ✅ 1. Try WiFi Printer with 3s Timeout
-    if (company.printerIp && company.printerIp.trim().length > 0) {
-      console.log(`🌐 Trying WiFi: ${company.printerIp}`);
+    if (targetIp && targetIp.trim().length > 0) {
+      console.log(`🌐 Trying WiFi (${isTakeaway ? "TakeAway" : "Cashier"}): ${targetIp}`);
       try {
         const printPromise = this.printNetwork(saleData, outletId, { 
-          type: 'network', address: company.printerIp 
+          type: 'network', address: targetIp 
         } as any, discountInfo);
         
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('WiFi Timeout')), 3000));

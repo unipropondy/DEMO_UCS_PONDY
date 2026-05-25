@@ -96,6 +96,13 @@ router.post("/:id", async (req, res) => {
         END
       `);
 
+    // Synchronize to PrintMaster (Receipt Printer where PrinterType = 1)
+    if (s.PrinterIP) {
+      await pool.request()
+        .input("ip", sql.NVarChar, s.PrinterIP)
+        .query("UPDATE PrintMaster SET PrinterPath = @ip, PrinterIP = @ip WHERE PrinterType = 1");
+    }
+
     res.json({ success: true, message: "Settings saved successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
