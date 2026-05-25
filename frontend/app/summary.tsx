@@ -416,6 +416,11 @@ export default function SummaryScreen() {
     }
   };
 
+  const handleVoidItem = (item: any) => {
+    setItemToVoid(item);
+    setShowVoidModal(true);
+  };
+
   const handleSplitBill = () => {
     // Reset split quantities to 0 for all items in cart
     const initialSplit: Record<string, number> = {};
@@ -890,7 +895,14 @@ export default function SummaryScreen() {
                     </Text>
                   </View>
 
-                  {/* BIN BUTTON REMOVED FOR SECURITY DURING SUMMARY/PAYMENT */}
+                  {item.status !== "VOIDED" && (
+                    <TouchableOpacity
+                      style={styles.itemTrashBtn}
+                      onPress={() => handleVoidItem(item)}
+                    >
+                      <Ionicons name="trash-outline" size={18} color={Theme.danger} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
             />
