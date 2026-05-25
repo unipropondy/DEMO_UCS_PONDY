@@ -35,6 +35,7 @@ import {
   clearCart,
   useCartStore,
 } from "../stores/cartStore";
+import { CustomerDisplaySync } from "../utils/CustomerDisplaySync";
 import { useTableStatusStore } from "../stores/tableStatusStore";
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
 import { usePaymentSettingsStore } from "../stores/paymentSettingsStore";
@@ -142,6 +143,7 @@ export default function PaymentScreen() {
   const [roundType, setRoundType] = useState<"whole" | "five" | "ten" | "custom" | null>(null);
   const [isAdjustmentModalVisible, setIsAdjustmentModalVisible] = useState(false);
   const [customValue, setCustomValue] = useState("");
+  const [isTestModalVisible, setIsTestModalVisible] = useState(false);
 
   const finalItems = useMemo(() => {
     return splitItems || cart;
@@ -165,6 +167,26 @@ export default function PaymentScreen() {
     };
     init();
   }, []);
+
+  // 🖥️ CUSTOMER DISPLAY REAL-TIME SYNC
+  useEffect(() => {
+    if (context && finalItems.length > 0) {
+      CustomerDisplaySync.syncCart({
+        orderContext: context,
+        cart: finalItems,
+        discountInfo: discount,
+        gstPercentage: settingsStore.gstPercentage || 0,
+        roundOff: roundOff,
+        active: true,
+        orderId: displayOrderId
+      });
+    } else {
+      CustomerDisplaySync.syncIdle();
+    }
+    return () => {
+      CustomerDisplaySync.syncIdle();
+    };
+  }, [context, finalItems, discount, settingsStore.gstPercentage, roundOff, displayOrderId]);
 
   const fetchPaymentMethods = async () => {
     try {
@@ -400,6 +422,197 @@ export default function PaymentScreen() {
     }
   };
 
+  const getDisplayUrl = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      return window.location.origin + '/customer-display';
+    }
+    if (API_URL && API_URL.startsWith('http')) {
+      const match = API_URL.match(/^https?:\/\/([^:/]+)/);
+      if (match && match[1]) {
+        const host = match[1];
+        if (host.includes('railway') || host.includes('production')) {
+          return 'http://localhost:8081/customer-display';
+        }
+        return `http://${host}:8081/customer-display`;
+      }
+    }
+    return 'http://localhost:8081/customer-display';
+  };
+
+  const openCustomerDisplay = () => {
+    const url = getDisplayUrl();
+    if (Platform.OS === 'web') {
+      window.open(url, '_blank');
+    } else {
+      const { Linking } = require('react-native');
+      Linking.openURL(url).catch((err: any) => {
+        Alert.alert("Error", "Could not open browser: " + err.message);
+      });
+    }
+  };
+
+  const triggerTestSync = (type: 'current' | 'large_mock' | 'success' | 'idle') => {
+    if (type === 'current') {
+      if (context && finalItems.length > 0) {
+        CustomerDisplaySync.syncCart({
+          orderContext: context,
+          cart: finalItems,
+          discountInfo: discount,
+          gstPercentage: settingsStore.gstPercentage || 0,
+          roundOff: roundOff,
+          active: true,
+          orderId: displayOrderId
+        });
+        showToast({ type: "info", message: "Synced Current Cart", subtitle: "Sent checkout state to customer display" });
+      } else {
+        showToast({ type: "warning", message: "Cart is Empty", subtitle: "Cannot sync empty cart to checkout" });
+      }
+    } else if (type === 'large_mock') {
+      const mockItems = [
+        { id: "m1", name: "Premium Wagyu Beef Burger", qty: 2, price: 18.90, status: "SERVED", discountAmount: 10, discountType: "percentage" },
+        { id: "m2", name: "Truffle Parmesan Fries", qty: 1, price: 8.50, status: "SERVED" },
+        { id: "m3", name: "Classic Caesar Salad", qty: 1, price: 12.00, status: "SERVED", discountAmount: 2, discountType: "fixed" },
+        { id: "m4", name: "Craft IPA Beer Pint", qty: 3, price: 14.50, status: "SERVED" },
+        { id: "m5", name: "Salted Caramel Milkshake", qty: 1, price: 7.90, status: "SERVED" },
+        { id: "m6", name: "New York Cheesecake", qty: 2, price: 9.00, status: "SERVED" },
+        { id: "m7", name: "Espresso Macchiato", qty: 1, price: 4.50, status: "SERVED" },
+        { id: "m8", name: "Sparkling Mineral Water", qty: 2, price: 3.50, status: "SERVED" },
+      ];
+      CustomerDisplaySync.syncCart({
+        orderContext: {
+          tableNo: "T12",
+          orderType: "DINE_IN",
+          section: "Main Dining",
+          serverName: "Alex"
+        },
+        cart: mockItems,
+        discountInfo: { applied: true, type: "percentage", value: 10, label: "10% Grand Opening" },
+        gstPercentage: settingsStore.gstPercentage || 9,
+        roundOff: 0.05,
+        active: true,
+        orderId: "MOCK-889"
+      });
+      showToast({ type: "info", message: "Synced Mock Large Cart", subtitle: "Sent mock checkout state to customer display" });
+    } else if (type === 'success') {
+      CustomerDisplaySync.syncPaymentSuccess({
+        orderId: "BILL-2026-987",
+        total: 125.80,
+        paid: 150.00,
+        change: 24.20,
+        method: "CASH"
+      });
+      showToast({ type: "info", message: "Synced Payment Success", subtitle: "Sent payment success state to customer display" });
+    } else if (type === 'idle') {
+      CustomerDisplaySync.syncIdle();
+      showToast({ type: "info", message: "Synced Idle State", subtitle: "Customer display set to idle attract loop" });
+    }
+    setIsTestModalVisible(false);
+  };
+
+  const renderTestDisplayModal = () => (
+    <Modal visible={isTestModalVisible} transparent animationType="fade" onRequestClose={() => setIsTestModalVisible(false)}>
+      <TouchableWithoutFeedback onPress={() => setIsTestModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={[styles.adjustModalContent, { maxHeight: '90%' }]}>
+              <View style={styles.adjustModalHeader}>
+                <Text style={styles.adjustModalTitle}>Customer Display Tester</Text>
+                <TouchableOpacity onPress={() => setIsTestModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 10 }}>
+                <Text style={{ fontSize: 13, color: Theme.textSecondary, fontFamily: Fonts.medium, marginBottom: 16 }}>
+                  Simulate different screens on the customer display to test responsiveness, scrolling, and layouts.
+                </Text>
+                <View style={styles.adjustPresets}>
+                  <TouchableOpacity 
+                    style={styles.presetItem} 
+                    onPress={() => triggerTestSync('current')}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Ionicons name="cart-outline" size={20} color={Theme.primary} />
+                      <View>
+                        <Text style={styles.presetLabel}>Sync Current Cart</Text>
+                        <Text style={{ fontSize: 11, color: Theme.textMuted }}>Send active bill detail</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={Theme.textMuted} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.presetItem} 
+                    onPress={() => triggerTestSync('large_mock')}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Ionicons name="list-outline" size={20} color={Theme.primary} />
+                      <View>
+                        <Text style={styles.presetLabel}>Sync Mock Large Cart</Text>
+                        <Text style={{ fontSize: 11, color: Theme.textMuted }}>Test list scrolling & totals</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={Theme.textMuted} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.presetItem} 
+                    onPress={() => triggerTestSync('success')}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Ionicons name="checkmark-done-circle-outline" size={20} color={Theme.success || "#10B981"} />
+                      <View>
+                        <Text style={styles.presetLabel}>Sync Payment Success</Text>
+                        <Text style={{ fontSize: 11, color: Theme.textMuted }}>Test thank you & QR code</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={Theme.textMuted} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.presetItem} 
+                    onPress={() => triggerTestSync('idle')}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Ionicons name="images-outline" size={20} color={Theme.warning || "#F59E0B"} />
+                      <View>
+                        <Text style={styles.presetLabel}>Reset to Idle State</Text>
+                        <Text style={{ fontSize: 11, color: Theme.textMuted }}>Test attract animation loop</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={Theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.separator} />
+                
+                <View style={styles.linkSection}>
+                  <Text style={styles.linkTitle}>Test on Another Device</Text>
+                  <Text style={styles.linkSub}>Scan this QR code with your phone/tablet on the same Wi-Fi, or click the button below to view the customer screen.</Text>
+                  
+                  <View style={styles.qrContainer}>
+                    <QRCode
+                      value={getDisplayUrl()}
+                      size={120}
+                      color={Theme.textPrimary}
+                      backgroundColor="#fff"
+                    />
+                  </View>
+                  
+                  <Text style={styles.urlText} selectable>{getDisplayUrl()}</Text>
+                  
+                  <TouchableOpacity style={styles.openBtn} onPress={openCustomerDisplay} activeOpacity={0.7}>
+                    <Ionicons name="open-outline" size={16} color="#fff" />
+                    <Text style={styles.openBtnText}>Open Customer Display</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+
   const renderAdjustmentModal = () => (
     <Modal visible={isAdjustmentModalVisible} transparent animationType="fade" onRequestClose={() => setIsAdjustmentModalVisible(false)}>
       <TouchableWithoutFeedback onPress={() => setIsAdjustmentModalVisible(false)}>
@@ -477,7 +690,23 @@ export default function PaymentScreen() {
               <Text style={styles.orderSub}>#{displayOrderId || "NEW"}</Text>
             </View>
           </View>
-          <View style={{ width: 40 }} />
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity 
+              style={[styles.backBtn, { borderColor: Theme.primaryBorder }]} 
+              onPress={openCustomerDisplay}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="open-outline" size={20} color={Theme.primary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.backBtn, { borderColor: Theme.primaryBorder }]} 
+              onPress={() => setIsTestModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="desktop-outline" size={20} color={Theme.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
@@ -683,6 +912,7 @@ export default function PaymentScreen() {
       </View>
 
       {renderAdjustmentModal()}
+      {renderTestDisplayModal()}
       <UPIPaymentModal visible={isUPIVisible} onClose={() => setIsUPIVisible(false)} amount={total} onSuccess={() => executeFinalPayment()} />
       <PayNowPaymentModal visible={isPayNowVisible} onClose={() => setIsPayNowVisible(false)} amount={total} onSuccess={() => executeFinalPayment()} />
     </SafeAreaView>
@@ -812,5 +1042,63 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: Theme.danger,
     marginTop: 4,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: Theme.border,
+    marginVertical: 16,
+  },
+  linkSection: {
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  linkTitle: {
+    fontSize: 14,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+    marginBottom: 4,
+    alignSelf: 'flex-start',
+  },
+  linkSub: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    color: Theme.textSecondary,
+    marginBottom: 12,
+    alignSelf: 'flex-start',
+    lineHeight: 15,
+  },
+  qrContainer: {
+    padding: 10,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  urlText: {
+    fontSize: 11,
+    fontFamily: Fonts.bold,
+    color: Theme.primary,
+    marginBottom: 12,
+    textAlign: 'center',
+    paddingHorizontal: 10,
+  },
+  openBtn: {
+    backgroundColor: Theme.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    width: '100%',
+  },
+  openBtnText: {
+    color: '#fff',
+    fontFamily: Fonts.bold,
+    fontSize: 13,
   },
 });

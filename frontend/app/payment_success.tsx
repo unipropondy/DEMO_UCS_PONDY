@@ -15,6 +15,7 @@ import BillPrompt from "../components/BillPrompt";
 import UniversalPrinter from "../components/UniversalPrinter";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
+import { CustomerDisplaySync } from "../utils/CustomerDisplaySync";
 
 const formatSection = (sec: string) => {
   if (!sec) return "";
@@ -43,6 +44,16 @@ export default function PaymentSuccess() {
   const waiterName = String(params.waiterName ?? "");
 
   const [promptVisible, setPromptVisible] = React.useState(true);
+
+  React.useEffect(() => {
+    CustomerDisplaySync.syncPaymentSuccess({
+      orderId,
+      total: parseFloat(total) || 0,
+      paid: parseFloat(paid) || 0,
+      change: parseFloat(change) || 0,
+      method,
+    });
+  }, [orderId, total, paid, change, method]);
 
   React.useEffect(() => {
     // Clear cart and context on success screen mount

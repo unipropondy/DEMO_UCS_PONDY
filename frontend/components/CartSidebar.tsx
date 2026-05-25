@@ -29,6 +29,7 @@ import UniversalPrinter from "./UniversalPrinter";
 import VoidItemModal from "./VoidItemModal";
 
 import { socket } from "../constants/socket";
+import { CustomerDisplaySync } from "../utils/CustomerDisplaySync";
 import { OrderItem, useActiveOrdersStore } from "../stores/activeOrdersStore";
 import {
   CartItem,
@@ -996,6 +997,26 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
     }
   }, [orderContext?.tableId]);
 
+
+  useEffect(() => {
+    // 🖥️ CUSTOMER DISPLAY REAL-TIME SYNC
+    if (orderContext && displayItems.length > 0) {
+      CustomerDisplaySync.syncCart({
+        orderContext,
+        cart: displayItems,
+        discountInfo: currentDiscount,
+        gstPercentage: settings.gstPercentage || 0,
+        roundOff: 0,
+        active: true,
+        orderId: currentTableOrderId || (activeOrder ? activeOrder.orderId : undefined)
+      });
+    } else {
+      CustomerDisplaySync.syncIdle();
+    }
+    return () => {
+      CustomerDisplaySync.syncIdle();
+    };
+  }, [orderContext, displayItems, currentDiscount, settings.gstPercentage, currentTableOrderId, activeOrder]);
 
   useEffect(() => {
     // 🔥 If the cart is completely empty (no unsent items AND no active order items),

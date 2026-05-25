@@ -85,6 +85,12 @@ io.on("connection", (socket) => {
     io.emit("order_status_update", data);
   });
 
+  // 🖥️ CUSTOMER DISPLAY SYNC: Relay cashier cart/checkout states to second monitor
+  socket.on("customer_display_sync", (data) => {
+    console.log("🖥️ [Server] Customer Display Sync for Table/Register:", data.tableNo || data.registerId);
+    io.emit("customer_display_sync", data);
+  });
+
   socket.on("disconnect", () => {
     console.log("🔌 Client disconnected:", socket.id);
   });

@@ -38,6 +38,7 @@ import {
   voidOrderItem,
 } from "../stores/activeOrdersStore";
 import { useCartStore } from "../stores/cartStore";
+import { CustomerDisplaySync } from "../utils/CustomerDisplaySync";
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
 import {
   getOrderContext,
@@ -177,6 +178,26 @@ export default function SummaryScreen() {
     const id = s.currentContextId;
     return id ? s.discounts[id] : null;
   });
+
+  // 🖥️ CUSTOMER DISPLAY REAL-TIME SYNC
+  useEffect(() => {
+    if (context && cart.length > 0) {
+      CustomerDisplaySync.syncCart({
+        orderContext: context,
+        cart,
+        discountInfo,
+        gstPercentage: settings.gstPercentage || 0,
+        roundOff: 0,
+        active: true,
+        orderId: displayOrderId
+      });
+    } else {
+      CustomerDisplaySync.syncIdle();
+    }
+    return () => {
+      CustomerDisplaySync.syncIdle();
+    };
+  }, [context, cart, discountInfo, settings.gstPercentage, displayOrderId]);
 
   const applyDiscount = useCartStore((s: any) => s.applyDiscount);
   const clearCart = useCartStore((s: any) => s.clearCart);
@@ -1436,6 +1457,7 @@ export default function SummaryScreen() {
                   }),
                 });
                 voidOrderItem(activeOrder.orderId, itemToVoid.lineItemId);
+                useCartStore.getState().voidCartItem(itemToVoid.lineItemId);
                 showToast({ type: "success", message: "Item Voided" });
               } catch (err) {
                 console.error("Void Error:", err);
