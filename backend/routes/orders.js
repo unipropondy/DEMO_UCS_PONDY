@@ -467,7 +467,7 @@ async function syncTableStatus(req, tableId) {
         WHEN @count > 0 THEN 1 
         ELSE 0 
     END, 
-    entry_status =NULL,
+    entry_status = CASE WHEN @count = 0 THEN NULL ELSE entry_status END,
         TotalAmount = @total, 
         StartTime = CASE 
                          -- 🚀 NEW ORDER RESET: If the Order ID is changing, reset the timer to fresh
@@ -483,7 +483,7 @@ async function syncTableStatus(req, tableId) {
     WHERE TableId = @tid;
 
     SELECT 
-      Status, TotalAmount, CONVERT(VARCHAR, StartTime, 126) AS StartTime, 
+      Status, entry_status AS entryStatus, TotalAmount, CONVERT(VARCHAR, StartTime, 126) AS StartTime, 
       CurrentOrderId, TableNumber as tableNo, DiningSection as section,
       CASE 
         WHEN Status IN (1, 2, 3) AND StartTime IS NOT NULL AND DATEDIFF(MINUTE, StartTime, GETDATE()) >= 60 THEN 1 
@@ -525,6 +525,7 @@ async function syncTableStatus(req, tableId) {
       modifiedOn: updated.ModifiedOn,
       isOvertime: updated.isOvertime || 0,
       isHoldOvertime: updated.isHoldOvertime || 0,
+      entryStatus: updated.entryStatus || null,
     });
   }
   return updated;
@@ -727,7 +728,6 @@ router.post("/send", async (req, res) => {
         .input("oid", sql.NVarChar(50), finalOrderId).query(`
           UPDATE TableMaster 
           SET Status = 1, 
-          entry_status =NULL,
               CurrentOrderId = @oid,
               StartTime = CASE WHEN StartTime IS NULL OR StartTime < '2000-01-01' THEN GETDATE() ELSE StartTime END,
               ModifiedOn = GETDATE()
@@ -1044,7 +1044,7 @@ router.post("/cancel", async (req, res) => {
         .request()
         .input("tid", sql.VarChar(50), cleanTid)
         .query(
-          "UPDATE TableMaster SET Status = 0, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid",
+          "UPDATE TableMaster SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid",
         );
 
       await transaction.commit();
@@ -1077,7 +1077,7 @@ router.post("/complete", async (req, res) => {
         WHERE Tableno = (SELECT TOP 1 TableNumber FROM TableMaster WHERE TableId = @tid) 
         AND (isOrderClosed = 0 OR isOrderClosed IS NULL);
         
-        UPDATE TableMaster SET Status = 0, CurrentOrderId = NULL, StartTime = NULL, TotalAmount = 0, ModifiedOn = GETDATE() WHERE TableId = @tid;
+        UPDATE TableMaster SET Status = 0, entry_status = NULL, CurrentOrderId = NULL, StartTime = NULL, TotalAmount = 0, ModifiedOn = GETDATE() WHERE TableId = @tid;
       `);
 
     const updated = await syncTableStatus(req, cleanId);

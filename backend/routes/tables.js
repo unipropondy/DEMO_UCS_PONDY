@@ -68,6 +68,7 @@ router.get("/all", async (req, res) => {
       SELECT TableId AS id, CAST(TableNumber AS VARCHAR(50)) AS label,
       CAST(DiningSection AS VARCHAR(10)) AS DiningSection, LockedByName as lockedByName,
       Status, CONVERT(VARCHAR, StartTime, 126) as StartTime, ISNULL(TotalAmount, 0) as totalAmount, CurrentOrderId as currentOrderId,
+      entry_status AS entryStatus,
       CASE 
         WHEN Status IN (1, 2, 3) AND StartTime IS NOT NULL AND StartTime > '2000-01-01' AND DATEDIFF(MINUTE, StartTime, GETDATE()) >= 60 THEN 1 
         ELSE 0 
@@ -169,7 +170,7 @@ router.post("/unlock-persistent", async (req, res) => {
       .input("ModifiedBy", sql.UniqueIdentifier, userId || null)
       .query(`
         UPDATE TableMaster 
-        SET Status = 0, LockedByName = NULL, TotalAmount = 0, StartTime = NULL, ModifiedBy = @ModifiedBy, ModifiedOn = GETDATE()
+        SET Status = 0, entry_status = NULL, LockedByName = NULL, TotalAmount = 0, StartTime = NULL, ModifiedBy = @ModifiedBy, ModifiedOn = GETDATE()
         OUTPUT INSERTED.TableNumber, INSERTED.DiningSection, CONVERT(VARCHAR, INSERTED.ModifiedOn, 126) AS ModifiedOn
         WHERE TableId = @tableId
       `);
@@ -222,6 +223,7 @@ router.put("/status", async (req, res) => {
       UPDATE TableMaster 
       SET Status = @status,
           ModifiedBy = @ModifiedBy,
+          entry_status = CASE WHEN @status = 0 OR @status = 5 THEN NULL ELSE entry_status END,
           StartTime = CASE 
             WHEN (@status = 1 OR @status = 2 OR @status = 3) AND (StartTime IS NULL OR StartTime < '2000-01-01') THEN GETDATE() 
             WHEN @status = 0 OR @status = 5 THEN NULL 
@@ -237,6 +239,7 @@ router.put("/status", async (req, res) => {
         CONVERT(VARCHAR, INSERTED.StartTime, 126) AS StartTime,
         INSERTED.TableNumber,
         INSERTED.DiningSection,
+        INSERTED.entry_status AS entryStatus,
         CONVERT(VARCHAR, INSERTED.ModifiedOn, 126) AS ModifiedOn,
         CASE 
           WHEN INSERTED.Status IN (1, 2, 3) AND INSERTED.StartTime IS NOT NULL AND INSERTED.StartTime > '2000-01-01' AND DATEDIFF(MINUTE, INSERTED.StartTime, GETDATE()) >= 60 THEN 1 
@@ -274,7 +277,8 @@ router.put("/status", async (req, res) => {
         section: sectionMap[String(row?.DiningSection)] || row?.DiningSection,
         modifiedOn: row?.ModifiedOn,
         isOvertime: currentIsOvertime,
-        isHoldOvertime: row?.isHoldOvertime || 0
+        isHoldOvertime: row?.isHoldOvertime || 0,
+        entryStatus: row?.entryStatus || null
       });
     }
 
@@ -305,6 +309,7 @@ router.put("/:tableId/status", async (req, res) => {
       UPDATE TableMaster 
       SET Status = @status, 
           ModifiedBy = @ModifiedBy,
+          entry_status = CASE WHEN @status = 0 OR @status = 5 THEN NULL ELSE entry_status END,
           LockedByName = CASE WHEN @status = 5 THEN @lockedByName ELSE NULL END,
           StartTime = CASE 
             -- Status 1 (Dining), 2 (Checkout), or 3 (Hold) starts/maintains the timer
@@ -336,6 +341,7 @@ router.put("/:tableId/status", async (req, res) => {
         .query(`
           SELECT TableNumber, DiningSection, TotalAmount, CONVERT(VARCHAR, StartTime, 126) AS StartTime,
           CONVERT(VARCHAR, ModifiedOn, 126) AS ModifiedOn,
+          entry_status AS entryStatus,
           CASE 
             WHEN Status IN (1, 2, 3) AND StartTime IS NOT NULL AND StartTime > '2000-01-01' AND DATEDIFF(MINUTE, StartTime, GETDATE()) >= 60 THEN 1 
             ELSE 0 
@@ -358,7 +364,8 @@ router.put("/:tableId/status", async (req, res) => {
         section: sectionMap[String(row?.DiningSection)] || row?.DiningSection,
         modifiedOn: row?.ModifiedOn,
         isOvertime: row?.isOvertime || 0,
-        isHoldOvertime: row?.isHoldOvertime || 0
+        isHoldOvertime: row?.isHoldOvertime || 0,
+        entryStatus: row?.entryStatus || null
       });
     }
 
@@ -387,7 +394,8 @@ router.get("/:tableId", async (req, res) => {
           CONVERT(VARCHAR, StartTime, 126) as StartTime, 
           ISNULL(TotalAmount, 0) as totalAmount, 
           CurrentOrderId as currentOrderId,
-          LockedByName as lockedByName
+          LockedByName as lockedByName,
+          entry_status AS entryStatus
         FROM TableMaster
         WHERE TableId = @tableId
       `);

@@ -59,6 +59,7 @@ export function useGlobalSocketSync() {
       const currentOrderId = data.currentOrderId || data.CurrentOrderId;
       const isHoldOvertime = data.isHoldOvertime !== undefined ? data.isHoldOvertime : data.IsHoldOvertime;
       const lockedByName = data.lockedByName;
+      const entryStatus = data.entryStatus || data.EntryStatus;
       
       const store = useTableStatusStore.getState();
       const cleanTableId = String(tableId || "").replace(/^\{|\}$/g, "").trim().toLowerCase();
@@ -92,7 +93,8 @@ export function useGlobalSocketSync() {
           totalAmount,
           true, 
           isHoldOvertime,
-          data.modifiedOn || data.ModifiedOn
+          data.modifiedOn || data.ModifiedOn,
+          entryStatus
         );
       }
 

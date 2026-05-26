@@ -248,6 +248,13 @@ const TableItemComponent = React.memo(
                <MaterialCommunityIcons name="alpha-h-circle" size={Math.max(14, itemSize * 0.18)} color={Theme.primary} />
             </View>
           )}
+
+          {/* 🚀 QR ORDER INDICATOR (QR badge) */}
+          {((tableData?.entryStatus !== undefined ? tableData.entryStatus : item.entryStatus) === 'q') && status !== 0 && (
+            <View style={styles.qrBadge}>
+               <Ionicons name="qr-code" size={Math.max(14, itemSize * 0.18)} color={ui.color} />
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -296,6 +303,7 @@ type TableItem = {
   lockedByName?: string;
   isOvertime?: number;
   isHoldOvertime?: number;
+  entryStatus?: string;
 };
 
 const SECTIONS = ["SECTION_1", "SECTION_2", "SECTION_3", "TAKEAWAY"];
@@ -515,6 +523,7 @@ export default function Category() {
             isOvertime: Number(item.isOvertime) || 0,
             isHoldOvertime: Number(item.isHoldOvertime) || 0,
             lastModified: item.ModifiedOn,
+            entryStatus: item.entryStatus || item.entry_status,
           }))
         
         const uniqueTables = convertedData.filter((item, index, self) =>
@@ -2033,6 +2042,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 4,
     left: 4,
+    padding: 2,
+    zIndex: 10,
+    ...Theme.shadowSm,
+  },
+  qrBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
     padding: 2,
     zIndex: 10,
     ...Theme.shadowSm,
