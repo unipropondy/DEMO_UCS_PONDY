@@ -58,6 +58,50 @@ function resolveItemTakeaway(item = {}) {
  */
 async function getOrGenerateOrderId(req, tableId) {
   const pool = await poolPromise;
+  const isTakeaway = !tableId || tableId === "undefined" || tableId === "null" || String(tableId).startsWith("TAKEAWAY");
+  
+  if (isTakeaway) {
+    try {
+      const activeOrg = await getActiveOrganization();
+      const currentBizId = activeOrg.businessUnitId;
+
+      const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+      const todayStr = istDate.toISOString().split("T")[0];
+      const datePrefix = todayStr.replace(/-/g, "");
+
+      let dailySequence = 1;
+
+      // ATOMIC ATTEMPT: Use MERGE or Transaction for Sequence
+      const seqResult = await pool
+        .request()
+        .input("RestId", sql.UniqueIdentifier, String(currentBizId))
+        .input("Today", sql.Date, todayStr).query(`
+          BEGIN TRANSACTION;
+          IF NOT EXISTS (SELECT 1 FROM OrderSequences WHERE RestaurantId = @RestId AND SequenceDate = @Today)
+          BEGIN
+              INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
+          END
+          UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
+          WHERE RestaurantId = @RestId AND SequenceDate = @Today;
+          COMMIT TRANSACTION;
+        `);
+
+      dailySequence = seqResult.recordset[0]?.LastNumber || 1;
+      return `${datePrefix}-${String(dailySequence).padStart(4, "0")}`;
+    } catch (err) {
+      console.error("🔥 [Critical] Takeaway OrderID Generation Failed:", err.message);
+      const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+      const datePrefix = istDate.toISOString().split("T")[0].replace(/-/g, "");
+      const countRes = await pool
+        .request()
+        .query(
+          `SELECT (COUNT(*) + 1) as LastNumber FROM RestaurantOrderCur WHERE OrderNumber LIKE '${datePrefix}%'`,
+        );
+      const emergencySeq = countRes.recordset[0]?.LastNumber || 1;
+      return `${datePrefix}-EM${String(emergencySeq).padStart(3, "0")}`;
+    }
+  }
+
   const cleanId = String(tableId)
     .replace(/^\{|\}$/g, "")
     .trim();
@@ -169,7 +213,7 @@ async function syncToProfessionalTables(
   items,
   userId,
 ) {
-  const isTakeaway = !tableId || tableId === "undefined" || tableId === "null";
+  const isTakeaway = !tableId || tableId === "undefined" || tableId === "null" || String(tableId).startsWith("TAKEAWAY");
   const cleanTableId = isTakeaway
     ? null
     : String(tableId)
@@ -224,9 +268,11 @@ async function syncToProfessionalTables(
       .request()
       .input("orderId", sql.UniqueIdentifier, orderGuid)
       .input("orderNo", sql.NVarChar(50), cleanOrderNo)
-      .input("priority", sql.Int, priorityCode).query(`
+      .input("priority", sql.Int, priorityCode)
+      .input("isTakeaway", sql.Bit, isTakeaway ? 1 : 0).query(`
         UPDATE RestaurantOrderCur 
         SET PriorityCode = ISNULL(PriorityCode, @priority),
+            IsTakeAway = @isTakeaway,
             OrderNumber = CASE 
                             WHEN OrderNumber IS NULL OR OrderNumber = '' OR OrderNumber = 'PENDING' OR OrderNumber = 'NEW' OR OrderNumber = '#NEW' OR OrderNumber LIKE 'TEMP-%' THEN @orderNo 
                             ELSE OrderNumber 
@@ -243,8 +289,9 @@ async function syncToProfessionalTables(
       .input("userId", sql.UniqueIdentifier, finalUserId)
       .input("bizId", sql.UniqueIdentifier, bizId)
       .input("priority", sql.Int, priorityCode)
+      .input("isTakeaway", sql.Bit, isTakeaway ? 1 : 0)
       .query(
-        "INSERT INTO RestaurantOrderCur (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, isOrderClosed, BusinessUnitId, PriorityCode) VALUES (@orderId, @orderNo, GETDATE(), @tableNo, 1, @userId, GETDATE(), 0, @bizId, @priority)",
+        "INSERT INTO RestaurantOrderCur (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, isOrderClosed, BusinessUnitId, PriorityCode, IsTakeAway) VALUES (@orderId, @orderNo, GETDATE(), @tableNo, 1, @userId, GETDATE(), 0, @bizId, @priority, @isTakeaway)",
       );
   }
 
@@ -310,6 +357,7 @@ async function syncToProfessionalTables(
       p_mods = `mods${idx}`,
       p_tw = `tw${idx}`,
       p_disc = `disc${idx}`,
+      p_disctype = `disctype${idx}`,
       p_created = `created${idx}`;
 
     itemRequest.input(p_id, sql.UniqueIdentifier, lineItemId);
@@ -322,6 +370,12 @@ async function syncToProfessionalTables(
     itemRequest.input(p_mods, sql.NVarChar(sql.MAX), modsJSON);
     itemRequest.input(p_tw, sql.Bit, takeawayInfo.value ? 1 : 0);
     itemRequest.input(p_disc, sql.Decimal(18, 2), item.discount || 0);
+    // Use actual discountType from cart item; fall back to 'percentage' if there's a discount but no type,
+    // or 'fixed' (i.e. no discount) when discount is 0/null.
+    const resolvedDiscountType = (item.discountType || item.DiscountType) 
+      ? (item.discountType || item.DiscountType)
+      : ((item.discount || 0) > 0 ? 'percentage' : 'fixed');
+    itemRequest.input(p_disctype, sql.NVarChar(50), resolvedDiscountType);
 
     let itemDate = null;
     const rawCreated = item.DateCreated || item.dateCreated || item.CreatedOn;
@@ -340,19 +394,21 @@ async function syncToProfessionalTables(
       IF EXISTS (SELECT 1 FROM RestaurantOrderDetailCur WHERE OrderDetailId = @${p_id})
       BEGIN
         UPDATE RestaurantOrderDetailCur SET 
-          Quantity = @${p_qty}, PricePerUnit = @${p_cost}, ActualAmount = @${p_cost} * @${p_qty}, 
-          TotalDetailLineAmount = @${p_cost} * @${p_qty}, 
+          Quantity = @${p_qty}, PricePerUnit = @${p_cost},
+          ActualAmount = @${p_cost} * @${p_qty},
+          TotalDetailLineAmount = @${p_cost} * @${p_qty},
+          BaseAmount = @${p_cost} * @${p_qty},
           StatusCode = CASE WHEN @${p_status} = 0 THEN 0 ELSE (CASE WHEN @${p_status} > StatusCode THEN @${p_status} ELSE StatusCode END) END, 
           Description = @${p_name}, DishName = @${p_name}, ModifiedBy = @userId, ModifiedOn = GETDATE(), 
           ModifiersJSON = @${p_mods}, OrderNumber = @orderNo, Remarks = @${p_note}, isTakeAway = @${p_tw},
-          DiscountAmount = @${p_disc}, DiscountType = CASE WHEN @${p_disc} > 0 THEN 'percentage' ELSE NULL END,
+          DiscountAmount = @${p_disc}, DiscountType = @${p_disctype},
           CreatedOn = CASE WHEN StatusCode = 1 AND @${p_status} = 2 THEN GETDATE() ELSE ISNULL(CreatedOn, @${p_created}) END
         WHERE OrderDetailId = @${p_id};
       END
       ELSE
       BEGIN
-        INSERT INTO RestaurantOrderDetailCur (OrderDetailId, OrderId, DishId, Description, DishName, Quantity, PricePerUnit, ActualAmount, TotalDetailLineAmount, StatusCode, CreatedBy, CreatedOn, ModifiersJSON, OrderNumber, Remarks, isTakeAway, BusinessUnitId, OrderDateTime, DiscountAmount, DiscountType)
-        VALUES (@${p_id}, @orderId, @${p_dish}, @${p_name}, @${p_name}, @${p_qty}, @${p_cost}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_status}, @userId, CASE WHEN @${p_status} = 2 THEN GETDATE() ELSE @${p_created} END, @${p_mods}, @orderNo, @${p_note}, @${p_tw}, @bizId, GETDATE(), @${p_disc}, CASE WHEN @${p_disc} > 0 THEN 'percentage' ELSE NULL END);
+        INSERT INTO RestaurantOrderDetailCur (OrderDetailId, OrderId, DishId, Description, DishName, Quantity, PricePerUnit, ActualAmount, TotalDetailLineAmount, BaseAmount, StatusCode, CreatedBy, CreatedOn, ModifiersJSON, OrderNumber, Remarks, isTakeAway, BusinessUnitId, OrderDateTime, DiscountAmount, DiscountType)
+        VALUES (@${p_id}, @orderId, @${p_dish}, @${p_name}, @${p_name}, @${p_qty}, @${p_cost}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_status}, @userId, CASE WHEN @${p_status} = 2 THEN GETDATE() ELSE @${p_created} END, @${p_mods}, @orderNo, @${p_note}, @${p_tw}, @bizId, GETDATE(), @${p_disc}, @${p_disctype});
       END
 
       -- Sync Modifiers for Item ${idx}
