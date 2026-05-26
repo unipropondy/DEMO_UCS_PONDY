@@ -937,6 +937,21 @@ router.post("/save", async (req, res) => {
           @PayModeCode, @DiscountId, @DiscountPercentage, @DiscountRemarks, @TotalDiscountAmount,
           @TotalLineItemDiscountAmount, @MergeCount, @SplitCount
         );
+
+        -- 2b. Insert into RestaurantInvoiceCur (Mirror for Backoffice Sync)
+        INSERT INTO RestaurantInvoiceCur (
+          BusinessUnitId, RestaurantBillId, OrderId, BillNumber, OrderDateTime, TimeBilled, 
+          TotalLineItemAmount, TotalTax, DiscountAmount, TotalAmount, StatusCode, 
+          CreatedBy, CreatedOn, InvoiceDate, ServiceCharge, RoundedBy, TotalAmountLessFreight,
+          PaymentTermCode, DiscountId, DiscountPercentage, DiscountRemarks, TotalDiscountAmount,
+          TotalLineItemDiscountAmount, MergeCount, SplitCount
+        ) VALUES (
+          @BusinessUnitId, @SettlementID, @OrderId, @BillNo, GETDATE(), GETDATE(),
+          @SubTotal, @TotalTax, @DiscountAmount, @SysAmount, 3,
+          @CreatedBy, GETDATE(), CAST(GETDATE() AS DATE), @ServiceCharge, @RoundedBy, @SubTotal,
+          @PayModeCode, @DiscountId, @DiscountPercentage, @DiscountRemarks, @TotalDiscountAmount,
+          @TotalLineItemDiscountAmount, @MergeCount, @SplitCount
+        );
       `);
 
     // 3. Insert SettlementTotalSales
