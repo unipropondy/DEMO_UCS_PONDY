@@ -187,48 +187,50 @@ export default function CustomerDisplayScreen() {
   if (displayState.paymentSuccess) {
     return (
       <View style={styles.successContainer}>
-        <Animated.View
-          style={[
-            styles.successCard,
-            {
-              transform: [{ scale: successScale }],
-              opacity: successOpacity,
-            },
-          ]}
-        >
-          <View style={styles.successIconWrapper}>
-            <Ionicons name="checkmark-circle" size={100} color={Theme.success} />
-          </View>
-          <Text style={styles.successTitle}>Payment Successful</Text>
-          <Text style={styles.successOrderText}>
-            Order #{displayState.orderId}
-          </Text>
-
-          <View style={styles.dashedDivider} />
-
-          <View style={styles.successDetails}>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Settlement Mode</Text>
-              <Text style={styles.detailValue}>{displayState.paymentMethod || "CARD/UPI"}</Text>
+        <View style={styles.successMainContent}>
+          <Animated.View
+            style={[
+              styles.successCard,
+              {
+                transform: [{ scale: successScale }],
+                opacity: successOpacity,
+              },
+            ]}
+          >
+            <View style={styles.successIconWrapper}>
+              <Ionicons name="checkmark-circle" size={100} color={Theme.success} />
             </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Amount Paid</Text>
-              <Text style={[styles.detailValue, { color: Theme.primary }]}>
-                {companySettings.currencySymbol || "$"}{displayState.paid?.toFixed(2) || (displayState.netTotal || 0).toFixed(2)}
-              </Text>
-            </View>
-            {displayState.change && displayState.change > 0 ? (
+            <Text style={styles.successTitle}>Payment Successful</Text>
+            <Text style={styles.successOrderText}>
+              Order #{displayState.orderId}
+            </Text>
+
+            <View style={styles.dashedDivider} />
+
+            <View style={styles.successDetails}>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Change Given</Text>
-                <Text style={styles.detailValue}>
-                  {companySettings.currencySymbol || "$"}{(displayState.change || 0).toFixed(2)}
+                <Text style={styles.detailLabel}>Settlement Mode</Text>
+                <Text style={styles.detailValue}>{displayState.paymentMethod || "CARD/UPI"}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Amount Paid</Text>
+                <Text style={[styles.detailValue, { color: Theme.primary }]}>
+                  {companySettings.currencySymbol || "$"}{displayState.paid?.toFixed(2) || (displayState.netTotal || 0).toFixed(2)}
                 </Text>
               </View>
-            ) : null}
-          </View>
+              {displayState.change && displayState.change > 0 ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Change Given</Text>
+                  <Text style={styles.detailValue}>
+                    {companySettings.currencySymbol || "$"}{(displayState.change || 0).toFixed(2)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
 
-          <Text style={styles.successFooter}>Thank you! Visit us again.</Text>
-        </Animated.View>
+            <Text style={styles.successFooter}>Thank you! Visit us again.</Text>
+          </Animated.View>
+        </View>
 
         {/* Unipro Footer on Success Screen */}
         <View style={styles.idleUniproFooter}>
@@ -470,35 +472,37 @@ export default function CustomerDisplayScreen() {
         </Animated.View>
       ))}
 
-      {/* Main Branding Card */}
-      <View style={styles.brandingCard}>
-        {companySettings.companyLogo ? (
-          <Image
-            source={{ uri: getLogoUri(companySettings.companyLogo) }}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-        ) : (
-          <View style={styles.fallbackLogoContainer}>
-            <Ionicons name="restaurant" size={60} color="#fff" />
-          </View>
-        )}
-
-        <Text style={styles.welcomeTitle}>
-          {companySettings.name || "Welcome to our Restaurant!"}
-        </Text>
-        <Text style={styles.welcomeSubtitle}>
-          Order details will appear here during checkout.
-        </Text>
-
-        <View style={styles.halalContainer}>
-          {companySettings.showHalalLogo && companySettings.halalLogo ? (
+      <View style={styles.idleMainContent}>
+        {/* Main Branding Card */}
+        <View style={styles.brandingCard}>
+          {companySettings.companyLogo ? (
             <Image
-              source={{ uri: getLogoUri(companySettings.halalLogo) }}
-              style={styles.halalImage}
+              source={{ uri: getLogoUri(companySettings.companyLogo) }}
+              style={styles.logoImage}
               resizeMode="contain"
             />
-          ) : null}
+          ) : (
+            <View style={styles.fallbackLogoContainer}>
+              <Ionicons name="restaurant" size={60} color="#fff" />
+            </View>
+          )}
+
+          <Text style={styles.welcomeTitle}>
+            {companySettings.name || "Welcome to our Restaurant!"}
+          </Text>
+          <Text style={styles.welcomeSubtitle}>
+            Order details will appear here during checkout.
+          </Text>
+
+          <View style={styles.halalContainer}>
+            {companySettings.showHalalLogo && companySettings.halalLogo ? (
+              <Image
+                source={{ uri: getLogoUri(companySettings.halalLogo) }}
+                style={styles.halalImage}
+                resizeMode="contain"
+              />
+            ) : null}
+          </View>
         </View>
       </View>
 
@@ -518,10 +522,18 @@ const styles = StyleSheet.create({
   idleContainer: {
     flex: 1,
     backgroundColor: Theme.bgMain,
-    justifyContent: "center",
+    flexDirection: "column",
+    justifyContent: "space-between",
     alignItems: "center",
+    paddingVertical: 32,
     position: "relative",
     overflow: "hidden",
+  },
+  idleMainContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
   },
   floatingFood: {
     position: "absolute",
@@ -773,8 +785,6 @@ const styles = StyleSheet.create({
     height: 80,
   },
   idleUniproFooter: {
-    position: "absolute",
-    bottom: 24,
     backgroundColor: "#fff",
     borderWidth: 1.5,
     borderColor: "#E5E7EB",
@@ -972,10 +982,18 @@ const styles = StyleSheet.create({
   successContainer: {
     flex: 1,
     backgroundColor: Theme.bgMain,
+    flexDirection: "column",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    position: "relative",
+  },
+  successMainContent: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
-    position: "relative",
+    width: "100%",
   },
   successCard: {
     backgroundColor: "#fff",
@@ -991,7 +1009,6 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     borderWidth: 1.5,
     borderColor: Theme.border,
-    marginBottom: 80, // Space for footer
   },
   successIconWrapper: {
     marginBottom: 20,
