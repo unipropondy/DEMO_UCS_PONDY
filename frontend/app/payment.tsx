@@ -1,6 +1,7 @@
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, usePathname } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { useIsFocused } from "@react-navigation/native";
 import {
   ActivityIndicator,
   FlatList,
@@ -94,6 +95,10 @@ function getPaymodeIcon(payMode: string): string {
 const isCashMethod = (payMode: string) => /^(CAS|CASH)$/i.test(payMode.trim());
 
 export default function PaymentScreen() {
+  const pathname = usePathname();
+  const isFocused = useIsFocused() && pathname === "/payment";
+  const pathnameRef = React.useRef(pathname);
+  pathnameRef.current = pathname;
   const closeActiveOrder = useActiveOrdersStore((s) => s.closeActiveOrder);
   const clearTable = useTableStatusStore((s) => s.clearTable);
   const user = useAuthStore((s) => s.user);
@@ -170,6 +175,14 @@ export default function PaymentScreen() {
 
   // 🖥️ CUSTOMER DISPLAY REAL-TIME SYNC
   useEffect(() => {
+    if (!isFocused) {
+      if (pathname === "/payment_success") {
+        return;
+      }
+      CustomerDisplaySync.syncIdle();
+      return;
+    }
+
     if (context && finalItems.length > 0) {
       CustomerDisplaySync.syncCart({
         orderContext: context,
@@ -185,9 +198,11 @@ export default function PaymentScreen() {
       CustomerDisplaySync.syncIdle();
     }
     return () => {
-      CustomerDisplaySync.syncIdle();
+      if (pathnameRef.current !== "/payment_success") {
+        CustomerDisplaySync.syncIdle();
+      }
     };
-  }, [context, finalItems, discount, settingsStore.gstPercentage, roundOff, displayOrderId, method]);
+  }, [isFocused, pathname, context, finalItems, discount, settingsStore.gstPercentage, roundOff, displayOrderId, method]);
 
   const fetchPaymentMethods = async () => {
     try {
