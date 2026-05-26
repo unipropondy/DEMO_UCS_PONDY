@@ -1207,6 +1207,13 @@ router.post("/save", async (req, res) => {
           await transaction.request()
             .input("orderNo", sql.NVarChar(50), displayOrderId)
             .input("totalAmt", sql.Decimal(18, 2), totalAmount)
+            .input("DiscountId", sql.UniqueIdentifier, toGuidOrNull(discountId))
+            .input("DiscountPercentage", sql.Decimal(18, 2), discountPercentage || null)
+            .input("DiscountRemarks", sql.NVarChar(1000), discountRemarks || null)
+            .input("TotalDiscountAmount", sql.Decimal(18, 2), discountAmount || 0)
+            .input("TotalLineItemDiscountAmount", sql.Decimal(18, 2), itemDiscountAmount || 0)
+            .input("DiscountAmount", sql.Money, orderDiscountAmount || 0)
+            .input("RoundedBy", sql.Money, roundOff || 0)
             .query(`
               DECLARE @Section INT = 4;
               DECLARE @PriorityCode INT = NULL;
@@ -1221,28 +1228,53 @@ router.post("/save", async (req, res) => {
               ELSE IF @Section = 3 SET @PriorityCode = 3
               ELSE IF @Section = 4 SET @PriorityCode = 4
 
-              -- Ensure parent order has the correct final TotalAmount in Cur before moving
-              UPDATE RestaurantOrderCur SET TotalAmount = @totalAmt WHERE OrderNumber = @orderNo;
+              -- Ensure parent order has the correct final TotalAmount, RoundedBy, and Discounts in Cur before moving
+              UPDATE RestaurantOrderCur 
+              SET TotalAmount = @totalAmt,
+                  TotalLineItemDiscountAmount = @TotalLineItemDiscountAmount,
+                  DiscountAmount = @DiscountAmount,
+                  DiscountPercentage = @DiscountPercentage,
+                  TotalDiscountAmount = @TotalDiscountAmount,
+                  RoundedBy = @RoundedBy,
+                  DiscountId = @DiscountId,
+                  DiscountRemarks = @DiscountRemarks,
+                  isGuestMeal = ISNULL((SELECT TOP 1 isGuestMeal FROM [dbo].[Discount] WHERE DiscountId = @DiscountId), 0)
+              WHERE OrderNumber = @orderNo;
 
               -- Move Header (History) - For Parent Order
               IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('RestaurantOrder') AND name = 'TotalAmount')
               BEGIN
-                 INSERT INTO RestaurantOrder (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, isOrderClosed, PriorityCode)
-                 SELECT OrderId, OrderNumber, OrderDateTime, Tableno, 3, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, 1, ISNULL(PriorityCode, @PriorityCode)
+                 INSERT INTO RestaurantOrder (
+                   OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, isOrderClosed, PriorityCode,
+                   TotalLineItemDiscountAmount, DiscountAmount, DiscountPercentage, TotalDiscountAmount, RoundedBy, isGuestMeal, DiscountId, DiscountRemarks
+                 )
+                 SELECT 
+                   OrderId, OrderNumber, OrderDateTime, Tableno, 3, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, 1, ISNULL(PriorityCode, @PriorityCode),
+                   TotalLineItemDiscountAmount, DiscountAmount, DiscountPercentage, TotalDiscountAmount, RoundedBy, isGuestMeal, DiscountId, DiscountRemarks
                  FROM RestaurantOrderCur WHERE OrderNumber = @orderNo;
               END
               ELSE
               BEGIN
-                 INSERT INTO RestaurantOrder (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, isOrderClosed, PriorityCode, TotalAmount)
-                 SELECT OrderId, OrderNumber, OrderDateTime, Tableno, 3, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, 1, ISNULL(PriorityCode, @PriorityCode), TotalAmount
+                 INSERT INTO RestaurantOrder (
+                   OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, isOrderClosed, PriorityCode, TotalAmount,
+                   TotalLineItemDiscountAmount, DiscountAmount, DiscountPercentage, TotalDiscountAmount, RoundedBy, isGuestMeal, DiscountId, DiscountRemarks
+                 )
+                 SELECT 
+                   OrderId, OrderNumber, OrderDateTime, Tableno, 3, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, 1, ISNULL(PriorityCode, @PriorityCode), TotalAmount,
+                   TotalLineItemDiscountAmount, DiscountAmount, DiscountPercentage, TotalDiscountAmount, RoundedBy, isGuestMeal, DiscountId, DiscountRemarks
                  FROM RestaurantOrderCur WHERE OrderNumber = @orderNo;
               END
 
               -- Move Header (History) - For Child Merged Orders (so they aren't considered 'missing' bills)
               IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('RestaurantOrder') AND name = 'TotalAmount')
               BEGIN
-                 INSERT INTO RestaurantOrder (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, isOrderClosed, PriorityCode)
-                 SELECT r.OrderId, r.OrderNumber, r.OrderDateTime, r.Tableno, 3, r.CreatedBy, r.CreatedOn, r.MobileNo, r.BusinessUnitId, 1, ISNULL(r.PriorityCode, @PriorityCode)
+                 INSERT INTO RestaurantOrder (
+                   OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, isOrderClosed, PriorityCode,
+                   TotalLineItemDiscountAmount, DiscountAmount, DiscountPercentage, TotalDiscountAmount, RoundedBy, isGuestMeal, DiscountId, DiscountRemarks
+                 )
+                 SELECT 
+                   r.OrderId, r.OrderNumber, r.OrderDateTime, r.Tableno, 3, r.CreatedBy, r.CreatedOn, r.MobileNo, r.BusinessUnitId, 1, ISNULL(r.PriorityCode, @PriorityCode),
+                   r.TotalLineItemDiscountAmount, r.DiscountAmount, r.DiscountPercentage, r.TotalDiscountAmount, r.RoundedBy, r.isGuestMeal, r.DiscountId, r.DiscountRemarks
                  FROM RestaurantOrderCur r
                  INNER JOIN OrderMergeHistory omh ON r.OrderId = omh.ChildOrderId
                  WHERE omh.ParentOrderId = (SELECT TOP 1 OrderId FROM RestaurantOrderCur WHERE OrderNumber = @orderNo)
@@ -1250,8 +1282,13 @@ router.post("/save", async (req, res) => {
               END
               ELSE
               BEGIN
-                 INSERT INTO RestaurantOrder (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, isOrderClosed, PriorityCode, TotalAmount)
-                 SELECT r.OrderId, r.OrderNumber, r.OrderDateTime, r.Tableno, 3, r.CreatedBy, r.CreatedOn, r.MobileNo, r.BusinessUnitId, 1, ISNULL(r.PriorityCode, @PriorityCode), 0
+                 INSERT INTO RestaurantOrder (
+                   OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, MobileNo, BusinessUnitId, isOrderClosed, PriorityCode, TotalAmount,
+                   TotalLineItemDiscountAmount, DiscountAmount, DiscountPercentage, TotalDiscountAmount, RoundedBy, isGuestMeal, DiscountId, DiscountRemarks
+                 )
+                 SELECT 
+                   r.OrderId, r.OrderNumber, r.OrderDateTime, r.Tableno, 3, r.CreatedBy, r.CreatedOn, r.MobileNo, r.BusinessUnitId, 1, ISNULL(r.PriorityCode, @PriorityCode), 0,
+                   r.TotalLineItemDiscountAmount, r.DiscountAmount, r.DiscountPercentage, r.TotalDiscountAmount, r.RoundedBy, r.isGuestMeal, r.DiscountId, r.DiscountRemarks
                  FROM RestaurantOrderCur r
                  INNER JOIN OrderMergeHistory omh ON r.OrderId = omh.ChildOrderId
                  WHERE omh.ParentOrderId = (SELECT TOP 1 OrderId FROM RestaurantOrderCur WHERE OrderNumber = @orderNo)
