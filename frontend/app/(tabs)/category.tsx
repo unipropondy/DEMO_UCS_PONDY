@@ -335,6 +335,7 @@ export default function Category() {
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [isGeneralSettingsVisible, setIsGeneralSettingsVisible] = useState(false);
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
@@ -1322,76 +1323,109 @@ export default function Category() {
                 </TouchableOpacity>
               )}
 
-              {canAccessStoreSettings() && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setIsMenuVisible(false);
-                    setIsSettingsVisible(true);
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.textSecondary + "10" },
-                    ]}
+              {/* Settings Dropdown */}
+              {(canAccessStoreSettings() || canAccessReceiptSettings()) && (
+                <>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => setIsSettingsExpanded(!isSettingsExpanded)}
                   >
+                    <View
+                      style={[
+                        styles.menuIconContainer,
+                        { backgroundColor: Theme.textSecondary + "10" },
+                      ]}
+                    >
+                      <Ionicons
+                        name="settings-outline"
+                        size={18}
+                        color={Theme.textSecondary}
+                      />
+                    </View>
+                    <Text style={[styles.menuItemText, { flex: 1 }]}>Settings</Text>
                     <Ionicons
-                      name="settings-outline"
+                      name={isSettingsExpanded ? "chevron-down" : "chevron-forward"}
                       size={18}
                       color={Theme.textSecondary}
                     />
-                  </View>
-                  <Text style={styles.menuItemText}>Store Settings</Text>
-                </TouchableOpacity>
-              )}
+                  </TouchableOpacity>
 
-              {canAccessStoreSettings() && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setIsMenuVisible(false);
-                    setIsGeneralSettingsVisible(true);
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.primary + "10" },
-                    ]}
-                  >
-                    <Ionicons
-                      name="options-outline"
-                      size={18}
-                      color={Theme.primary}
-                    />
-                  </View>
-                  <Text style={styles.menuItemText}>General Settings</Text>
-                </TouchableOpacity>
-              )}
+                  {isSettingsExpanded && (
+                    <View style={styles.subMenuContainer}>
+                      {canAccessStoreSettings() && (
+                        <TouchableOpacity
+                          style={styles.subMenuItem}
+                          onPress={() => {
+                            setIsMenuVisible(false);
+                            setIsSettingsVisible(true);
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.textSecondary + "10" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="storefront-outline"
+                              size={18}
+                              color={Theme.textSecondary}
+                            />
+                          </View>
+                          <Text style={styles.subMenuItemText}>Store Settings</Text>
+                        </TouchableOpacity>
+                      )}
 
-              {canAccessReceiptSettings() && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setIsMenuVisible(false);
-                    router.push("/company-settings" as any);
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.primary + "10" },
-                    ]}
-                  >
-                    <Ionicons
-                      name="receipt-outline"
-                      size={18}
-                      color={Theme.primary}
-                    />
-                  </View>
-                  <Text style={styles.menuItemText}>Receipt Settings</Text>
-                </TouchableOpacity>
+                      {canAccessStoreSettings() && (
+                        <TouchableOpacity
+                          style={styles.subMenuItem}
+                          onPress={() => {
+                            setIsMenuVisible(false);
+                            setIsGeneralSettingsVisible(true);
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.primary + "10" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="options-outline"
+                              size={18}
+                              color={Theme.primary}
+                            />
+                          </View>
+                          <Text style={styles.subMenuItemText}>General Settings</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {canAccessReceiptSettings() && (
+                        <TouchableOpacity
+                          style={styles.subMenuItem}
+                          onPress={() => {
+                            setIsMenuVisible(false);
+                            router.push("/company-settings" as any);
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.primary + "10" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="receipt-outline"
+                              size={18}
+                              color={Theme.primary}
+                            />
+                          </View>
+                          <Text style={styles.subMenuItemText}>Receipt Settings</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </>
               )}
 
               {canAccessLockTables() && (
@@ -1952,6 +1986,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Fonts.bold,
     color: Theme.textPrimary,
+  },
+  subMenuContainer: {
+    paddingLeft: 12,
+    borderLeftWidth: 1.5,
+    borderLeftColor: Theme.border,
+    marginLeft: 26,
+    marginVertical: 4,
+    gap: 2,
+  },
+  subMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  subMenuItemText: {
+    fontSize: 13,
+    fontFamily: Fonts.semiBold,
+    color: Theme.textSecondary,
   },
   logoutMenuItem: {
     marginTop: 4,
