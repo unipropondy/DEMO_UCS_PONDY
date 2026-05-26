@@ -1274,7 +1274,7 @@ router.post("/save", async (req, res) => {
             
           await transaction.request()
             .input("tid", sql.NVarChar(128), cleanTableId)
-            .query("UPDATE [dbo].[TableMaster] SET Status = 0, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL WHERE TableId = @tid");
+            .query("UPDATE [dbo].[TableMaster] SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL WHERE TableId = @tid");
 
           const io = req.app.get("io");
           if (io) {
@@ -1309,7 +1309,7 @@ router.post("/save", async (req, res) => {
 
                 await transaction.request()
                   .input("tid", sql.NVarChar(128), childTableId)
-                  .query("UPDATE [dbo].[TableMaster] SET Status = 0, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL WHERE TableId = @tid");
+                  .query("UPDATE [dbo].[TableMaster] SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL WHERE TableId = @tid");
 
                 if (io) {
                   io.emit("table_status_updated", { 

@@ -96,6 +96,85 @@ io.on("connection", (socket) => {
   });
 });
 
+// 🔄 REAL-TIME DB POLLER: Syncs database updates (e.g. from online/QR orders or external systems) with Socket.io clients instantly
+// Only emits when changes are detected, preventing performance issues.
+const previousTablesState = new Map();
+const sectionMap = { "1": "SECTION_1", "2": "SECTION_2", "3": "SECTION_3", "4": "TAKEAWAY" };
+
+setInterval(async () => {
+  try {
+    const pool = await poolPromise;
+    if (!pool || !pool.connected) return;
+
+    const result = await pool.request().query(`
+      SELECT 
+        TableId AS id, 
+        CAST(TableNumber AS VARCHAR(50)) AS label,
+        CAST(DiningSection AS VARCHAR(10)) AS DiningSection, 
+        LockedByName as lockedByName,
+        Status, 
+        CONVERT(VARCHAR, StartTime, 126) as StartTime, 
+        ISNULL(TotalAmount, 0) as totalAmount, 
+        CurrentOrderId as currentOrderId,
+        entry_status AS entryStatus,
+        CASE 
+          WHEN Status IN (1, 2, 3) AND StartTime IS NOT NULL AND StartTime > '2000-01-01' AND DATEDIFF(MINUTE, StartTime, GETDATE()) >= 60 THEN 1 
+          ELSE 0 
+        END AS isOvertime,
+        CASE 
+          WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= ISNULL((SELECT TOP 1 HoldOvertimeMinutes FROM CompanySettings), 30) THEN 1 
+          ELSE 0 
+        END AS isHoldOvertime,
+        CONVERT(VARCHAR, ModifiedOn, 126) as ModifiedOn
+      FROM TableMaster
+    `);
+
+    const currentTables = result.recordset || [];
+    currentTables.forEach((table) => {
+      const tableId = String(table.id).toLowerCase();
+      const prevState = previousTablesState.get(tableId);
+
+      const hasChanged = !prevState || 
+        prevState.status !== table.Status || 
+        prevState.entryStatus !== table.entryStatus ||
+        prevState.totalAmount !== table.totalAmount ||
+        prevState.lockedByName !== table.lockedByName;
+
+      if (hasChanged) {
+        // Update local memory state
+        previousTablesState.set(tableId, {
+          status: table.Status,
+          entryStatus: table.entryStatus,
+          totalAmount: table.totalAmount,
+          lockedByName: table.lockedByName
+        });
+
+        // Only emit if this is not the very first load/state initialization
+        if (prevState) {
+          io.emit("table_status_updated", {
+            tableId,
+            status: Number(table.Status),
+            totalAmount: Number(table.totalAmount) || 0,
+            startTime: table.StartTime,
+            tableNo: table.label,
+            section: sectionMap[String(table.DiningSection)] || table.DiningSection,
+            modifiedOn: table.ModifiedOn,
+            isOvertime: table.isOvertime || 0,
+            isHoldOvertime: table.isHoldOvertime || 0,
+            entryStatus: table.entryStatus || null
+          });
+          console.log(`🔌 [DB Poller Sync] Table ${table.label} updated -> Emit socket. Status: ${table.Status}, QR: ${table.entryStatus}`);
+        } else {
+          // Initialize memory state silently on startup
+          console.log(`🔌 [DB Poller Sync] Initialized table state for: ${table.label}`);
+        }
+      }
+    });
+  } catch (err) {
+    console.error("🔄 [DB Poller Sync] Error:", err.message);
+  }
+}, 3000); // Poll every 3 seconds
+
 // ✅ Global Middleware
 app.use(compression()); // Compress all responses
 app.use(
