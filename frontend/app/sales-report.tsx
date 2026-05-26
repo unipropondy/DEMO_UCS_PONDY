@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import * as FileSystemLegacy from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -257,6 +257,19 @@ export default function SalesReport() {
     sortOrder,
     downloadFilter,
   ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [
+      selectedDate,
+      selectedFilter,
+      activePaymentModes,
+      activeOrderTypes,
+      sortOrder,
+      downloadFilter,
+    ])
+  );
 
   const fetchData = async () => {
     try {
@@ -933,6 +946,7 @@ export default function SalesReport() {
   };
 
   const handleOrderPress = (order: any) => {
+    setOrderDetails([]);
     setSelectedOrder(order);
     fetchOrderDetails(order.SettlementID);
   };
@@ -1836,7 +1850,10 @@ export default function SalesReport() {
               <TouchableOpacity
                 activeOpacity={1}
                 style={styles.modalDismiss}
-                onPress={() => setSelectedOrder(null)}
+                onPress={() => {
+                  setSelectedOrder(null);
+                  setOrderDetails([]);
+                }}
               />
               <View style={styles.modalContent}>
                 <View
@@ -2209,7 +2226,10 @@ export default function SalesReport() {
 
                 <View style={{ flexDirection: "row", gap: 12 }}>
                   <TouchableOpacity
-                    onPress={() => setSelectedOrder(null)}
+                    onPress={() => {
+                      setSelectedOrder(null);
+                      setOrderDetails([]);
+                    }}
                     style={[
                       styles.premiumPrimaryBtn,
                       { flex: 1, paddingVertical: 12 },
@@ -2224,17 +2244,19 @@ export default function SalesReport() {
 
                   {!selectedOrder?.IsCancelled && (
                     <TouchableOpacity
+                      disabled={loadingDetails || orderDetails.length === 0}
                       onPress={() => setShowPrintPrompt(true)}
                       style={[
                         styles.premiumSecondaryBtn,
                         { flex: 1.2, paddingVertical: 12 },
+                        (loadingDetails || orderDetails.length === 0) && { opacity: 0.5 }
                       ]}
                     >
                       <Ionicons name="print" size={16} color={Theme.primary} />
                       <Text
                         style={[styles.premiumSecondaryBtnText, { fontSize: 14 }]}
                       >
-                        REPRINT
+                        {loadingDetails ? "LOADING..." : "REPRINT"}
                       </Text>
                     </TouchableOpacity>
                   )}
