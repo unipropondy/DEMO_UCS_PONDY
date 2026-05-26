@@ -166,7 +166,9 @@ router.get("/all", async (req, res) => {
         sh.CancellationReason,
         DATEADD(MINUTE, -468, sh.CancelledDate) as CancelledDate,
         sh.CancelledByUserName,
-        ri.OrderId AS MasterOrderId
+        ri.OrderId AS MasterOrderId,
+        ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
+        ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount
       FROM SettlementHeader sh
       LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
       LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
