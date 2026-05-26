@@ -15,29 +15,40 @@ const SUGAR_KEYS = ["sugar", "Sugar"];
 
 const toGuidOrNull = (value) => {
   if (!value) return null;
-  const s = String(value).trim().replace(/^\{|\}$/g, "");
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ? s : null;
+  const s = String(value)
+    .trim()
+    .replace(/^\{|\}$/g, "");
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    s,
+  )
+    ? s
+    : null;
 };
 
 function resolveItemTextField(item = {}, keys = []) {
   const itemKeys = Object.keys(item || {});
   for (const k of keys) {
-    const actualKey = itemKeys.find(ik => ik.toLowerCase() === k.toLowerCase());
+    const actualKey = itemKeys.find(
+      (ik) => ik.toLowerCase() === k.toLowerCase(),
+    );
     if (actualKey !== undefined) {
       const raw = item[actualKey];
-      if (raw !== undefined && raw !== null) return { hasExplicitValue: true, value: String(raw) };
+      if (raw !== undefined && raw !== null)
+        return { hasExplicitValue: true, value: String(raw) };
     }
   }
   return { hasExplicitValue: false, value: "" };
 }
 
-function resolveItemNote(item = {}) { return resolveItemTextField(item, NOTE_KEYS); }
+function resolveItemNote(item = {}) {
+  return resolveItemTextField(item, NOTE_KEYS);
+}
 function resolveItemTakeaway(item = {}) {
   const result = resolveItemTextField(item, TAKEAWAY_KEYS);
   const val = result.value.toLowerCase();
   return {
     hasExplicitTakeaway: result.hasExplicitValue,
-    value: result.hasExplicitValue ? (val === "true" || val === "1") : false
+    value: result.hasExplicitValue ? val === "true" || val === "1" : false,
   };
 }
 
@@ -47,16 +58,16 @@ function resolveItemTakeaway(item = {}) {
  */
 async function getOrGenerateOrderId(req, tableId) {
   const pool = await poolPromise;
-  const cleanId = String(tableId).replace(/^\{|\}$/g, "").trim();
+  const cleanId = String(tableId)
+    .replace(/^\{|\}$/g, "")
+    .trim();
   if (!tableId || tableId === "undefined" || tableId === "null") return "NEW";
 
   try {
     // 1. GHOST CLEANUP: Force close any stale open orders for this table first
     // 🛡️ Fail-safe: Wrap in nested try to prevent crashing if DB is busy
     try {
-      await pool.request()
-        .input("tid", sql.UniqueIdentifier, cleanId)
-        .query(`
+      await pool.request().input("tid", sql.UniqueIdentifier, cleanId).query(`
           DECLARE @TableNo VARCHAR(20), @CurrentOID NVARCHAR(50);
           SELECT @TableNo = TableNumber, @CurrentOID = CurrentOrderId FROM TableMaster WHERE TableId = @tid;
 
@@ -70,16 +81,26 @@ async function getOrGenerateOrderId(req, tableId) {
           END
         `);
     } catch (cleanupErr) {
-      console.warn("⚠️ [Cart] Ghost cleanup non-critical failure:", cleanupErr.message);
+      console.warn(
+        "⚠️ [Cart] Ghost cleanup non-critical failure:",
+        cleanupErr.message,
+      );
     }
 
     // 2. Instant check for existing ID
-    const quickCheck = await pool.request()
+    const quickCheck = await pool
+      .request()
       .input("tid", sql.UniqueIdentifier, cleanId)
       .query("SELECT CurrentOrderId FROM TableMaster WHERE TableId = @tid");
 
     let existingId = quickCheck.recordset[0]?.CurrentOrderId;
-    if (existingId && existingId !== "NEW" && existingId !== "#NEW" && !existingId.startsWith("TEMP-") && existingId.length > 5) {
+    if (
+      existingId &&
+      existingId !== "NEW" &&
+      existingId !== "#NEW" &&
+      !existingId.startsWith("TEMP-") &&
+      existingId.length > 5
+    ) {
       console.log(`✅ [Cart] Reusing existing OrderID: ${existingId}`);
       return existingId;
     }
@@ -87,17 +108,17 @@ async function getOrGenerateOrderId(req, tableId) {
     const activeOrg = await getActiveOrganization();
     const currentBizId = activeOrg.businessUnitId;
 
-    const istDate = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000));
-    const todayStr = istDate.toISOString().split('T')[0];
-    const datePrefix = todayStr.replace(/-/g, '');
+    const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+    const todayStr = istDate.toISOString().split("T")[0];
+    const datePrefix = todayStr.replace(/-/g, "");
 
     let dailySequence = 1;
 
     // 3. ATOMIC ATTEMPT: Use MERGE or Transaction for Sequence
-    const seqResult = await pool.request()
+    const seqResult = await pool
+      .request()
       .input("RestId", sql.UniqueIdentifier, String(currentBizId))
-      .input("Today", sql.Date, todayStr)
-      .query(`
+      .input("Today", sql.Date, todayStr).query(`
         BEGIN TRANSACTION;
         IF NOT EXISTS (SELECT 1 FROM OrderSequences WHERE RestaurantId = @RestId AND SequenceDate = @Today)
         BEGIN
@@ -110,23 +131,30 @@ async function getOrGenerateOrderId(req, tableId) {
 
     dailySequence = seqResult.recordset[0]?.LastNumber || 1;
 
-    const displayOrderId = `${datePrefix}-${String(dailySequence).padStart(4, '0')}`;
+    const displayOrderId = `${datePrefix}-${String(dailySequence).padStart(4, "0")}`;
 
     // 4. Atomic Update of Table Status
-    await pool.request()
+    await pool
+      .request()
       .input("tid", sql.VarChar(50), cleanId)
       .input("oid", sql.NVarChar(50), displayOrderId)
-      .query("UPDATE TableMaster SET CurrentOrderId = @oid, StartTime = ISNULL(StartTime, GETDATE()) WHERE TableId = @tid");
+      .query(
+        "UPDATE TableMaster SET CurrentOrderId = @oid, StartTime = ISNULL(StartTime, GETDATE()) WHERE TableId = @tid",
+      );
 
     return displayOrderId;
   } catch (err) {
     console.error("🔥 [Critical] OrderID Generation Failed:", err.message);
     // FALLBACK: Use count as emergency instead of returning "NEW"
-    const istDate = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000));
-    const datePrefix = istDate.toISOString().split('T')[0].replace(/-/g, '');
-    const countRes = await pool.request().query(`SELECT (COUNT(*) + 1) as LastNumber FROM RestaurantOrderCur WHERE OrderNumber LIKE '${datePrefix}%'`);
+    const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+    const datePrefix = istDate.toISOString().split("T")[0].replace(/-/g, "");
+    const countRes = await pool
+      .request()
+      .query(
+        `SELECT (COUNT(*) + 1) as LastNumber FROM RestaurantOrderCur WHERE OrderNumber LIKE '${datePrefix}%'`,
+      );
     const emergencySeq = countRes.recordset[0]?.LastNumber || 1;
-    return `${datePrefix}-EM${String(emergencySeq).padStart(3, '0')}`;
+    return `${datePrefix}-EM${String(emergencySeq).padStart(3, "0")}`;
   }
 }
 
@@ -134,19 +162,31 @@ async function getOrGenerateOrderId(req, tableId) {
  * Professional Table Sync Helper
  * Syncs CartItems to RestaurantOrderCur and RestaurantOrderDetailCur
  */
-async function syncToProfessionalTables(transaction, tableId, displayOrderId, items, userId) {
-  const isTakeaway = (!tableId || tableId === "undefined" || tableId === "null");
-  const cleanTableId = isTakeaway ? null : String(tableId).replace(/^\{|\}$/g, "").trim();
-  const cleanOrderNo = String(displayOrderId || "PENDING").replace(/^\{|\}$/g, "").trim();
+async function syncToProfessionalTables(
+  transaction,
+  tableId,
+  displayOrderId,
+  items,
+  userId,
+) {
+  const isTakeaway = !tableId || tableId === "undefined" || tableId === "null";
+  const cleanTableId = isTakeaway
+    ? null
+    : String(tableId)
+        .replace(/^\{|\}$/g, "")
+        .trim();
+  const cleanOrderNo = String(displayOrderId || "PENDING")
+    .replace(/^\{|\}$/g, "")
+    .trim();
 
   const activeOrg = await getActiveOrganization();
   const bizId = activeOrg.businessUnitId;
 
   // 🚀 OPTIMIZATION 1: Combined Initial Lookups (TableNo, BizId, OrderHeader)
-  const initRes = await transaction.request()
+  const initRes = await transaction
+    .request()
     .input("orderNo", sql.NVarChar(50), cleanOrderNo)
-    .input("tableId", sql.VarChar(50), cleanTableId)
-    .query(`
+    .input("tableId", sql.VarChar(50), cleanTableId).query(`
       DECLARE @ActualTableNo VARCHAR(20) = 'TAKEAWAY';
       DECLARE @Section INT = 4;
       IF @tableId IS NOT NULL 
@@ -180,11 +220,11 @@ async function syncToProfessionalTables(transaction, tableId, displayOrderId, it
 
   if (header) {
     orderGuid = header.OrderId;
-    await transaction.request()
+    await transaction
+      .request()
       .input("orderId", sql.UniqueIdentifier, orderGuid)
       .input("orderNo", sql.NVarChar(50), cleanOrderNo)
-      .input("priority", sql.Int, priorityCode)
-      .query(`
+      .input("priority", sql.Int, priorityCode).query(`
         UPDATE RestaurantOrderCur 
         SET PriorityCode = ISNULL(PriorityCode, @priority),
             OrderNumber = CASE 
@@ -195,22 +235,25 @@ async function syncToProfessionalTables(transaction, tableId, displayOrderId, it
       `);
   } else {
     orderGuid = require("crypto").randomUUID();
-    await transaction.request()
+    await transaction
+      .request()
       .input("orderId", sql.UniqueIdentifier, orderGuid)
       .input("orderNo", sql.NVarChar(50), cleanOrderNo)
       .input("tableNo", sql.VarChar(20), actualTableNo)
       .input("userId", sql.UniqueIdentifier, finalUserId)
       .input("bizId", sql.UniqueIdentifier, bizId)
       .input("priority", sql.Int, priorityCode)
-      .query("INSERT INTO RestaurantOrderCur (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, isOrderClosed, BusinessUnitId, PriorityCode) VALUES (@orderId, @orderNo, GETDATE(), @tableNo, 1, @userId, GETDATE(), 0, @bizId, @priority)");
+      .query(
+        "INSERT INTO RestaurantOrderCur (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, isOrderClosed, BusinessUnitId, PriorityCode) VALUES (@orderId, @orderNo, GETDATE(), @tableNo, 1, @userId, GETDATE(), 0, @bizId, @priority)",
+      );
   }
 
   // 🛡️ GHOST SHIELD: Force-close any OTHER open orders for the same table number to prevent "popping" items.
-  if (actualTableNo && actualTableNo !== 'undefined') {
-    await transaction.request()
+  if (actualTableNo && actualTableNo !== "undefined") {
+    await transaction
+      .request()
       .input("orderGuid", sql.UniqueIdentifier, orderGuid)
-      .input("tableNo", sql.VarChar(20), actualTableNo)
-      .query(`
+      .input("tableNo", sql.VarChar(20), actualTableNo).query(`
         UPDATE RestaurantOrderCur 
         SET isOrderClosed = 1, ModifiedOn = GETDATE() 
         WHERE Tableno = @tableNo 
@@ -228,23 +271,46 @@ async function syncToProfessionalTables(transaction, tableId, displayOrderId, it
   itemRequest.input("orderNo", sql.NVarChar(100), cleanOrderNo);
 
   let batchSql = "";
-  const statusCodes = { 'NEW': 1, 'SENT': 2, 'READY': 3, 'SERVED': 4, 'HOLD': 5, 'VOIDED': 0 };
+  const statusCodes = {
+    NEW: 1,
+    SENT: 2,
+    READY: 3,
+    SERVED: 4,
+    HOLD: 5,
+    VOIDED: 0,
+  };
 
   items.forEach((item, idx) => {
-    const cleanProdId = String(item.id || item.ProductId || DEFAULT_GUID).replace(/^\{|\}$/g, "").trim();
+    const cleanProdId = String(item.id || item.ProductId || DEFAULT_GUID)
+      .replace(/^\{|\}$/g, "")
+      .trim();
     const finalProdId = cleanProdId.length < 10 ? DEFAULT_GUID : cleanProdId;
-    const lineItemId = (item.lineItemId && item.lineItemId.length > 10) ? item.lineItemId : require("crypto").randomUUID();
+    const lineItemId =
+      item.lineItemId && item.lineItemId.length > 10
+        ? item.lineItemId
+        : require("crypto").randomUUID();
     const currentStatusCode = statusCodes[item.status || item.Status] || 2;
-    const dishName = (item.name || item.ProductName || 'Dish').substring(0, 200);
+    const dishName = (item.name || item.ProductName || "Dish").substring(
+      0,
+      200,
+    );
     const unitPrice = item.price || item.Cost || 0;
     const noteInfo = resolveItemNote(item);
     const takeawayInfo = resolveItemTakeaway(item);
     const modifiers = Array.isArray(item.modifiers) ? item.modifiers : [];
     const modsJSON = JSON.stringify(modifiers);
 
-    const p_id = `id${idx}`, p_dish = `dish${idx}`, p_qty = `qty${idx}`, p_cost = `cost${idx}`,
-      p_status = `st${idx}`, p_name = `name${idx}`, p_note = `note${idx}`, p_mods = `mods${idx}`,
-      p_tw = `tw${idx}`, p_disc = `disc${idx}`, p_created = `created${idx}`;
+    const p_id = `id${idx}`,
+      p_dish = `dish${idx}`,
+      p_qty = `qty${idx}`,
+      p_cost = `cost${idx}`,
+      p_status = `st${idx}`,
+      p_name = `name${idx}`,
+      p_note = `note${idx}`,
+      p_mods = `mods${idx}`,
+      p_tw = `tw${idx}`,
+      p_disc = `disc${idx}`,
+      p_created = `created${idx}`;
 
     itemRequest.input(p_id, sql.UniqueIdentifier, lineItemId);
     itemRequest.input(p_dish, sql.UniqueIdentifier, finalProdId);
@@ -294,34 +360,53 @@ async function syncToProfessionalTables(transaction, tableId, displayOrderId, it
     `;
 
     const modItems = [...modifiers];
-    if (noteInfo.value) modItems.push({ ModifierId: '00000000-0000-0000-0000-000000000001', ModifierName: "INSTR: " + noteInfo.value, Price: 0, qty: item.qty || 1 });
+    if (noteInfo.value)
+      modItems.push({
+        ModifierId: "00000000-0000-0000-0000-000000000001",
+        ModifierName: "INSTR: " + noteInfo.value,
+        Price: 0,
+        qty: item.qty || 1,
+      });
 
     if (modItems.length > 0) {
       batchSql += `INSERT INTO RestaurantmodifierdetailCur (OrderDetailId, OrderId, DishId, ModifierId, Quantity, Amount, ModifierName, CreatedBy, CreatedOn) VALUES `;
       modItems.forEach((mod, midx) => {
-        const pm_id = `mId${idx}_${midx}`, pm_qty = `mQty${idx}_${midx}`, pm_amt = `mAmt${idx}_${midx}`, pm_name = `mName${idx}_${midx}`;
+        const pm_id = `mId${idx}_${midx}`,
+          pm_qty = `mQty${idx}_${midx}`,
+          pm_amt = `mAmt${idx}_${midx}`,
+          pm_name = `mName${idx}_${midx}`;
 
         // 🛡️ SAFE GUID: Ensure we have a valid-looking GUID or use a dummy
-        const safeModId = (mod.ModifierId && mod.ModifierId.length > 30)
-          ? mod.ModifierId
-          : '00000000-0000-0000-0000-000000000001';
+        const safeModId =
+          mod.ModifierId && mod.ModifierId.length > 30
+            ? mod.ModifierId
+            : "00000000-0000-0000-0000-000000000001";
 
         itemRequest.input(pm_id, sql.UniqueIdentifier, safeModId);
         itemRequest.input(pm_qty, sql.Int, mod.qty || 1);
         itemRequest.input(pm_amt, sql.Decimal(18, 2), mod.Price || 0);
-        itemRequest.input(pm_name, sql.NVarChar(800), (mod.ModifierName || "").substring(0, 800));
+        itemRequest.input(
+          pm_name,
+          sql.NVarChar(800),
+          (mod.ModifierName || "").substring(0, 800),
+        );
         batchSql += `(@${p_id}, @orderId, @${p_dish}, @${pm_id}, @${pm_qty}, @${pm_amt}, @${pm_name}, @userId, GETDATE())${midx === modItems.length - 1 ? ";" : ","}`;
       });
     }
   });
 
   // 🚀 OPTIMIZATION 3: Smart Removal in the same batch
-  const incomingIds = items.map(i => i.lineItemId).filter(id => !!id && id.length > 5);
-  const notInClause = incomingIds.length > 0
-    ? `AND OrderDetailId NOT IN (${incomingIds.map(id => `'${id}'`).join(',')})`
-    : "";
+  const incomingIds = items
+    .map((i) => i.lineItemId)
+    .filter((id) => !!id && id.length > 5);
+  const notInClause =
+    incomingIds.length > 0
+      ? `AND OrderDetailId NOT IN (${incomingIds.map((id) => `'${id}'`).join(",")})`
+      : "";
 
-  console.log(`[DB] Syncing Order ${cleanOrderNo} (${orderGuid}): Processing ${items.length} items, keeping ${incomingIds.length} IDs.`);
+  console.log(
+    `[DB] Syncing Order ${cleanOrderNo} (${orderGuid}): Processing ${items.length} items, keeping ${incomingIds.length} IDs.`,
+  );
 
   batchSql += `
     -- Smart Removal: Delete unsent items that are no longer in the cart
@@ -337,7 +422,8 @@ async function syncToProfessionalTables(transaction, tableId, displayOrderId, it
   `;
 
   if (batchSql || items.length === 0) {
-    if (items.length === 0) console.log(`[DB] CLEARING ALL UNSENT for Order ${cleanOrderNo}`);
+    if (items.length === 0)
+      console.log(`[DB] CLEARING ALL UNSENT for Order ${cleanOrderNo}`);
     await itemRequest.query(batchSql);
   }
 }
@@ -345,8 +431,11 @@ async function syncToProfessionalTables(transaction, tableId, displayOrderId, it
 async function syncTableStatus(req, tableId) {
   if (!tableId || tableId === "undefined" || tableId === "null") return null;
   const pool = await poolPromise;
-  const cleanId = String(tableId).replace(/^\{|\}$/g, "").trim();
-  const res = await pool.request().input("tid", sql.VarChar(50), cleanId).query(`
+  const cleanId = String(tableId)
+    .replace(/^\{|\}$/g, "")
+    .trim();
+  const res = await pool.request().input("tid", sql.VarChar(50), cleanId)
+    .query(`
     DECLARE @ActualOrderId UNIQUEIDENTIFIER, @ActualOrderNo NVARCHAR(50), @TableNo VARCHAR(20), @count INT, @total DECIMAL(18,2);
     
     SELECT TOP 1 @TableNo = TableNumber FROM TableMaster WHERE TableId = @tid;
@@ -378,6 +467,7 @@ async function syncTableStatus(req, tableId) {
         WHEN @count > 0 THEN 1 
         ELSE 0 
     END, 
+    entry_status =NULL,
         TotalAmount = @total, 
         StartTime = CASE 
                          -- 🚀 NEW ORDER RESET: If the Order ID is changing, reset the timer to fresh
@@ -409,12 +499,21 @@ async function syncTableStatus(req, tableId) {
 
   const updated = res.recordset[0];
   const now = Date.now();
-  console.log(`[TRACE] [${now}] [TABLE_STATUS_UPDATE] Table: ${tableId} | Status: ${updated?.Status} | Total: ${updated?.TotalAmount}`);
+  console.log(
+    `[TRACE] [${now}] [TABLE_STATUS_UPDATE] Table: ${tableId} | Status: ${updated?.Status} | Total: ${updated?.TotalAmount}`,
+  );
   if (updated) {
-    const sectionMap = { "1": "SECTION_1", "2": "SECTION_2", "3": "SECTION_3", "4": "TAKEAWAY" };
+    const sectionMap = {
+      1: "SECTION_1",
+      2: "SECTION_2",
+      3: "SECTION_3",
+      4: "TAKEAWAY",
+    };
     const cleanOrderId = updated.CurrentOrderId || "EMPTY";
 
-    console.log(`[TRACE] [${Date.now()}] [SOCKET_EMIT] table_status_updated | Table: ${cleanId} | Status: ${updated.Status}`);
+    console.log(
+      `[TRACE] [${Date.now()}] [SOCKET_EMIT] table_status_updated | Table: ${cleanId} | Status: ${updated.Status}`,
+    );
     req.app.get("io")?.emit("table_status_updated", {
       tableId: cleanId.toLowerCase(),
       status: Number(updated.Status),
@@ -425,7 +524,7 @@ async function syncTableStatus(req, tableId) {
       section: sectionMap[String(updated.section)] || updated.section,
       modifiedOn: updated.ModifiedOn,
       isOvertime: updated.isOvertime || 0,
-      isHoldOvertime: updated.isHoldOvertime || 0
+      isHoldOvertime: updated.isHoldOvertime || 0,
     });
   }
   return updated;
@@ -434,27 +533,46 @@ async function syncTableStatus(req, tableId) {
 // Routes
 router.post("/save-cart", async (req, res) => {
   try {
-    const { tableId, items, userId, orderId, lastUpdate, version, skipTableStatusSync } = req.body;
+    const {
+      tableId,
+      items,
+      userId,
+      orderId,
+      lastUpdate,
+      version,
+      skipTableStatusSync,
+    } = req.body;
     const pool = await poolPromise;
-    const cleanId = String(tableId).replace(/^\{|\}$/g, "").trim();
+    const cleanId = String(tableId)
+      .replace(/^\{|\}$/g, "")
+      .trim();
     const now = Date.now();
 
-    console.log(`[TRACE] [${now}] [SAVE-CART] Table: ${cleanId} | Items: ${items?.length || 0} | Version: ${version || 'NONE'} | Update: ${lastUpdate || 'NONE'}`);
+    console.log(
+      `[TRACE] [${now}] [SAVE-CART] Table: ${cleanId} | Items: ${items?.length || 0} | Version: ${version || "NONE"} | Update: ${lastUpdate || "NONE"}`,
+    );
 
     // 🚀 UNIFIED ID: Only generate a professional ID if we actually have items to save
     // 🚀 UNIFIED ID: Use existing orderId if available, even for empty carts
     let currentOrderId = orderId;
     const hasItems = items && items.length > 0;
 
-    if (hasItems && (!currentOrderId || currentOrderId === "NEW" || currentOrderId === "#NEW" || currentOrderId === "PENDING" || currentOrderId.length < 10)) {
+    if (
+      hasItems &&
+      (!currentOrderId ||
+        currentOrderId === "NEW" ||
+        currentOrderId === "#NEW" ||
+        currentOrderId === "PENDING" ||
+        currentOrderId.length < 10)
+    ) {
       currentOrderId = await getOrGenerateOrderId(req, cleanId);
     } else if (!hasItems) {
       // 🚀 NUCLEAR CLEAR: If saving an empty cart, we should clear EVERY open order for this table
       // and reset the table status completely to prevent ghosts.
-      console.log(`[TRACE] [${now}] [SAVE-CART] NUCLEAR CLEAR for Table ${cleanId}`);
-      await pool.request()
-        .input("tid", sql.VarChar(50), cleanId)
-        .query(`
+      console.log(
+        `[TRACE] [${now}] [SAVE-CART] NUCLEAR CLEAR for Table ${cleanId}`,
+      );
+      await pool.request().input("tid", sql.VarChar(50), cleanId).query(`
           DECLARE @TableNo VARCHAR(20);
           SELECT TOP 1 @TableNo = TableNumber FROM TableMaster WHERE TableId = @tid;
 
@@ -476,7 +594,7 @@ router.post("/save-cart", async (req, res) => {
           END
 
           -- Reset table status
-          UPDATE TableMaster SET Status = 0, CurrentOrderId = NULL, StartTime = NULL WHERE TableId = @tid;
+          UPDATE TableMaster SET Status = 0,entry_status=NULL, CurrentOrderId = NULL, StartTime = NULL WHERE TableId = @tid;
         `);
       currentOrderId = null;
     }
@@ -484,16 +602,22 @@ router.post("/save-cart", async (req, res) => {
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
     try {
-      // 🚀 ALWAYS SYNC: Even if items is empty, we need to run syncToProfessionalTables 
+      // 🚀 ALWAYS SYNC: Even if items is empty, we need to run syncToProfessionalTables
       // to ensure any existing items in the DB are voided/cleaned up.
-      await syncToProfessionalTables(transaction, cleanId, currentOrderId, items || [], userId);
+      await syncToProfessionalTables(
+        transaction,
+        cleanId,
+        currentOrderId,
+        items || [],
+        userId,
+      );
 
-      // 🚀 CRITICAL: Update TableMaster INSIDE the same transaction 
-      await transaction.request()
+      // 🚀 CRITICAL: Update TableMaster INSIDE the same transaction
+      await transaction
+        .request()
         .input("tid", sql.VarChar(50), cleanId)
         .input("oid", sql.NVarChar(50), currentOrderId)
-        .input("skipSync", sql.Bit, !!skipTableStatusSync)
-        .query(`
+        .input("skipSync", sql.Bit, !!skipTableStatusSync).query(`
           UPDATE TableMaster 
           SET Status = CASE 
                          WHEN @skipSync = 1 AND Status IN (2, 3) THEN Status 
@@ -514,25 +638,32 @@ router.post("/save-cart", async (req, res) => {
       // 🔥 LIVE SYNC: Notify all other devices that this table's cart has changed
       const io = req.app.get("io");
       if (io) {
-        io.emit("cart_updated", { tableId: cleanId.toLowerCase(), orderId: currentOrderId });
+        io.emit("cart_updated", {
+          tableId: cleanId.toLowerCase(),
+          orderId: currentOrderId,
+        });
       }
 
       if (!skipTableStatusSync) {
-        syncTableStatus(req, cleanId).catch(() => { });
+        syncTableStatus(req, cleanId).catch(() => {});
       }
     } catch (e) {
       if (transaction._isStarted) await transaction.rollback();
       console.error("❌ SaveCart SQL Error:", e.message);
       res.status(500).json({ error: "DB_ERROR: " + e.message });
     }
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post("/send", async (req, res) => {
   try {
     const { tableId, orderId, items, userId } = req.body;
     const pool = await poolPromise;
-    const cleanId = String(tableId).replace(/^\{|\}$/g, "").trim();
+    const cleanId = String(tableId)
+      .replace(/^\{|\}$/g, "")
+      .trim();
 
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
@@ -544,10 +675,12 @@ router.post("/send", async (req, res) => {
       let clientItems = items || [];
       if (clientItems.length === 0) {
         // 🔥 SAFETY NET: Frontend forgot to send items. Fetch from DB.
-        console.warn("⚠️ [Send] No items received from client - fetching from DB as fallback");
-        const dbItems = await pool.request()
-          .input("tableNo", sql.VarChar(20), cleanId)
-          .query(`SELECT 
+        console.warn(
+          "⚠️ [Send] No items received from client - fetching from DB as fallback",
+        );
+        const dbItems = await pool
+          .request()
+          .input("tableNo", sql.VarChar(20), cleanId).query(`SELECT 
             d.OrderDetailId as lineItemId, d.DishId as id, dish.Name as name,
             d.Quantity as qty, d.PricePerUnit as price, d.StatusCode, 
             d.ModifiersJSON, d.Remarks as note, d.isTakeAway as isTakeaway,
@@ -572,21 +705,29 @@ router.post("/send", async (req, res) => {
               AND d.StatusCode <> 0`);
         clientItems = dbItems.recordset;
       }
-      const sentItems = clientItems.map(item => ({
+      const sentItems = clientItems.map((item) => ({
         ...item,
-        status: (item.status === 'VOIDED' || item.StatusCode === 0) ? 'VOIDED' : 'SENT'
+        status:
+          item.status === "VOIDED" || item.StatusCode === 0 ? "VOIDED" : "SENT",
       }));
 
       // 3. FORCE SYNC with the new Professional ID
-      await syncToProfessionalTables(transaction, cleanId, finalOrderId, sentItems, userId);
+      await syncToProfessionalTables(
+        transaction,
+        cleanId,
+        finalOrderId,
+        sentItems,
+        userId,
+      );
 
       // 4. Lock Table to the new ID
-      await transaction.request()
+      await transaction
+        .request()
         .input("tid", sql.VarChar(50), cleanId)
-        .input("oid", sql.NVarChar(50), finalOrderId)
-        .query(`
+        .input("oid", sql.NVarChar(50), finalOrderId).query(`
           UPDATE TableMaster 
           SET Status = 1, 
+          entry_status =NULL,
               CurrentOrderId = @oid,
               StartTime = CASE WHEN StartTime IS NULL OR StartTime < '2000-01-01' THEN GETDATE() ELSE StartTime END,
               ModifiedOn = GETDATE()
@@ -600,13 +741,25 @@ router.post("/send", async (req, res) => {
       // 🔥 REAL-TIME BROADCAST: Notify KDS and all other Waiter devices
       const io = req.app.get("io");
       if (io) {
-        const tableQuery = await pool.request()
+        const tableQuery = await pool
+          .request()
           .input("tid", sql.VarChar(50), cleanId)
-          .query("SELECT TableNumber, DiningSection FROM TableMaster WHERE TableId = @tid");
+          .query(
+            "SELECT TableNumber, DiningSection FROM TableMaster WHERE TableId = @tid",
+          );
         const tableRow = tableQuery.recordset[0];
-        const tableNo = tableRow?.TableNumber ? String(tableRow.TableNumber).trim() : "";
-        const sectionMap = { "1": "SECTION_1", "2": "SECTION_2", "3": "SECTION_3", "4": "TAKEAWAY" };
-        const section = tableRow ? (sectionMap[String(tableRow.DiningSection)] || "SECTION_1") : "SECTION_1";
+        const tableNo = tableRow?.TableNumber
+          ? String(tableRow.TableNumber).trim()
+          : "";
+        const sectionMap = {
+          1: "SECTION_1",
+          2: "SECTION_2",
+          3: "SECTION_3",
+          4: "TAKEAWAY",
+        };
+        const section = tableRow
+          ? sectionMap[String(tableRow.DiningSection)] || "SECTION_1"
+          : "SECTION_1";
 
         io.emit("new_order", {
           orderId: finalOrderId,
@@ -614,38 +767,51 @@ router.post("/send", async (req, res) => {
             orderType: "DINE_IN",
             tableId: cleanId,
             tableNo: tableNo,
-            section: section
+            section: section,
           },
           items: sentItems,
-          createdAt: Date.now()
+          createdAt: Date.now(),
         });
-        io.emit("cart_updated", { tableId: cleanId.toLowerCase(), orderId: finalOrderId });
+        io.emit("cart_updated", {
+          tableId: cleanId.toLowerCase(),
+          orderId: finalOrderId,
+        });
         io.emit("kot_printed", { tableId: cleanId, orderId: finalOrderId });
       }
 
       // 5. Refresh totals and notify instantly
-      syncTableStatus(req, cleanId).catch(() => { });
+      syncTableStatus(req, cleanId).catch(() => {});
     } catch (e) {
       await transaction.rollback();
       console.error("❌ SendOrder SQL Error:", e.message);
       res.status(500).json({ error: "SEND_ERROR: " + e.message });
     }
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get("/cart/:tableId", async (req, res) => {
   try {
     const { tableId } = req.params;
-    if (!tableId || tableId === "undefined" || tableId === "null" || tableId.length < 5) {
+    if (
+      !tableId ||
+      tableId === "undefined" ||
+      tableId === "null" ||
+      tableId.length < 5
+    ) {
       return res.json({ items: [], currentOrderId: null });
     }
     const pool = await poolPromise;
     const cleanId = tableId.replace(/^\{|\}$/g, "").trim();
 
     // Get table info (TableNumber + CurrentOrderId)
-    const tableInfo = await pool.request()
+    const tableInfo = await pool
+      .request()
       .input("tid", sql.VarChar(50), cleanId)
-      .query("SELECT TableNumber, CurrentOrderId FROM TableMaster WHERE TableId = @tid");
+      .query(
+        "SELECT TableNumber, CurrentOrderId FROM TableMaster WHERE TableId = @tid",
+      );
 
     const tableRow = tableInfo.recordset[0];
     const tableNumber = tableRow?.TableNumber;
@@ -653,15 +819,20 @@ router.get("/cart/:tableId", async (req, res) => {
 
     // Fetch items: prioritize by CurrentOrderId, fall back to open order by TableNumber
     // 💡 LIVE SYNC: Allow TEMP- IDs so other devices can see the draft cart items!
-    const isRealOrderId = currentOrderId &&
-      currentOrderId !== 'PENDING' &&
-      currentOrderId !== 'NEW';
+    const isRealOrderId =
+      currentOrderId &&
+      currentOrderId !== "PENDING" &&
+      currentOrderId !== "NEW";
 
-    const result = await pool.request()
+    const result = await pool
+      .request()
       .input("tid", sql.VarChar(50), cleanId)
       .input("tableNo", sql.VarChar(20), String(tableNumber || ""))
-      .input("orderNo", sql.NVarChar(50), isRealOrderId ? currentOrderId : "__NONE__")
-      .query(`
+      .input(
+        "orderNo",
+        sql.NVarChar(50),
+        isRealOrderId ? currentOrderId : "__NONE__",
+      ).query(`
         SELECT 
           d.OrderDetailId as lineItemId, d.DishId as id, d.Quantity as qty, 
           d.PricePerUnit as price, 
@@ -703,23 +874,35 @@ router.get("/cart/:tableId", async (req, res) => {
 
     const items = result.recordset.map((i) => ({
       ...i,
-      modifiers: i.ModifiersJSON ? (() => { try { return JSON.parse(i.ModifiersJSON); } catch { return []; } })() : []
+      modifiers: i.ModifiersJSON
+        ? (() => {
+            try {
+              return JSON.parse(i.ModifiersJSON);
+            } catch {
+              return [];
+            }
+          })()
+        : [],
     }));
 
     res.json({ items, currentOrderId: isRealOrderId ? currentOrderId : null });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post("/cancel", async (req, res) => {
   try {
     const { orderId, tableId, reason, userId, userName } = req.body;
     const pool = await poolPromise;
-    const cleanTid = String(tableId).replace(/^\{|\}$/g, "").trim();
+    const cleanTid = String(tableId)
+      .replace(/^\{|\}$/g, "")
+      .trim();
 
     // 1. Fetch Order Data for Reporting
-    const orderData = await pool.request()
-      .input("oid", sql.NVarChar(100), orderId)
-      .query(`
+    const orderData = await pool
+      .request()
+      .input("oid", sql.NVarChar(100), orderId).query(`
         SELECT h.OrderId, h.OrderNumber, RTRIM(LTRIM(h.Tableno)) AS Tableno, h.BusinessUnitId, h.CreatedBy, h.MobileNo,
                tm.DiningSection, tm.TableId
         FROM RestaurantOrderCur h
@@ -729,12 +912,14 @@ router.post("/cancel", async (req, res) => {
 
     const header = orderData.recordset[0];
     if (!header) {
-      return res.status(404).json({ error: "Order not found or already closed" });
+      return res
+        .status(404)
+        .json({ error: "Order not found or already closed" });
     }
 
-    const itemsData = await pool.request()
-      .input("orderId", sql.UniqueIdentifier, header.OrderId)
-      .query(`
+    const itemsData = await pool
+      .request()
+      .input("orderId", sql.UniqueIdentifier, header.OrderId).query(`
         SELECT d.*, dish.DishGroupId, dg.CategoryId, cm.CategoryName, dg.DishGroupName
         FROM RestaurantOrderDetailCur d
         LEFT JOIN DishMaster dish ON d.DishId = dish.DishId
@@ -744,7 +929,10 @@ router.post("/cancel", async (req, res) => {
       `);
 
     const items = itemsData.recordset;
-    const subTotal = items.reduce((sum, item) => sum + (item.ActualAmount || 0), 0);
+    const subTotal = items.reduce(
+      (sum, item) => sum + (item.ActualAmount || 0),
+      0,
+    );
     const voidQty = items.reduce((sum, item) => sum + (item.Quantity || 0), 0);
 
     const transaction = new sql.Transaction(pool);
@@ -753,7 +941,8 @@ router.post("/cancel", async (req, res) => {
       const settlementId = crypto.randomUUID();
 
       // 2. Insert into SettlementHeader (Cancelled Status)
-      await transaction.request()
+      await transaction
+        .request()
         .input("sid", sql.UniqueIdentifier, settlementId)
         .input("oid", sql.NVarChar(50), orderId)
         .input("tableNo", sql.NVarChar(50), header.Tableno)
@@ -761,12 +950,15 @@ router.post("/cancel", async (req, res) => {
         .input("userId", sql.UniqueIdentifier, toGuidOrNull(userId))
         .input("userName", sql.NVarChar(255), userName || "User")
         .input("reason", sql.NVarChar(500), reason || "Manual Cancellation")
-        .input("bizId", sql.UniqueIdentifier, header.BusinessUnitId || DEFAULT_GUID)
+        .input(
+          "bizId",
+          sql.UniqueIdentifier,
+          header.BusinessUnitId || DEFAULT_GUID,
+        )
         .input("subTotal", sql.Money, subTotal)
         .input("voidQty", sql.Int, voidQty)
         .input("voidAmt", sql.Money, subTotal)
-        .input("mobile", sql.NVarChar(50), header.MobileNo)
-        .query(`
+        .input("mobile", sql.NVarChar(50), header.MobileNo).query(`
           INSERT INTO SettlementHeader (
             SettlementID, LastSettlementDate, BillNo, OrderType, TableNo, Section, 
             CashierID, BusinessUnitId, SysAmount, ManualAmount, CreatedBy, CreatedOn, 
@@ -782,7 +974,8 @@ router.post("/cancel", async (req, res) => {
 
       // 3. Insert Items into SettlementItemDetail (Marked as VOIDED)
       for (const item of items) {
-        await transaction.request()
+        await transaction
+          .request()
           .input("sid", sql.UniqueIdentifier, settlementId)
           .input("dishId", sql.UniqueIdentifier, item.DishId)
           .input("dishName", sql.NVarChar(255), item.DishName)
@@ -790,8 +983,7 @@ router.post("/cancel", async (req, res) => {
           .input("price", sql.Decimal(18, 2), item.PricePerUnit)
           .input("catId", sql.UniqueIdentifier, item.CategoryId)
           .input("catName", sql.NVarChar(255), item.CategoryName)
-          .input("groupName", sql.NVarChar(255), item.DishGroupName)
-          .query(`
+          .input("groupName", sql.NVarChar(255), item.DishGroupName).query(`
             INSERT INTO SettlementItemDetail (
               SettlementID, DishId, DishName, Qty, Price, Status, OrderDateTime,
               CategoryId, CategoryName, SubCategoryName
@@ -803,14 +995,18 @@ router.post("/cancel", async (req, res) => {
       }
 
       // 4. Insert into supporting Settlement tables for reporting (Audit Trail)
-      await transaction.request()
+      await transaction
+        .request()
         .input("sid", sql.UniqueIdentifier, settlementId)
         .input("oid", sql.NVarChar(50), orderId)
-        .input("bizId", sql.UniqueIdentifier, header.BusinessUnitId || DEFAULT_GUID)
+        .input(
+          "bizId",
+          sql.UniqueIdentifier,
+          header.BusinessUnitId || DEFAULT_GUID,
+        )
         .input("userId", sql.UniqueIdentifier, toGuidOrNull(userId))
         .input("subTotal", sql.Money, subTotal)
-        .input("voidQty", sql.Int, voidQty)
-        .query(`
+        .input("voidQty", sql.Int, voidQty).query(`
           -- Insert into SettlementTotalSales (Zeroed)
           INSERT INTO SettlementTotalSales (SettlementID, PayMode, SysAmount, ManualAmount, AmountDiff, ReceiptCount)
           VALUES (@sid, 'VOID', 0, 0, 0, @voidQty);
@@ -838,21 +1034,25 @@ router.post("/cancel", async (req, res) => {
         `);
 
       // 5. Update Current Tables (StatusCode 4 = Cancelled)
-      await transaction.request()
-        .input("oid", sql.NVarChar(50), orderId)
+      await transaction.request().input("oid", sql.NVarChar(50), orderId)
         .query(`
           UPDATE RestaurantOrderCur SET StatusCode = 4, isOrderClosed = 1, ModifiedOn = GETDATE() WHERE OrderNumber = @oid;
           UPDATE RestaurantOrderDetailCur SET StatusCode = 0, ModifiedOn = GETDATE() WHERE OrderId IN (SELECT OrderId FROM RestaurantOrderCur WHERE OrderNumber = @oid);
         `);
 
-      await transaction.request()
+      await transaction
+        .request()
         .input("tid", sql.VarChar(50), cleanTid)
-        .query("UPDATE TableMaster SET Status = 0, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid");
+        .query(
+          "UPDATE TableMaster SET Status = 0, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid",
+        );
 
       await transaction.commit();
 
       await syncTableStatus(req, cleanTid);
-      req.app.get("io")?.emit("order_closed", { tableId: cleanTid, orderId: orderId });
+      req.app
+        .get("io")
+        ?.emit("order_closed", { tableId: cleanTid, orderId: orderId });
 
       res.json({ success: true });
     } catch (e) {
@@ -860,7 +1060,9 @@ router.post("/cancel", async (req, res) => {
       console.error("❌ Cancel Error:", e.message);
       res.status(500).json({ error: e.message });
     }
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post("/complete", async (req, res) => {
@@ -870,9 +1072,7 @@ router.post("/complete", async (req, res) => {
     const pool = await poolPromise;
 
     // Final atomic update: Close the professional order and release the table
-    await pool.request()
-      .input("tid", sql.VarChar(50), cleanId)
-      .query(`
+    await pool.request().input("tid", sql.VarChar(50), cleanId).query(`
         UPDATE RestaurantOrderCur SET isOrderClosed = 1, ModifiedOn = GETDATE() 
         WHERE Tableno = (SELECT TOP 1 TableNumber FROM TableMaster WHERE TableId = @tid) 
         AND (isOrderClosed = 0 OR isOrderClosed IS NULL);
@@ -890,7 +1090,7 @@ router.post("/complete", async (req, res) => {
       io.emit("order_status_update", {
         tableId: lid,
         action: "CLOSE",
-        orderId: updated?.CurrentOrderId
+        orderId: updated?.CurrentOrderId,
       });
     }
     res.json({ success: true, ...updated });
@@ -907,9 +1107,7 @@ router.post("/hold", async (req, res) => {
     const cleanId = tableId.replace(/^\{|\}$/g, "").trim();
 
     // Set status to 3 (Hold)
-    await pool.request()
-      .input("tid", sql.VarChar(50), cleanId)
-      .query(`
+    await pool.request().input("tid", sql.VarChar(50), cleanId).query(`
         UPDATE TableMaster 
         SET Status = 3, 
             ModifiedOn = GETDATE() 
@@ -931,9 +1129,7 @@ router.post("/checkout", async (req, res) => {
     const pool = await poolPromise;
 
     // Step 1: Move table to Payment Pending (Status 2) and mark items as SERVED (4)
-    await pool.request()
-      .input("tid", sql.UniqueIdentifier, cleanId)
-      .query(`
+    await pool.request().input("tid", sql.UniqueIdentifier, cleanId).query(`
         -- 1. Update Table Status to Checkout (2)
         UPDATE TableMaster SET Status = 2, ModifiedOn = GETDATE() WHERE TableId = @tid;
 
@@ -967,12 +1163,12 @@ router.post("/checkout", async (req, res) => {
       io.emit("order_closed", {
         tableId: lid,
         tableNo: updated?.tableNo,
-        section: updated?.section
+        section: updated?.section,
       });
       io.emit("order_status_update", {
         tableId: lid,
         action: "CLOSE",
-        orderId: updated?.CurrentOrderId
+        orderId: updated?.CurrentOrderId,
       });
     }
 
@@ -989,17 +1185,19 @@ router.post("/remove-item", async (req, res) => {
     const userId = req.body.userId || DEFAULT_GUID;
     const pool = await poolPromise;
     const now = Date.now();
-    console.log(`[TRACE] [${now}] [REMOVE-ITEM] Table: ${tableId} | ItemID: ${itemId} | Version: ${version || 'NONE'}`);
+    console.log(
+      `[TRACE] [${now}] [REMOVE-ITEM] Table: ${tableId} | ItemID: ${itemId} | Version: ${version || "NONE"}`,
+    );
 
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
     try {
       // 🚀 SMART REMOVAL: Delete if NEW, Void if SENT
-      await transaction.request()
+      await transaction
+        .request()
         .input("itemId", sql.VarChar(50), itemId)
         .input("userId", sql.VarChar(50), userId)
-        .input("reason", sql.NVarChar(255), reason || "")
-        .query(`
+        .input("reason", sql.NVarChar(255), reason || "").query(`
           DECLARE @CurrentStatus INT;
           SELECT @CurrentStatus = StatusCode FROM RestaurantOrderDetailCur WHERE OrderDetailId = @itemId;
 
@@ -1021,24 +1219,38 @@ router.post("/remove-item", async (req, res) => {
       await transaction.commit();
 
       // 🚀 Refresh total immediately
-      syncTableStatus(req, tableId).catch(() => { });
+      syncTableStatus(req, tableId).catch(() => {});
 
-      req.app.get("io")?.emit("cart_updated", { tableId: String(tableId || "").toLowerCase() });
+      req.app.get("io")?.emit("cart_updated", {
+        tableId: String(tableId || "").toLowerCase(),
+      });
       res.json({ success: true });
-    } catch (e) { await transaction.rollback(); throw e; }
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (e) {
+      await transaction.rollback();
+      throw e;
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post("/update-item-status", async (req, res) => {
   try {
     const { lineItemId, status, tableId } = req.body;
     const pool = await poolPromise;
-    const statusMap = { 'NEW': 1, 'SENT': 2, 'READY': 3, 'SERVED': 4, 'HOLD': 5, 'VOIDED': 0 };
+    const statusMap = {
+      NEW: 1,
+      SENT: 2,
+      READY: 3,
+      SERVED: 4,
+      HOLD: 5,
+      VOIDED: 0,
+    };
 
     // Fetch orderNumber and TableId so we can emit them correctly
-    const orderRes = await pool.request()
-      .input("id", sql.UniqueIdentifier, lineItemId)
-      .query(`
+    const orderRes = await pool
+      .request()
+      .input("id", sql.UniqueIdentifier, lineItemId).query(`
         SELECT h.OrderNumber, tm.TableId 
         FROM RestaurantOrderDetailCur d 
         JOIN RestaurantOrderCur h ON d.OrderId = h.OrderId 
@@ -1049,19 +1261,24 @@ router.post("/update-item-status", async (req, res) => {
     const orderId = orderRes.recordset[0]?.OrderNumber;
     const resolvedTableId = orderRes.recordset[0]?.TableId || tableId;
 
-    await pool.request()
+    await pool
+      .request()
       .input("id", sql.UniqueIdentifier, lineItemId)
       .input("code", sql.Int, statusMap[status] || 2)
-      .query("UPDATE RestaurantOrderDetailCur SET StatusCode = @code, ModifiedOn = GETDATE() WHERE OrderDetailId = @id");
+      .query(
+        "UPDATE RestaurantOrderDetailCur SET StatusCode = @code, ModifiedOn = GETDATE() WHERE OrderDetailId = @id",
+      );
 
     req.app.get("io")?.emit("item_status_updated", {
       lineItemId,
       status,
       tableId: String(resolvedTableId || "").toLowerCase(),
-      orderId
+      orderId,
     });
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get("/active-kitchen", async (req, res) => {
@@ -1098,50 +1315,92 @@ router.get("/active-kitchen", async (req, res) => {
       ORDER BY d.CreatedOn ASC
     `);
     const orders = {};
-    result.recordset.forEach(row => {
+    result.recordset.forEach((row) => {
       if (!orders[row.orderId]) {
-        const isTakeaway = !row.tableNo || row.tableNo === 'TAKEAWAY' || String(row.tableNo).trim().startsWith('TW');
-        const sectionMap = { "1": "SECTION_1", "2": "SECTION_2", "3": "SECTION_3", "4": "TAKEAWAY" };
-        const normalizedSection = sectionMap[String(row.DiningSection)] || row.DiningSection || "";
+        const isTakeaway =
+          !row.tableNo ||
+          row.tableNo === "TAKEAWAY" ||
+          String(row.tableNo).trim().startsWith("TW");
+        const sectionMap = {
+          1: "SECTION_1",
+          2: "SECTION_2",
+          3: "SECTION_3",
+          4: "TAKEAWAY",
+        };
+        const normalizedSection =
+          sectionMap[String(row.DiningSection)] || row.DiningSection || "";
 
         orders[row.orderId] = {
           orderId: row.orderId,
           context: {
-            orderType: isTakeaway ? 'TAKEAWAY' : 'DINE_IN',
-            tableId: row.TableId ? String(row.TableId).replace(/^\{|\}$/g, "").trim().toLowerCase() : undefined,
+            orderType: isTakeaway ? "TAKEAWAY" : "DINE_IN",
+            tableId: row.TableId
+              ? String(row.TableId)
+                  .replace(/^\{|\}$/g, "")
+                  .trim()
+                  .toLowerCase()
+              : undefined,
             tableNo: isTakeaway ? null : String(row.tableNo).trim(),
             section: normalizedSection,
-            takeawayNo: isTakeaway ? (row.tableNo === 'TAKEAWAY' ? row.orderId.slice(-4) : String(row.tableNo).trim()) : null
+            takeawayNo: isTakeaway
+              ? row.tableNo === "TAKEAWAY"
+                ? row.orderId.slice(-4)
+                : String(row.tableNo).trim()
+              : null,
           },
           items: [],
-          createdAt: Date.now() - (row.elapsedSeconds * 1000)
+          createdAt: Date.now() - row.elapsedSeconds * 1000,
         };
       }
-      const statusMap = { 0: 'VOIDED', 1: 'NEW', 2: 'SENT', 3: 'READY', 4: 'SERVED', 5: 'HOLD' };
+      const statusMap = {
+        0: "VOIDED",
+        1: "NEW",
+        2: "SENT",
+        3: "READY",
+        4: "SERVED",
+        5: "HOLD",
+      };
       orders[row.orderId].items.push({
         ...row,
         status: statusMap[row.StatusCode],
-        modifiers: row.ModifiersJSON ? JSON.parse(row.ModifiersJSON) : []
+        modifiers: row.ModifiersJSON ? JSON.parse(row.ModifiersJSON) : [],
       });
     });
     res.json({ serverTime: Date.now(), orders: Object.values(orders) });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post("/log-print", async (req, res) => {
   try {
     const { orderId, orderNumber, printType } = req.body;
     const pool = await poolPromise;
-    await pool.request().input("oid", sql.UniqueIdentifier, orderId && orderId.length > 30 ? orderId : null).input("ono", sql.VarChar(50), orderNumber).input("pt", sql.Int, printType || 1).query("INSERT INTO PrintReport (OrderId, Ordernumber, PrintType, orderDate) VALUES (@oid, @ono, @pt, GETDATE())");
+    await pool
+      .request()
+      .input(
+        "oid",
+        sql.UniqueIdentifier,
+        orderId && orderId.length > 30 ? orderId : null,
+      )
+      .input("ono", sql.VarChar(50), orderNumber)
+      .input("pt", sql.Int, printType || 1)
+      .query(
+        "INSERT INTO PrintReport (OrderId, Ordernumber, PrintType, orderDate) VALUES (@oid, @ono, @pt, GETDATE())",
+      );
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post("/merge", async (req, res) => {
   try {
     const { targetTableId, sourceTableIds, userId } = req.body;
     const pool = await poolPromise;
-    const cleanTargetId = String(targetTableId).replace(/^\{|\}$/g, "").trim();
+    const cleanTargetId = String(targetTableId)
+      .replace(/^\{|\}$/g, "")
+      .trim();
 
     const activeOrg = await getActiveOrganization();
     const businessUnitId = activeOrg.businessUnitId;
@@ -1167,13 +1426,18 @@ router.post("/merge", async (req, res) => {
     await transaction.begin();
 
     try {
-      console.log(`[MERGE START] Initiating merge for targetTableId: ${cleanTargetId}`);
+      console.log(
+        `[MERGE START] Initiating merge for targetTableId: ${cleanTargetId}`,
+      );
 
       // 0. Ensure target table exists and has a CurrentOrderId
       console.log(`[MERGE STEP 1] Checking target table status...`);
-      const targetCheck = await transaction.request()
+      const targetCheck = await transaction
+        .request()
         .input("tid", sql.UniqueIdentifier, cleanTargetId)
-        .query("SELECT TableNumber, CurrentOrderId FROM TableMaster WHERE TableId = @tid");
+        .query(
+          "SELECT TableNumber, CurrentOrderId FROM TableMaster WHERE TableId = @tid",
+        );
 
       if (targetCheck.recordset.length === 0) {
         throw new Error("Target table not found");
@@ -1181,82 +1445,119 @@ router.post("/merge", async (req, res) => {
 
       const targetTableNo = targetCheck.recordset[0].TableNumber;
       const targetOrderId = targetCheck.recordset[0].CurrentOrderId;
-      console.log(`[MERGE STEP 1 SUCCESS] Target Table: ${targetTableNo}, Active OrderNo: ${targetOrderId}`);
+      console.log(
+        `[MERGE STEP 1 SUCCESS] Target Table: ${targetTableNo}, Active OrderNo: ${targetOrderId}`,
+      );
 
       if (!targetOrderId || targetOrderId === "NEW") {
-        throw new Error("Target table has no active order. Add at least one item first.");
+        throw new Error(
+          "Target table has no active order. Add at least one item first.",
+        );
       }
 
       // Fetch the target Order Guid
-      console.log(`[MERGE STEP 2] Fetching target Order GUID for OrderNo: ${targetOrderId}`);
-      const targetGuidRes = await transaction.request()
+      console.log(
+        `[MERGE STEP 2] Fetching target Order GUID for OrderNo: ${targetOrderId}`,
+      );
+      const targetGuidRes = await transaction
+        .request()
         .input("orderNo", sql.NVarChar(50), targetOrderId)
-        .query("SELECT TOP 1 OrderId FROM RestaurantOrderCur WHERE OrderNumber = @orderNo AND isOrderClosed = 0");
+        .query(
+          "SELECT TOP 1 OrderId FROM RestaurantOrderCur WHERE OrderNumber = @orderNo AND isOrderClosed = 0",
+        );
       const targetOrderGuid = targetGuidRes.recordset[0]?.OrderId;
       if (!targetOrderGuid) {
-        throw new Error("Target active order record not found or is already closed.");
+        throw new Error(
+          "Target active order record not found or is already closed.",
+        );
       }
-      console.log(`[MERGE STEP 2 SUCCESS] Target Order GUID: ${targetOrderGuid}`);
+      console.log(
+        `[MERGE STEP 2 SUCCESS] Target Order GUID: ${targetOrderGuid}`,
+      );
 
       const io = req.app.get("io");
 
       for (const sourceTableId of sourceTableIds) {
-        const cleanSourceId = String(sourceTableId).replace(/^\{|\}$/g, "").trim();
+        const cleanSourceId = String(sourceTableId)
+          .replace(/^\{|\}$/g, "")
+          .trim();
         if (cleanSourceId === cleanTargetId) {
-          console.log(`[MERGE LOOP] Skipping identical target/source table: ${cleanSourceId}`);
+          console.log(
+            `[MERGE LOOP] Skipping identical target/source table: ${cleanSourceId}`,
+          );
           continue;
         }
 
         console.log(`[MERGE LOOP] Processing sourceTableId: ${cleanSourceId}`);
-        const sourceCheck = await transaction.request()
+        const sourceCheck = await transaction
+          .request()
           .input("tid", sql.UniqueIdentifier, cleanSourceId)
-          .query("SELECT TableNumber, CurrentOrderId FROM TableMaster WHERE TableId = @tid");
+          .query(
+            "SELECT TableNumber, CurrentOrderId FROM TableMaster WHERE TableId = @tid",
+          );
 
         if (sourceCheck.recordset.length === 0) {
-          console.log(`[MERGE LOOP ERROR] Source table not found: ${cleanSourceId}`);
+          console.log(
+            `[MERGE LOOP ERROR] Source table not found: ${cleanSourceId}`,
+          );
           continue;
         }
         const sourceTableNo = sourceCheck.recordset[0].TableNumber;
         const sourceOrderId = sourceCheck.recordset[0].CurrentOrderId;
-        console.log(`[MERGE LOOP] Source Table: ${sourceTableNo}, Active OrderNo: ${sourceOrderId}`);
+        console.log(
+          `[MERGE LOOP] Source Table: ${sourceTableNo}, Active OrderNo: ${sourceOrderId}`,
+        );
         if (!sourceOrderId || sourceOrderId === "NEW") {
           console.log(`[MERGE LOOP SKIP] Source table has no active order.`);
           continue;
         }
 
         // Fetch source order guid
-        console.log(`[MERGE LOOP] Fetching source Order GUID for OrderNo: ${sourceOrderId}`);
-        const sourceGuidRes = await transaction.request()
+        console.log(
+          `[MERGE LOOP] Fetching source Order GUID for OrderNo: ${sourceOrderId}`,
+        );
+        const sourceGuidRes = await transaction
+          .request()
           .input("orderNo", sql.NVarChar(50), sourceOrderId)
-          .query("SELECT TOP 1 OrderId FROM RestaurantOrderCur WHERE OrderNumber = @orderNo AND (isOrderClosed = 0 OR isOrderClosed IS NULL)");
+          .query(
+            "SELECT TOP 1 OrderId FROM RestaurantOrderCur WHERE OrderNumber = @orderNo AND (isOrderClosed = 0 OR isOrderClosed IS NULL)",
+          );
         const sourceOrderGuid = sourceGuidRes.recordset[0]?.OrderId;
         if (!sourceOrderGuid) {
           console.log(`[MERGE LOOP ERROR] Active source order GUID not found.`);
           continue;
         }
-        console.log(`[MERGE LOOP SUCCESS] Source Order GUID: ${sourceOrderGuid}`);
+        console.log(
+          `[MERGE LOOP SUCCESS] Source Order GUID: ${sourceOrderGuid}`,
+        );
 
         // A. Insert merge relationship
         console.log(`[MERGE LOOP] Inserting merge relationship history...`);
-        await transaction.request()
+        await transaction
+          .request()
           .input("parentOid", sql.UniqueIdentifier, targetOrderGuid)
           .input("childOid", sql.UniqueIdentifier, sourceOrderGuid)
           .input("parentTableNo", sql.NVarChar(50), targetTableNo)
           .input("childTableNo", sql.NVarChar(50), sourceTableNo)
-          .input("mergedBy", sql.UniqueIdentifier, toGuidOrNull(userId) || DEFAULT_GUID)
-          .query(`
+          .input(
+            "mergedBy",
+            sql.UniqueIdentifier,
+            toGuidOrNull(userId) || DEFAULT_GUID,
+          ).query(`
             INSERT INTO OrderMergeHistory (ParentOrderId, ChildOrderId, ParentTableNo, ChildTableNo, MergedAt, MergedBy)
             VALUES (@parentOid, @childOid, @parentTableNo, @childTableNo, GETDATE(), @mergedBy)
           `);
 
         // B. Re-point items to target order
-        console.log(`[MERGE LOOP] Re-pointing modifiers and items from source to target Order GUID: ${targetOrderGuid}...`);
-        await transaction.request()
+        console.log(
+          `[MERGE LOOP] Re-pointing modifiers and items from source to target Order GUID: ${targetOrderGuid}...`,
+        );
+        await transaction
+          .request()
           .input("parentOid", sql.UniqueIdentifier, targetOrderGuid)
           .input("parentOrderNo", sql.NVarChar(100), targetOrderId)
           .input("parentTableNo", sql.NVarChar(10), targetTableNo)
-          .input("childOid", sql.UniqueIdentifier, sourceOrderGuid)
-          .query(`
+          .input("childOid", sql.UniqueIdentifier, sourceOrderGuid).query(`
             -- Re-point modifiers
             UPDATE RestaurantmodifierdetailCur
             SET OrderId = @parentOid
@@ -1271,10 +1572,12 @@ router.post("/merge", async (req, res) => {
           `);
 
         // C. Close source order
-        console.log(`[MERGE LOOP] Closing source order GUID: ${sourceOrderGuid}...`);
-        await transaction.request()
-          .input("childOid", sql.UniqueIdentifier, sourceOrderGuid)
-          .query(`
+        console.log(
+          `[MERGE LOOP] Closing source order GUID: ${sourceOrderGuid}...`,
+        );
+        await transaction
+          .request()
+          .input("childOid", sql.UniqueIdentifier, sourceOrderGuid).query(`
             UPDATE RestaurantOrderCur
             SET isOrderClosed = 1,
                 StatusCode = 3,
@@ -1283,52 +1586,89 @@ router.post("/merge", async (req, res) => {
           `);
 
         // D. Clear source table & persistent CartItems
-        console.log(`[MERGE LOOP] Clearing source table cart items and master status...`);
-        await transaction.request()
+        console.log(
+          `[MERGE LOOP] Clearing source table cart items and master status...`,
+        );
+        await transaction
+          .request()
           .input("cartId", sql.NVarChar(128), cleanSourceId)
           .query("DELETE FROM [dbo].[CartItems] WHERE [CartId] = @cartId");
 
-        await transaction.request()
+        await transaction
+          .request()
           .input("tid", sql.UniqueIdentifier, cleanSourceId)
-          .query("UPDATE TableMaster SET Status = 0, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL WHERE TableId = @tid");
+          .query(
+            "UPDATE TableMaster SET Status = 0, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL WHERE TableId = @tid",
+          );
 
         // E. Emit source socket events immediately
         console.log(`[MERGE LOOP] Broadcasting source table update events...`);
         if (io) {
-          io.emit("table_status_updated", { tableId: cleanSourceId.toLowerCase(), status: 0, totalAmount: 0 });
+          io.emit("table_status_updated", {
+            tableId: cleanSourceId.toLowerCase(),
+            status: 0,
+            totalAmount: 0,
+          });
           io.emit("cart_updated", { tableId: cleanSourceId.toLowerCase() });
-          io.emit("order_closed", { tableId: cleanSourceId.toLowerCase(), tableNo: sourceTableNo, orderId: sourceOrderId });
+          io.emit("order_closed", {
+            tableId: cleanSourceId.toLowerCase(),
+            tableNo: sourceTableNo,
+            orderId: sourceOrderId,
+          });
         }
       }
 
       // 2. Calculate Combined Total for Target Order
-      console.log(`[MERGE STEP 3] Calculating combined total for target Order GUID: ${targetOrderGuid}`);
-      const combinedTotalRes = await transaction.request()
+      console.log(
+        `[MERGE STEP 3] Calculating combined total for target Order GUID: ${targetOrderGuid}`,
+      );
+      const combinedTotalRes = await transaction
+        .request()
         .input("parentOid", sql.UniqueIdentifier, targetOrderGuid)
-        .query("SELECT SUM(TotalDetailLineAmount) as Total FROM RestaurantOrderDetailCur WHERE OrderId = @parentOid AND StatusCode <> 0");
+        .query(
+          "SELECT SUM(TotalDetailLineAmount) as Total FROM RestaurantOrderDetailCur WHERE OrderId = @parentOid AND StatusCode <> 0",
+        );
       const targetCombinedTotal = combinedTotalRes.recordset[0].Total || 0;
-      console.log(`[MERGE STEP 3 SUCCESS] Combined Total: ${targetCombinedTotal}`);
+      console.log(
+        `[MERGE STEP 3 SUCCESS] Combined Total: ${targetCombinedTotal}`,
+      );
 
       // 3. Update Target Table Master Total
-      console.log(`[MERGE STEP 4] Updating target TableMaster total to: ${targetCombinedTotal}`);
-      await transaction.request()
+      console.log(
+        `[MERGE STEP 4] Updating target TableMaster total to: ${targetCombinedTotal}`,
+      );
+      await transaction
+        .request()
         .input("tid", sql.UniqueIdentifier, cleanTargetId)
         .input("total", sql.Decimal(18, 2), targetCombinedTotal)
-        .query("UPDATE TableMaster SET TotalAmount = @total WHERE TableId = @tid");
+        .query(
+          "UPDATE TableMaster SET TotalAmount = @total WHERE TableId = @tid",
+        );
 
       console.log(`[MERGE STEP 5] Committing SQL transaction...`);
       await transaction.commit();
-      console.log(`[MERGE STEP 5 SUCCESS] SQL transaction committed successfully.`);
+      console.log(
+        `[MERGE STEP 5 SUCCESS] SQL transaction committed successfully.`,
+      );
 
       // 4. Emit target socket events
       if (io) {
-        io.emit("table_status_updated", { tableId: cleanTargetId.toLowerCase(), status: 1, totalAmount: targetCombinedTotal });
-        io.emit("cart_updated", { tableId: cleanTargetId.toLowerCase(), orderId: targetOrderId });
+        io.emit("table_status_updated", {
+          tableId: cleanTargetId.toLowerCase(),
+          status: 1,
+          totalAmount: targetCombinedTotal,
+        });
+        io.emit("cart_updated", {
+          tableId: cleanTargetId.toLowerCase(),
+          orderId: targetOrderId,
+        });
       }
 
       res.json({ success: true, totalAmount: targetCombinedTotal });
     } catch (err) {
-      console.error(`[MERGE TRANSACTION ERROR] rolling back... Error: ${err.message}`);
+      console.error(
+        `[MERGE TRANSACTION ERROR] rolling back... Error: ${err.message}`,
+      );
       if (transaction._isStarted) await transaction.rollback();
       throw err;
     }
