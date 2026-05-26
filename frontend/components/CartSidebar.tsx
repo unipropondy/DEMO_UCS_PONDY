@@ -999,24 +999,12 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
 
 
   useEffect(() => {
-    // 🖥️ CUSTOMER DISPLAY REAL-TIME SYNC
-    if (orderContext && displayItems.length > 0) {
-      CustomerDisplaySync.syncCart({
-        orderContext,
-        cart: displayItems,
-        discountInfo: currentDiscount,
-        gstPercentage: settings.gstPercentage || 0,
-        roundOff: 0,
-        active: true,
-        orderId: currentTableOrderId || (activeOrder ? activeOrder.orderId : undefined)
-      });
-    } else {
-      CustomerDisplaySync.syncIdle();
-    }
+    // 🖥️ CUSTOMER DISPLAY REAL-TIME SYNC (Forces idle attract loop during ordering)
+    CustomerDisplaySync.syncIdle();
     return () => {
       CustomerDisplaySync.syncIdle();
     };
-  }, [orderContext, displayItems, currentDiscount, settings.gstPercentage, currentTableOrderId, activeOrder]);
+  }, []);
 
   useEffect(() => {
     // 🔥 If the cart is completely empty (no unsent items AND no active order items),

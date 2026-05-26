@@ -71,6 +71,7 @@ export default function PaymentSuccess() {
   }, []);
 
   const handleDone = () => {
+    CustomerDisplaySync.syncIdle();
     router.replace({
       pathname: "/(tabs)/category",
       params: { section },

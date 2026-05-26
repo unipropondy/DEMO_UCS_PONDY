@@ -181,23 +181,12 @@ export default function SummaryScreen() {
 
   // 🖥️ CUSTOMER DISPLAY REAL-TIME SYNC
   useEffect(() => {
-    if (context && cart.length > 0) {
-      CustomerDisplaySync.syncCart({
-        orderContext: context,
-        cart,
-        discountInfo,
-        gstPercentage: settings.gstPercentage || 0,
-        roundOff: 0,
-        active: true,
-        orderId: displayOrderId
-      });
-    } else {
-      CustomerDisplaySync.syncIdle();
-    }
+    // Forces idle attract loop during ordering
+    CustomerDisplaySync.syncIdle();
     return () => {
       CustomerDisplaySync.syncIdle();
     };
-  }, [context, cart, discountInfo, settings.gstPercentage, displayOrderId]);
+  }, []);
 
   const applyDiscount = useCartStore((s: any) => s.applyDiscount);
   const clearCart = useCartStore((s: any) => s.clearCart);

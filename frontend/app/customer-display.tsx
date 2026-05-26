@@ -54,6 +54,13 @@ const DEFAULT_STATE: DisplayState = {
   netTotal: 0,
 };
 
+const getLogoUri = (logo: string) => {
+  if (!logo) return "";
+  if (logo.startsWith('data:image')) return logo;
+  if (logo.startsWith('http')) return logo;
+  return `${API_URL}${logo.startsWith('/') ? '' : '/'}${logo}`;
+};
+
 export default function CustomerDisplayScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isLandscape = windowWidth > windowHeight;
@@ -85,7 +92,7 @@ export default function CustomerDisplayScreen() {
     };
   }, []);
 
-  // 2. Success screen trigger and auto-timeout back to attract loop
+  // 2. Success screen trigger
   useEffect(() => {
     if (displayState.paymentSuccess) {
       // Animate success screen entrance
@@ -102,15 +109,9 @@ export default function CustomerDisplayScreen() {
           useNativeDriver: true,
         }),
       ]).start();
-
-      // Automatically reset to attract loop after 4 seconds
-      const timer = setTimeout(() => {
-        setDisplayState(DEFAULT_STATE);
-        successScale.setValue(0);
-        successOpacity.setValue(0);
-      }, 4000);
-
-      return () => clearTimeout(timer);
+    } else {
+      successScale.setValue(0);
+      successOpacity.setValue(0);
     }
   }, [displayState.paymentSuccess]);
 
@@ -177,7 +178,7 @@ export default function CustomerDisplayScreen() {
     if (!paymentSettings.upiId) return "";
     const cleanUpiId = paymentSettings.upiId.trim();
     const cleanShopName = paymentSettings.shopName.replace(/[&?=]/g, "").trim();
-    return `upi://pay?pa=${cleanUpiId}&pn=${encodeURIComponent(cleanShopName)}&am=${displayState.netTotal.toFixed(2)}&cu=INR`;
+    return `upi://pay?pa=${cleanUpiId}&pn=${encodeURIComponent(cleanShopName)}&am=${(displayState.netTotal || 0).toFixed(2)}&cu=INR`;
   })();
 
   // ─── RENDERS ───
@@ -213,14 +214,14 @@ export default function CustomerDisplayScreen() {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Amount Paid</Text>
               <Text style={[styles.detailValue, { color: Theme.primary }]}>
-                {companySettings.currencySymbol || "$"}{displayState.paid?.toFixed(2) || displayState.netTotal.toFixed(2)}
+                {companySettings.currencySymbol || "$"}{displayState.paid?.toFixed(2) || (displayState.netTotal || 0).toFixed(2)}
               </Text>
             </View>
             {displayState.change && displayState.change > 0 ? (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Change Given</Text>
                 <Text style={styles.detailValue}>
-                  {companySettings.currencySymbol || "$"}{displayState.change.toFixed(2)}
+                  {companySettings.currencySymbol || "$"}{(displayState.change || 0).toFixed(2)}
                 </Text>
               </View>
             ) : null}
@@ -231,14 +232,11 @@ export default function CustomerDisplayScreen() {
 
         {/* Unipro Footer on Success Screen */}
         <View style={styles.idleUniproFooter}>
-          <View style={styles.uniproLogoWrapper}>
-            <Image
-              source={require("../assets/images/unipro_logo.png")}
-              style={styles.uniproLogoImage}
-              resizeMode="contain"
-            />
-            <Text style={styles.uniproLogoSubtext}>Softwares SG Pte Ltd</Text>
-          </View>
+          <Image
+            source={require("../assets/images/unipro_logo.png")}
+            style={styles.uniproLogoImage}
+            resizeMode="contain"
+          />
         </View>
       </View>
     );
@@ -256,6 +254,18 @@ export default function CustomerDisplayScreen() {
           <Text style={styles.topHeaderText} numberOfLines={1}>
             {paymentSettings.shopName || companySettings.name || "INDIAN SUPERMARKET PTE LTD"}
           </Text>
+          {(displayState.section || displayState.tableNo) ? (
+            <View style={styles.headerInfoContainer}>
+              {displayState.section ? (
+                <Text style={styles.headerSectionText}>{displayState.section}</Text>
+              ) : null}
+              {displayState.tableNo ? (
+                <View style={styles.headerTableBadge}>
+                  <Text style={styles.headerTableText}>{displayState.tableNo}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         <View style={[styles.checkoutLayout, isLandscape && styles.checkoutLayoutLandscape]}>
@@ -302,7 +312,7 @@ export default function CustomerDisplayScreen() {
                   {companySettings.companyLogo ? (
                     <View style={styles.logoCircle}>
                       <Image
-                        source={{ uri: `${API_URL}${companySettings.companyLogo}` }}
+                        source={{ uri: getLogoUri(companySettings.companyLogo) }}
                         style={styles.largeRestaurantLogo}
                         resizeMode="contain"
                       />
@@ -321,14 +331,11 @@ export default function CustomerDisplayScreen() {
 
             {/* Mandatory Unipro Branding Footer (Always present on left column) */}
             <View style={styles.uniproFooterContainer}>
-              <View style={styles.uniproLogoWrapper}>
-                <Image
-                  source={require("../assets/images/unipro_logo.png")}
-                  style={styles.uniproLogoImage}
-                  resizeMode="contain"
-                />
-                <Text style={styles.uniproLogoSubtext}>Softwares SG Pte Ltd</Text>
-              </View>
+              <Image
+                source={require("../assets/images/unipro_logo.png")}
+                style={styles.uniproLogoImage}
+                resizeMode="contain"
+              />
             </View>
           </View>
 
@@ -338,7 +345,7 @@ export default function CustomerDisplayScreen() {
             <View style={styles.tableHeaderRow}>
               <Text style={[styles.tableHeaderCell, styles.cellDesc]}>Description</Text>
               <Text style={[styles.tableHeaderCell, styles.cellQty]}>Qty</Text>
-              <Text style={[styles.tableHeaderCell, styles.cellTotal]}>Total</Text>
+              <Text style={[styles.tableHeaderCell, styles.tableHeaderCellTotal]}>Total</Text>
             </View>
 
             {/* Itemized List */}
@@ -350,6 +357,12 @@ export default function CustomerDisplayScreen() {
                       {item.name}
                       {item.isVoided && " (VOIDED)"}
                     </Text>
+                    {item.discountAmount > 0 && !item.isVoided ? (
+                      <Text style={styles.receiptItemDiscount}>
+                        🏷️ Discount: -{companySettings.currencySymbol || "$"}{item.discountAmount.toFixed(2)}
+                        {item.discountPercent > 0 ? ` (${item.discountPercent}%)` : ""}
+                      </Text>
+                    ) : null}
                     {item.note ? <Text style={styles.receiptItemNote}>📝 {item.note}</Text> : null}
                     {item.modifiers && item.modifiers.map((m: any, mIdx: number) => (
                       <Text key={mIdx} style={styles.receiptItemModifier}>
@@ -358,11 +371,18 @@ export default function CustomerDisplayScreen() {
                     ))}
                   </View>
                   <Text style={[styles.receiptItemQty, styles.cellQty, item.isVoided && styles.voidedText]}>
-                    {item.qty.toFixed(2)}
+                    {(item.qty || 0).toFixed(2)}
                   </Text>
-                  <Text style={[styles.receiptItemTotal, styles.cellTotal, item.isVoided && styles.voidedText]}>
-                    {companySettings.currencySymbol || "$"}{item.finalPrice.toFixed(2)}
-                  </Text>
+                  <View style={styles.cellTotal}>
+                    {item.discountAmount > 0 && !item.isVoided ? (
+                      <Text style={styles.receiptItemOriginalPrice}>
+                        {companySettings.currencySymbol || "$"}{(item.originalPrice || 0).toFixed(2)}
+                      </Text>
+                    ) : null}
+                    <Text style={[styles.receiptItemTotal, item.isVoided && styles.voidedText]}>
+                      {companySettings.currencySymbol || "$"}{(item.finalPrice || 0).toFixed(2)}
+                    </Text>
+                  </View>
                 </View>
               ))}
             </ScrollView>
@@ -373,15 +393,15 @@ export default function CustomerDisplayScreen() {
                 <View style={styles.breakdownItem}>
                   <Text style={styles.breakdownLabel}>Sub Total</Text>
                   <Text style={styles.breakdownValue}>
-                    {companySettings.currencySymbol || "$"}{displayState.subTotal.toFixed(2)}
+                    {companySettings.currencySymbol || "$"}{(displayState.subTotal || 0).toFixed(2)}
                   </Text>
                 </View>
 
-                {displayState.itemDiscounts + displayState.orderDiscountAmount > 0 ? (
+                {((displayState.itemDiscounts || 0) + (displayState.orderDiscountAmount || 0)) > 0 ? (
                   <View style={styles.breakdownItem}>
                     <Text style={[styles.breakdownLabel, { color: Theme.danger }]}>Discount</Text>
                     <Text style={[styles.breakdownValue, { color: Theme.danger }]}>
-                      {companySettings.currencySymbol || "$"}{(displayState.itemDiscounts + displayState.orderDiscountAmount).toFixed(2)}
+                      {companySettings.currencySymbol || "$"}{((displayState.itemDiscounts || 0) + (displayState.orderDiscountAmount || 0)).toFixed(2)}
                     </Text>
                   </View>
                 ) : null}
@@ -390,7 +410,7 @@ export default function CustomerDisplayScreen() {
                   <View style={styles.breakdownItem}>
                     <Text style={styles.breakdownLabel}>Tax</Text>
                     <Text style={styles.breakdownValue}>
-                      {companySettings.currencySymbol || "$"}{displayState.gstAmount.toFixed(2)}
+                      {companySettings.currencySymbol || "$"}{(displayState.gstAmount || 0).toFixed(2)}
                     </Text>
                   </View>
                 ) : null}
@@ -399,7 +419,7 @@ export default function CustomerDisplayScreen() {
                   <View style={styles.breakdownItem}>
                     <Text style={styles.breakdownLabel}>RoundOff</Text>
                     <Text style={styles.breakdownValue}>
-                      {displayState.roundOff > 0 ? "+" : ""}{companySettings.currencySymbol || "$"}{displayState.roundOff.toFixed(2)}
+                      {displayState.roundOff > 0 ? "+" : ""}{companySettings.currencySymbol || "$"}{(displayState.roundOff || 0).toFixed(2)}
                     </Text>
                   </View>
                 ) : null}
@@ -409,7 +429,7 @@ export default function CustomerDisplayScreen() {
               <View style={styles.netTotalHighlightBox}>
                 <Text style={styles.netTotalLabel}>Net Total</Text>
                 <Text style={styles.netTotalValue}>
-                  {companySettings.currencySymbol || "$"}{displayState.netTotal.toFixed(2)}
+                  {companySettings.currencySymbol || "$"}{(displayState.netTotal || 0).toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -454,7 +474,7 @@ export default function CustomerDisplayScreen() {
       <View style={styles.brandingCard}>
         {companySettings.companyLogo ? (
           <Image
-            source={{ uri: `${API_URL}${companySettings.companyLogo}` }}
+            source={{ uri: getLogoUri(companySettings.companyLogo) }}
             style={styles.logoImage}
             resizeMode="contain"
           />
@@ -474,7 +494,7 @@ export default function CustomerDisplayScreen() {
         <View style={styles.halalContainer}>
           {companySettings.showHalalLogo && companySettings.halalLogo ? (
             <Image
-              source={{ uri: `${API_URL}${companySettings.halalLogo}` }}
+              source={{ uri: getLogoUri(companySettings.halalLogo) }}
               style={styles.halalImage}
               resizeMode="contain"
             />
@@ -484,14 +504,11 @@ export default function CustomerDisplayScreen() {
 
       {/* Unipro Footer on Idle Screen */}
       <View style={styles.idleUniproFooter}>
-        <View style={styles.uniproLogoWrapper}>
-          <Image
-            source={require("../assets/images/unipro_logo.png")}
-            style={styles.uniproLogoImage}
-            resizeMode="contain"
-          />
-          <Text style={styles.uniproLogoSubtext}>Softwares SG Pte Ltd</Text>
-        </View>
+        <Image
+          source={require("../assets/images/unipro_logo.png")}
+          style={styles.uniproLogoImage}
+          resizeMode="contain"
+        />
       </View>
     </View>
   );
@@ -575,12 +592,13 @@ const styles = StyleSheet.create({
   },
   topHeaderBanner: {
     backgroundColor: "#FEF9E7",
-    paddingVertical: 14,
+    paddingVertical: 10,
     paddingHorizontal: 24,
     borderBottomWidth: 1.5,
     borderBottomColor: "#F5CBA7",
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "center",
   },
   topHeaderText: {
     fontSize: 24,
@@ -588,7 +606,40 @@ const styles = StyleSheet.create({
     color: "#4A2711",
     letterSpacing: 1.5,
     textTransform: "uppercase",
-    textAlign: "center",
+  },
+  headerInfoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  headerSectionText: {
+    fontSize: 14,
+    fontFamily: Fonts.bold,
+    color: "#7E5109",
+    textTransform: "uppercase",
+    backgroundColor: "#FFF9E6",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#F5CBA7",
+  },
+  headerTableBadge: {
+    backgroundColor: "#16A34A",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  headerTableText: {
+    fontSize: 14,
+    fontFamily: Fonts.black,
+    color: "#fff",
+    textTransform: "uppercase",
   },
   checkoutLayout: {
     flex: 1,
@@ -705,8 +756,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#E5E7EB",
     borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
@@ -717,23 +768,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 3,
   },
-  uniproLogoWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
   uniproLogoImage: {
-    width: 130,
-    height: 34,
-  },
-  uniproLogoSubtext: {
-    fontSize: 12,
-    fontFamily: Fonts.bold,
-    color: "#4B5563",
-    borderLeftWidth: 1.5,
-    borderLeftColor: "#D1D5DB",
-    paddingLeft: 8,
+    width: 280,
+    height: 80,
   },
   idleUniproFooter: {
     position: "absolute",
@@ -742,8 +779,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#E5E7EB",
     borderRadius: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingHorizontal: 24,
+    alignItems: "center",
+    justifyContent: "center",
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -787,7 +826,25 @@ const styles = StyleSheet.create({
   },
   cellTotal: {
     width: 100,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  tableHeaderCellTotal: {
+    width: 100,
     textAlign: "right",
+  },
+  receiptItemOriginalPrice: {
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+    color: "#9CA3AF",
+    textDecorationLine: "line-through",
+    marginBottom: 2,
+  },
+  receiptItemDiscount: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: Theme.danger || "#EF4444",
+    marginTop: 2,
   },
 
   receiptItemsScroll: {
