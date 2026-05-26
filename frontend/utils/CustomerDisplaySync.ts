@@ -21,6 +21,7 @@ export interface SyncCartParams {
   roundOff: number;
   active: boolean;
   orderId?: string;
+  paymentMethod?: string;
 }
 
 export interface PaymentSuccessParams {
@@ -34,7 +35,7 @@ export interface PaymentSuccessParams {
 export const CustomerDisplaySync = {
   syncCart: (params: SyncCartParams) => {
     try {
-      const { orderContext, cart, discountInfo, gstPercentage, roundOff, active, orderId } = params;
+      const { orderContext, cart, discountInfo, gstPercentage, roundOff, active, orderId, paymentMethod } = params;
       
       const currencySymbol = "$";
       const gstRate = (gstPercentage || 0) / 100;
@@ -128,6 +129,7 @@ export const CustomerDisplaySync = {
         roundOff,
         netTotal,
         waiterName: orderContext.serverName || "",
+        paymentMethod,
       };
 
       console.log("🖥️ [CustomerDisplaySync] Emitting cart update for Table/Takeaway:", payload.tableNo);

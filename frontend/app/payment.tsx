@@ -178,7 +178,8 @@ export default function PaymentScreen() {
         gstPercentage: settingsStore.gstPercentage || 0,
         roundOff: roundOff,
         active: true,
-        orderId: displayOrderId
+        orderId: displayOrderId,
+        paymentMethod: method
       });
     } else {
       CustomerDisplaySync.syncIdle();
@@ -186,7 +187,7 @@ export default function PaymentScreen() {
     return () => {
       CustomerDisplaySync.syncIdle();
     };
-  }, [context, finalItems, discount, settingsStore.gstPercentage, roundOff, displayOrderId]);
+  }, [context, finalItems, discount, settingsStore.gstPercentage, roundOff, displayOrderId, method]);
 
   const fetchPaymentMethods = async () => {
     try {
@@ -461,7 +462,8 @@ export default function PaymentScreen() {
           gstPercentage: settingsStore.gstPercentage || 0,
           roundOff: roundOff,
           active: true,
-          orderId: displayOrderId
+          orderId: displayOrderId,
+          paymentMethod: method
         });
         showToast({ type: "info", message: "Synced Current Cart", subtitle: "Sent checkout state to customer display" });
       } else {

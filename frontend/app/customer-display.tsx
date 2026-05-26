@@ -228,6 +228,18 @@ export default function CustomerDisplayScreen() {
 
           <Text style={styles.successFooter}>Thank you! Visit us again.</Text>
         </Animated.View>
+
+        {/* Unipro Footer on Success Screen */}
+        <View style={styles.idleUniproFooter}>
+          <View style={styles.uniproLogoWrapper}>
+            <Image
+              source={require("../assets/images/unipro_logo.png")}
+              style={styles.uniproLogoImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.uniproLogoSubtext}>Softwares SG Pte Ltd</Text>
+          </View>
+        </View>
       </View>
     );
   }
@@ -239,24 +251,20 @@ export default function CustomerDisplayScreen() {
 
     return (
       <View style={styles.checkoutContainer}>
+        {/* Top Header Banner */}
+        <View style={styles.topHeaderBanner}>
+          <Text style={styles.topHeaderText} numberOfLines={1}>
+            {paymentSettings.shopName || companySettings.name || "INDIAN SUPERMARKET PTE LTD"}
+          </Text>
+        </View>
+
         <View style={[styles.checkoutLayout, isLandscape && styles.checkoutLayoutLandscape]}>
           
-          {/* Left Pane: Payment QR & Instructions */}
-          <View style={[styles.paymentPane, isLandscape && { flex: 1 }]}>
-            <View style={styles.shopHeader}>
-              <Text style={styles.shopName} numberOfLines={1}>
-                {paymentSettings.shopName || companySettings.name || "Smart Cafe"}
-              </Text>
-              {companySettings.address ? (
-                <Text style={styles.shopAddress} numberOfLines={1}>
-                  {companySettings.address}
-                </Text>
-              ) : null}
-            </View>
-
-            <View style={styles.qrCard}>
-              {isUPI && paymentSettings.upiId ? (
-                <>
+          {/* Left Pane: Payment QR / Restaurant Logo & Branding Footer */}
+          <View style={styles.leftPane}>
+            <View style={styles.leftMainContent}>
+              {displayState.paymentMethod && isUPI && paymentSettings.upiId ? (
+                <View style={styles.qrCard}>
                   <Text style={styles.qrTitle}>Scan to Pay via UPI</Text>
                   <View style={styles.qrImageContainer}>
                     {Platform.OS === "web" ? (
@@ -268,13 +276,13 @@ export default function CustomerDisplayScreen() {
                         resizeMode="contain"
                       />
                     ) : (
-                      <QRCode value={upiUrl} size={180} color="#000" backgroundColor="#fff" />
+                      <QRCode value={upiUrl} size={200} color="#000" backgroundColor="#fff" />
                     )}
                   </View>
                   <Text style={styles.qrSubtitle}>GPay, PhonePe, Paytm, BHIM</Text>
-                </>
-              ) : isPayNow && paymentSettings.payNowQrUrl ? (
-                <>
+                </View>
+              ) : displayState.paymentMethod && isPayNow && paymentSettings.payNowQrUrl ? (
+                <View style={styles.qrCard}>
                   <Text style={styles.qrTitle}>Scan to Pay via PayNow</Text>
                   <View style={styles.qrImageContainer}>
                     <Image
@@ -283,114 +291,124 @@ export default function CustomerDisplayScreen() {
                           ? paymentSettings.payNowQrUrl
                           : `${API_URL}${paymentSettings.payNowQrUrl}`,
                       }}
-                      style={styles.webQrImage}
+                      style={styles.payNowQrImage}
                       resizeMode="contain"
                     />
                   </View>
                   <Text style={styles.qrSubtitle}>Scan QR code with your mobile banking app</Text>
-                </>
+                </View>
               ) : (
-                <View style={styles.noQrContainer}>
-                  <Ionicons name="card" size={80} color={Theme.primary} />
-                  <Text style={styles.noQrTitle}>Please pay at the cashier counter</Text>
-                  <Text style={styles.noQrSubtitle}>Cash, Card, Nets accepted</Text>
+                <View style={styles.logoCard}>
+                  {companySettings.companyLogo ? (
+                    <View style={styles.logoCircle}>
+                      <Image
+                        source={{ uri: `${API_URL}${companySettings.companyLogo}` }}
+                        style={styles.largeRestaurantLogo}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  ) : (
+                    <View style={styles.logoCircleFallback}>
+                      <Ionicons name="restaurant" size={80} color="#fff" />
+                    </View>
+                  )}
+                  <Text style={styles.logoShopName}>
+                    {paymentSettings.shopName || companySettings.name || "Smart Cafe"}
+                  </Text>
                 </View>
               )}
             </View>
 
-            <View style={styles.grandTotalBanner}>
-              <Text style={styles.bannerLabel}>Total to Pay</Text>
-              <Text style={styles.bannerValue}>
-                {companySettings.currencySymbol || "$"}{displayState.netTotal.toFixed(2)}
-              </Text>
+            {/* Mandatory Unipro Branding Footer (Always present on left column) */}
+            <View style={styles.uniproFooterContainer}>
+              <View style={styles.uniproLogoWrapper}>
+                <Image
+                  source={require("../assets/images/unipro_logo.png")}
+                  style={styles.uniproLogoImage}
+                  resizeMode="contain"
+                />
+                <Text style={styles.uniproLogoSubtext}>Softwares SG Pte Ltd</Text>
+              </View>
             </View>
           </View>
 
           {/* Right Pane: Cart & Totals Summary */}
-          <View style={[styles.summaryPane, isLandscape && { flex: 1.1 }]}>
-            <View style={styles.summaryTitleRow}>
-              <Ionicons name="receipt-outline" size={24} color={Theme.primary} />
-              <Text style={styles.summaryTitleText}>Order Summary</Text>
-              {displayState.tableNo ? (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{displayState.tableNo}</Text>
-                </View>
-              ) : null}
+          <View style={styles.rightPane}>
+            {/* Table Header */}
+            <View style={styles.tableHeaderRow}>
+              <Text style={[styles.tableHeaderCell, styles.cellDesc]}>Description</Text>
+              <Text style={[styles.tableHeaderCell, styles.cellQty]}>Qty</Text>
+              <Text style={[styles.tableHeaderCell, styles.cellTotal]}>Total</Text>
             </View>
 
             {/* Itemized List */}
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.itemsScroll}>
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.receiptItemsScroll}>
               {displayState.items.map((item, idx) => (
-                <View key={`${item.lineItemId}-${idx}`} style={[styles.itemRow, item.isVoided && styles.voidedRow]}>
-                  <View style={styles.itemQtyBadge}>
-                    <Text style={styles.itemQtyText}>{item.qty}x</Text>
-                  </View>
-                  <View style={styles.itemInfoCol}>
-                    <Text style={[styles.itemNameText, item.isVoided && styles.voidedText]}>
+                <View key={`${item.lineItemId}-${idx}`} style={[styles.receiptItemRow, item.isVoided && styles.voidedRow]}>
+                  <View style={styles.cellDesc}>
+                    <Text style={[styles.receiptItemName, item.isVoided && styles.voidedText]}>
                       {item.name}
                       {item.isVoided && " (VOIDED)"}
                     </Text>
-                    {item.note ? <Text style={styles.itemNoteText}>📝 {item.note}</Text> : null}
+                    {item.note ? <Text style={styles.receiptItemNote}>📝 {item.note}</Text> : null}
                     {item.modifiers && item.modifiers.map((m: any, mIdx: number) => (
-                      <Text key={mIdx} style={styles.itemModifierText}>
+                      <Text key={mIdx} style={styles.receiptItemModifier}>
                         + {m.ModifierName}
                       </Text>
                     ))}
                   </View>
-                  <Text style={[styles.itemPriceText, item.isVoided && styles.voidedText]}>
+                  <Text style={[styles.receiptItemQty, styles.cellQty, item.isVoided && styles.voidedText]}>
+                    {item.qty.toFixed(2)}
+                  </Text>
+                  <Text style={[styles.receiptItemTotal, styles.cellTotal, item.isVoided && styles.voidedText]}>
                     {companySettings.currencySymbol || "$"}{item.finalPrice.toFixed(2)}
                   </Text>
                 </View>
               ))}
             </ScrollView>
 
-            <View style={styles.totalsSection}>
-              <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>Subtotal</Text>
-                <Text style={styles.totalsValue}>
-                  {companySettings.currencySymbol || "$"}{displayState.grossTotal.toFixed(2)}
-                </Text>
+            {/* Summary details */}
+            <View style={styles.receiptSummaryContainer}>
+              <View style={styles.breakdownRow}>
+                <View style={styles.breakdownItem}>
+                  <Text style={styles.breakdownLabel}>Sub Total</Text>
+                  <Text style={styles.breakdownValue}>
+                    {companySettings.currencySymbol || "$"}{displayState.subTotal.toFixed(2)}
+                  </Text>
+                </View>
+
+                {displayState.itemDiscounts + displayState.orderDiscountAmount > 0 ? (
+                  <View style={styles.breakdownItem}>
+                    <Text style={[styles.breakdownLabel, { color: Theme.danger }]}>Discount</Text>
+                    <Text style={[styles.breakdownValue, { color: Theme.danger }]}>
+                      {companySettings.currencySymbol || "$"}{(displayState.itemDiscounts + displayState.orderDiscountAmount).toFixed(2)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {displayState.gstAmount > 0 ? (
+                  <View style={styles.breakdownItem}>
+                    <Text style={styles.breakdownLabel}>Tax</Text>
+                    <Text style={styles.breakdownValue}>
+                      {companySettings.currencySymbol || "$"}{displayState.gstAmount.toFixed(2)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {displayState.roundOff !== 0 ? (
+                  <View style={styles.breakdownItem}>
+                    <Text style={styles.breakdownLabel}>RoundOff</Text>
+                    <Text style={styles.breakdownValue}>
+                      {displayState.roundOff > 0 ? "+" : ""}{companySettings.currencySymbol || "$"}{displayState.roundOff.toFixed(2)}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
-              {displayState.itemDiscounts > 0 ? (
-                <View style={styles.totalsRow}>
-                  <Text style={[styles.totalsLabel, { color: Theme.danger }]}>Item Discounts</Text>
-                  <Text style={[styles.totalsValue, { color: Theme.danger }]}>
-                    -{companySettings.currencySymbol || "$"}{displayState.itemDiscounts.toFixed(2)}
-                  </Text>
-                </View>
-              ) : null}
-
-              {displayState.orderDiscountAmount > 0 ? (
-                <View style={styles.totalsRow}>
-                  <Text style={[styles.totalsLabel, { color: Theme.danger }]}>Order Discount</Text>
-                  <Text style={[styles.totalsValue, { color: Theme.danger }]}>
-                    -{companySettings.currencySymbol || "$"}{displayState.orderDiscountAmount.toFixed(2)}
-                  </Text>
-                </View>
-              ) : null}
-
-              {displayState.gstAmount > 0 ? (
-                <View style={styles.totalsRow}>
-                  <Text style={styles.totalsLabel}>GST ({companySettings.gstPercentage || 0}%)</Text>
-                  <Text style={styles.totalsValue}>
-                    {companySettings.currencySymbol || "$"}{displayState.gstAmount.toFixed(2)}
-                  </Text>
-                </View>
-              ) : null}
-
-              {displayState.roundOff !== 0 ? (
-                <View style={styles.totalsRow}>
-                  <Text style={styles.totalsLabel}>Rounding</Text>
-                  <Text style={styles.totalsValue}>
-                    {displayState.roundOff > 0 ? "+" : ""}{companySettings.currencySymbol || "$"}{displayState.roundOff.toFixed(2)}
-                  </Text>
-                </View>
-              ) : null}
-
-              <View style={styles.finalTotalRow}>
-                <Text style={styles.finalTotalLabel}>Grand Total</Text>
-                <Text style={styles.finalTotalValue}>
+              {/* Net Total High-Contrast Box */}
+              <View style={styles.netTotalHighlightBox}>
+                <Text style={styles.netTotalLabel}>Net Total</Text>
+                <Text style={styles.netTotalValue}>
                   {companySettings.currencySymbol || "$"}{displayState.netTotal.toFixed(2)}
                 </Text>
               </View>
@@ -398,21 +416,19 @@ export default function CustomerDisplayScreen() {
 
             {displayState.waiterName ? (
               <View style={styles.waiterFooter}>
-                <Ionicons name="person-circle-outline" size={18} color={Theme.textSecondary} />
+                <Ionicons name="person-circle-outline" size={16} color={Theme.textSecondary} />
                 <Text style={styles.waiterText}>Served by: {displayState.waiterName}</Text>
               </View>
             ) : null}
-
           </View>
         </View>
       </View>
     );
   }
 
-  // 5. Idle attract loop view
+  // Idle attract loop view
   return (
     <View style={styles.idleContainer}>
-      
       {/* Floating popping food animations */}
       {floatingFoods.map((item) => (
         <Animated.View
@@ -463,6 +479,18 @@ export default function CustomerDisplayScreen() {
               resizeMode="contain"
             />
           ) : null}
+        </View>
+      </View>
+
+      {/* Unipro Footer on Idle Screen */}
+      <View style={styles.idleUniproFooter}>
+        <View style={styles.uniproLogoWrapper}>
+          <Image
+            source={require("../assets/images/unipro_logo.png")}
+            style={styles.uniproLogoImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.uniproLogoSubtext}>Softwares SG Pte Ltd</Text>
         </View>
       </View>
     </View>
@@ -545,6 +573,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Theme.bgMain,
   },
+  topHeaderBanner: {
+    backgroundColor: "#FEF9E7",
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#F5CBA7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  topHeaderText: {
+    fontSize: 24,
+    fontFamily: Fonts.black,
+    color: "#4A2711",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    textAlign: "center",
+  },
   checkoutLayout: {
     flex: 1,
     padding: 16,
@@ -553,7 +598,10 @@ const styles = StyleSheet.create({
   checkoutLayoutLandscape: {
     flexDirection: "row",
   },
-  paymentPane: {
+
+  // Left column
+  leftPane: {
+    flex: 1,
     backgroundColor: "#fff",
     borderRadius: 24,
     padding: 24,
@@ -566,239 +614,296 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
   },
-  shopHeader: {
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  shopName: {
-    fontSize: 22,
-    fontFamily: Fonts.black,
-    color: Theme.textPrimary,
-  },
-  shopAddress: {
-    fontSize: 13,
-    fontFamily: Fonts.medium,
-    color: Theme.textSecondary,
-    marginTop: 2,
-  },
-  qrCard: {
+  leftMainContent: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 10,
   },
-  qrTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-    color: Theme.textPrimary,
-    marginBottom: 15,
+  logoCard: {
+    alignItems: "center",
+    justifyContent: "center",
   },
-  qrImageContainer: {
-    padding: 12,
+  logoCircle: {
+    width: 220,
+    height: 220,
+    borderRadius: 110,
     backgroundColor: "#fff",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Theme.border,
-    elevation: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    elevation: 6,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
-  webQrImage: {
+  logoCircleFallback: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: Theme.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+  },
+  largeRestaurantLogo: {
     width: 180,
     height: 180,
+    borderRadius: 90,
   },
-  qrSubtitle: {
-    fontSize: 12,
-    fontFamily: Fonts.medium,
-    color: Theme.textSecondary,
-    marginTop: 15,
+  logoShopName: {
+    fontSize: 20,
+    fontFamily: Fonts.black,
+    color: "#374151",
+    marginTop: 20,
     textAlign: "center",
   },
-  noQrContainer: {
+
+  // QR Code views
+  qrCard: {
     alignItems: "center",
     justifyContent: "center",
   },
-  noQrTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-    color: Theme.textPrimary,
-    marginTop: 15,
-    textAlign: "center",
-  },
-  noQrSubtitle: {
-    fontSize: 14,
-    fontFamily: Fonts.medium,
-    color: Theme.textSecondary,
-    marginTop: 6,
-  },
-  grandTotalBanner: {
-    backgroundColor: Theme.primaryLight,
-    borderWidth: 1.5,
-    borderColor: Theme.primaryBorder,
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  bannerLabel: {
-    fontSize: 15,
-    fontFamily: Fonts.bold,
-    color: Theme.primary,
-  },
-  bannerValue: {
-    fontSize: 26,
+  qrTitle: {
+    fontSize: 20,
     fontFamily: Fonts.black,
-    color: Theme.primary,
+    color: "#1F2937",
+    marginBottom: 16,
   },
-
-  // Summary pane
-  summaryPane: {
+  qrImageContainer: {
+    padding: 16,
     backgroundColor: "#fff",
     borderRadius: 24,
-    padding: 24,
     borderWidth: 1.5,
-    borderColor: Theme.border,
+    borderColor: "#E5E7EB",
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
   },
-  summaryTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderBottomWidth: 1.5,
-    borderBottomColor: Theme.border,
-    paddingBottom: 12,
-    marginBottom: 12,
-    gap: 8,
+  webQrImage: {
+    width: 220,
+    height: 220,
   },
-  summaryTitleText: {
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-    color: Theme.textPrimary,
-    flex: 1,
+  payNowQrImage: {
+    width: 220,
+    height: 220,
   },
-  badge: {
-    backgroundColor: Theme.primaryLight,
-    borderColor: Theme.primaryBorder,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontSize: 13,
-    fontFamily: Fonts.bold,
-    color: Theme.primary,
-  },
-  itemsScroll: {
-    flex: 1,
-  },
-  itemRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Theme.border,
-    gap: 10,
-  },
-  voidedRow: {
-    backgroundColor: Theme.dangerBg || "#FEF2F2",
-    opacity: 0.6,
-  },
-  itemQtyBadge: {
-    backgroundColor: Theme.bgMuted,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    minWidth: 32,
-    alignItems: "center",
-  },
-  itemQtyText: {
-    fontSize: 12,
-    fontFamily: Fonts.bold,
-    color: Theme.textPrimary,
-  },
-  itemInfoCol: {
-    flex: 1,
-  },
-  itemNameText: {
+  qrSubtitle: {
     fontSize: 14,
     fontFamily: Fonts.bold,
-    color: Theme.textPrimary,
+    color: "#4B5563",
+    marginTop: 16,
+    textAlign: "center",
+  },
+
+  // Unipro Footers
+  uniproFooterContainer: {
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    marginTop: 16,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 3,
+  },
+  uniproLogoWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  uniproLogoImage: {
+    width: 130,
+    height: 34,
+  },
+  uniproLogoSubtext: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: "#4B5563",
+    borderLeftWidth: 1.5,
+    borderLeftColor: "#D1D5DB",
+    paddingLeft: 8,
+  },
+  idleUniproFooter: {
+    position: "absolute",
+    bottom: 24,
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+  },
+
+  // Right column
+  rightPane: {
+    flex: 1.2,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: Theme.border,
+    overflow: "hidden",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  tableHeaderRow: {
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#E5E7EB",
+  },
+  tableHeaderCell: {
+    fontSize: 14,
+    fontFamily: Fonts.extraBold,
+    color: "#4B5563",
+  },
+  cellDesc: {
+    flex: 1.6,
+  },
+  cellQty: {
+    width: 70,
+    textAlign: "center",
+  },
+  cellTotal: {
+    width: 100,
+    textAlign: "right",
+  },
+
+  receiptItemsScroll: {
+    flex: 1,
+  },
+  receiptItemRow: {
+    flexDirection: "row",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    alignItems: "center",
+  },
+  voidedRow: {
+    backgroundColor: "#FEF2F2",
+    opacity: 0.6,
+  },
+  receiptItemName: {
+    fontSize: 15,
+    fontFamily: Fonts.bold,
+    color: "#1F2937",
   },
   voidedText: {
     textDecorationLine: "line-through",
     color: Theme.textMuted,
   },
-  itemNoteText: {
+  receiptItemNote: {
     fontSize: 12,
     fontFamily: Fonts.medium,
     color: Theme.textSecondary,
     marginTop: 2,
   },
-  itemModifierText: {
+  receiptItemModifier: {
     fontSize: 12,
     fontFamily: Fonts.regular,
     color: Theme.textSecondary,
     marginTop: 2,
     paddingLeft: 6,
   },
-  itemPriceText: {
+  receiptItemQty: {
+    fontSize: 15,
+    fontFamily: Fonts.bold,
+    color: "#374151",
+  },
+  receiptItemTotal: {
+    fontSize: 15,
+    fontFamily: Fonts.extraBold,
+    color: "#1F2937",
+  },
+
+  receiptSummaryContainer: {
+    borderTopWidth: 1.5,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#FAFAFA",
+    padding: 16,
+  },
+  breakdownRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  breakdownItem: {
+    alignItems: "center",
+    flex: 1,
+    minWidth: 70,
+  },
+  breakdownLabel: {
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+    color: "#6B7280",
+    marginBottom: 2,
+  },
+  breakdownValue: {
     fontSize: 14,
     fontFamily: Fonts.bold,
-    color: Theme.textPrimary,
-    textAlign: "right",
+    color: "#374151",
   },
-  totalsSection: {
-    borderTopWidth: 1.5,
-    borderTopColor: Theme.border,
-    paddingTop: 12,
-    marginTop: 12,
-    gap: 8,
-  },
-  totalsRow: {
+
+  netTotalHighlightBox: {
+    backgroundColor: "#16A34A",
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
-  totalsLabel: {
-    fontSize: 13,
-    fontFamily: Fonts.medium,
-    color: Theme.textSecondary,
-  },
-  totalsValue: {
-    fontSize: 13,
-    fontFamily: Fonts.bold,
-    color: Theme.textPrimary,
-  },
-  finalTotalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: Theme.border,
-    paddingTop: 10,
-    marginTop: 6,
-  },
-  finalTotalLabel: {
-    fontSize: 16,
-    fontFamily: Fonts.extraBold,
-    color: Theme.textPrimary,
-  },
-  finalTotalValue: {
-    fontSize: 20,
+  netTotalLabel: {
+    fontSize: 22,
     fontFamily: Fonts.black,
-    color: Theme.primary,
+    color: "#fff",
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
+  netTotalValue: {
+    fontSize: 32,
+    fontFamily: Fonts.black,
+    color: "#fff",
+  },
+
   waiterFooter: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 15,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "#F9FAFB",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
     gap: 6,
-    opacity: 0.8,
   },
   waiterText: {
     fontSize: 12,
@@ -813,6 +918,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    position: "relative",
   },
   successCard: {
     backgroundColor: "#fff",
@@ -828,6 +934,7 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     borderWidth: 1.5,
     borderColor: Theme.border,
+    marginBottom: 80, // Space for footer
   },
   successIconWrapper: {
     marginBottom: 20,
