@@ -184,7 +184,7 @@ export default function CustomerDisplayScreen() {
   // ─── RENDERS ───
 
   // Success view
-  if (displayState.paymentSuccess) {
+  if (displayState.paymentSuccess && paymentSettings.customerSideDisplay) {
     return (
       <View style={styles.successContainer}>
         <View style={styles.successMainContent}>
@@ -245,7 +245,7 @@ export default function CustomerDisplayScreen() {
   }
 
   // Active checkout view
-  if (displayState.active) {
+  if (displayState.active && paymentSettings.customerSideDisplay) {
     const isUPI = /UPI|GPAY|PHONE|PAYTM/i.test(displayState.paymentMethod || "") || (displayState.paymentMethod === undefined && paymentSettings.upiId);
     const isPayNow = /PAYNOW|QR|PAY-NOW/i.test(displayState.paymentMethod || "") || (displayState.paymentMethod === undefined && paymentSettings.payNowQrUrl);
 

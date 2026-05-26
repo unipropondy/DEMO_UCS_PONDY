@@ -10,6 +10,7 @@ import {
   Platform,
   Animated,
   Easing,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Theme } from "@/constants/theme";
@@ -90,6 +91,7 @@ export default function GeneralSettingsModal({
   const [enableCheckoutBill, setEnableCheckoutBill] = useState(settings.enableCheckoutBill);
   const [enableCheckoutFlow, setEnableCheckoutFlow] = useState(settings.enableCheckoutFlow);
   const [enableDirectProcessToPay, setEnableDirectProcessToPay] = useState(settings.enableDirectProcessToPay);
+  const [customerSideDisplay, setCustomerSideDisplay] = useState(settings.customerSideDisplay);
 
   const handleToggleCheckoutFlow = (val: boolean) => {
     if (val) {
@@ -129,6 +131,7 @@ export default function GeneralSettingsModal({
       setEnableKOT(settings.enableKOT);
       setEnableKDS(settings.enableKDS);
       setEnableCheckoutBill(settings.enableCheckoutBill);
+      setCustomerSideDisplay(settings.customerSideDisplay);
       
       let initialCheckoutFlow = settings.enableCheckoutFlow;
       let initialDirectProcess = settings.enableDirectProcessToPay;
@@ -196,6 +199,7 @@ export default function GeneralSettingsModal({
       enableCheckoutBill,
       enableCheckoutFlow,
       enableDirectProcessToPay,
+      customerSideDisplay,
     });
     
     setIsSaving(false);
@@ -245,7 +249,11 @@ export default function GeneralSettingsModal({
           </View>
 
           {/* Body */}
-          <View style={styles.body}>
+          <ScrollView
+            style={styles.scrollContainer}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             {/* CARD 1: KOT */}
             <View style={[styles.settingCard, enableKOT && styles.settingCardActive]}>
               <View style={styles.cardLeft}>
@@ -254,12 +262,6 @@ export default function GeneralSettingsModal({
                     <Ionicons name="receipt-outline" size={16} color={enableKOT ? Theme.primary : Theme.textSecondary} />
                   </View>
                   <Text style={styles.settingTitle}>KOT (Kitchen Order Ticket)</Text>
-                  <View style={[styles.statusBadge, enableKOT ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
-                    <View style={[styles.statusDot, enableKOT ? styles.statusDotActive : styles.statusDotInactive]} />
-                    <Text style={[styles.statusBadgeText, enableKOT ? styles.statusBadgeTextActive : styles.statusBadgeTextInactive]}>
-                      {enableKOT ? "Active" : "Disabled"}
-                    </Text>
-                  </View>
                 </View>
                 <Text style={styles.settingDesc}>Enable kitchen ticket printing.</Text>
               </View>
@@ -274,12 +276,6 @@ export default function GeneralSettingsModal({
                     <Ionicons name="desktop-outline" size={16} color={enableKDS ? Theme.primary : Theme.textSecondary} />
                   </View>
                   <Text style={styles.settingTitle}>KDS (Kitchen Display System)</Text>
-                  <View style={[styles.statusBadge, enableKDS ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
-                    <View style={[styles.statusDot, enableKDS ? styles.statusDotActive : styles.statusDotInactive]} />
-                    <Text style={[styles.statusBadgeText, enableKDS ? styles.statusBadgeTextActive : styles.statusBadgeTextInactive]}>
-                      {enableKDS ? "Active" : "Disabled"}
-                    </Text>
-                  </View>
                 </View>
                 <Text style={styles.settingDesc}>Show kitchen display screen.</Text>
               </View>
@@ -294,12 +290,6 @@ export default function GeneralSettingsModal({
                     <Ionicons name="wallet-outline" size={16} color={enableCheckoutBill ? Theme.primary : Theme.textSecondary} />
                   </View>
                   <Text style={styles.settingTitle}>Checkout Bill</Text>
-                  <View style={[styles.statusBadge, enableCheckoutBill ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
-                    <View style={[styles.statusDot, enableCheckoutBill ? styles.statusDotActive : styles.statusDotInactive]} />
-                    <Text style={[styles.statusBadgeText, enableCheckoutBill ? styles.statusBadgeTextActive : styles.statusBadgeTextInactive]}>
-                      {enableCheckoutBill ? "Active" : "Disabled"}
-                    </Text>
-                  </View>
                 </View>
                 <Text style={styles.settingDesc}>Enable checkout receipt printing.</Text>
               </View>
@@ -314,12 +304,6 @@ export default function GeneralSettingsModal({
                     <Ionicons name="git-compare-outline" size={16} color={enableCheckoutFlow ? Theme.primary : Theme.textSecondary} />
                   </View>
                   <Text style={styles.settingTitle}>Enable Checkout Flow</Text>
-                  <View style={[styles.statusBadge, enableCheckoutFlow ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
-                    <View style={[styles.statusDot, enableCheckoutFlow ? styles.statusDotActive : styles.statusDotInactive]} />
-                    <Text style={[styles.statusBadgeText, enableCheckoutFlow ? styles.statusBadgeTextActive : styles.statusBadgeTextInactive]}>
-                      {enableCheckoutFlow ? "Active" : "Disabled"}
-                    </Text>
-                  </View>
                 </View>
                 <Text style={styles.settingDesc}>Enable order summary checkout step.</Text>
               </View>
@@ -334,18 +318,26 @@ export default function GeneralSettingsModal({
                     <Ionicons name="card-outline" size={16} color={enableDirectProcessToPay ? Theme.primary : Theme.textSecondary} />
                   </View>
                   <Text style={styles.settingTitle}>Enable Direct Process To Pay</Text>
-                  <View style={[styles.statusBadge, enableDirectProcessToPay ? styles.statusBadgeActive : styles.statusBadgeInactive]}>
-                    <View style={[styles.statusDot, enableDirectProcessToPay ? styles.statusDotActive : styles.statusDotInactive]} />
-                    <Text style={[styles.statusBadgeText, enableDirectProcessToPay ? styles.statusBadgeTextActive : styles.statusBadgeTextInactive]}>
-                      {enableDirectProcessToPay ? "Active" : "Disabled"}
-                    </Text>
-                  </View>
                 </View>
                 <Text style={styles.settingDesc}>Show "Process To Pay" shortcut button in Cart Sidebar.</Text>
               </View>
               <CustomSwitch value={enableDirectProcessToPay} onValueChange={handleToggleDirectProcessToPay} />
             </View>
-          </View>
+
+            {/* CARD 6: Customer-Side Display */}
+            <View style={[styles.settingCard, customerSideDisplay && styles.settingCardActive]}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={[styles.iconWrapper, customerSideDisplay ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
+                    <Ionicons name="tv-outline" size={16} color={customerSideDisplay ? Theme.primary : Theme.textSecondary} />
+                  </View>
+                  <Text style={styles.settingTitle}>Customer-Side Display</Text>
+                </View>
+                <Text style={styles.settingDesc}>Enable/disable secondary customer screen sync.</Text>
+              </View>
+              <CustomSwitch value={customerSideDisplay} onValueChange={setCustomerSideDisplay} />
+            </View>
+          </ScrollView>
 
           {/* Footer */}
           <View style={styles.footer}>
@@ -499,6 +491,13 @@ const styles = StyleSheet.create({
   
   // Body & Setting Cards
   body: {
+    padding: 16,
+    gap: 10,
+  },
+  scrollContainer: {
+    maxHeight: 380,
+  },
+  scrollContent: {
     padding: 16,
     gap: 10,
   },

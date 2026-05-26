@@ -17,7 +17,7 @@ router.get("/", async (req, res) => {
 // 🔹 UPDATE Settings
 router.post("/update", async (req, res) => {
   try {
-    const { upiId, shopName, qrCodeUrl, enableKOT, enableKDS, enableCheckoutBill, enableCheckoutFlow, enableDirectProcessToPay } = req.body;
+    const { upiId, shopName, qrCodeUrl, enableKOT, enableKDS, enableCheckoutBill, enableCheckoutFlow, enableDirectProcessToPay, customerSideDisplay } = req.body;
     const pool = await poolPromise;
 
     // Use an UPSERT logic (Update if exists, Insert if not)
@@ -30,6 +30,7 @@ router.post("/update", async (req, res) => {
       .input("EnableCheckoutBill", sql.Bit, enableCheckoutBill !== undefined ? enableCheckoutBill : 1)
       .input("EnableCheckoutFlow", sql.Bit, enableCheckoutFlow !== undefined ? enableCheckoutFlow : 1)
       .input("EnableDirectProcessToPay", sql.Bit, enableDirectProcessToPay !== undefined ? enableDirectProcessToPay : 0)
+      .input("CustomerSideDisplay", sql.Bit, customerSideDisplay !== undefined ? customerSideDisplay : 1)
       .query(`
         IF EXISTS (SELECT 1 FROM AppSettings)
         BEGIN
@@ -43,12 +44,13 @@ router.post("/update", async (req, res) => {
             EnableCheckoutBill = @EnableCheckoutBill,
             EnableCheckoutFlow = @EnableCheckoutFlow,
             EnableDirectProcessToPay = @EnableDirectProcessToPay,
+            CustomerSideDisplay = @CustomerSideDisplay,
             UpdatedOn = GETDATE()
         END
         ELSE
         BEGIN
-          INSERT INTO AppSettings (UPI_ID, ShopName, PayNow_QR_Url, EnableKOT, EnableKDS, EnableCheckoutBill, EnableCheckoutFlow, EnableDirectProcessToPay, UpdatedOn)
-          VALUES (@UPI, @Shop, @QR, @EnableKOT, @EnableKDS, @EnableCheckoutBill, @EnableCheckoutFlow, @EnableDirectProcessToPay, GETDATE())
+          INSERT INTO AppSettings (UPI_ID, ShopName, PayNow_QR_Url, EnableKOT, EnableKDS, EnableCheckoutBill, EnableCheckoutFlow, EnableDirectProcessToPay, CustomerSideDisplay, UpdatedOn)
+          VALUES (@UPI, @Shop, @QR, @EnableKOT, @EnableKDS, @EnableCheckoutBill, @EnableCheckoutFlow, @EnableDirectProcessToPay, @CustomerSideDisplay, GETDATE())
         END
       `);
 

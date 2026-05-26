@@ -9,6 +9,7 @@ export interface GeneralSettings {
   enableCheckoutBill: boolean;
   enableCheckoutFlow: boolean;
   enableDirectProcessToPay: boolean;
+  customerSideDisplay: boolean;
 }
 
 interface GeneralSettingsState {
@@ -27,6 +28,7 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
         enableCheckoutBill: true,
         enableCheckoutFlow: true,
         enableDirectProcessToPay: false,
+        customerSideDisplay: true,
       },
       loading: false,
 
@@ -45,6 +47,7 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
                 enableCheckoutBill: data.EnableCheckoutBill !== undefined ? Boolean(data.EnableCheckoutBill) : true,
                 enableCheckoutFlow: data.EnableCheckoutFlow !== undefined ? Boolean(data.EnableCheckoutFlow) : true,
                 enableDirectProcessToPay: data.EnableDirectProcessToPay !== undefined ? Boolean(data.EnableDirectProcessToPay) : false,
+                customerSideDisplay: data.CustomerSideDisplay !== undefined ? Boolean(data.CustomerSideDisplay) : true,
               },
             }));
           }
@@ -78,7 +81,8 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
             enableKDS: updatedSettings.enableKDS,
             enableCheckoutBill: updatedSettings.enableCheckoutBill,
             enableCheckoutFlow: updatedSettings.enableCheckoutFlow,
-            enableDirectProcessToPay: updatedSettings.enableDirectProcessToPay
+            enableDirectProcessToPay: updatedSettings.enableDirectProcessToPay,
+            customerSideDisplay: updatedSettings.customerSideDisplay
           };
 
           const res = await fetch(`${API_URL}/api/settings/update`, {

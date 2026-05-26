@@ -7,6 +7,7 @@ interface PaymentSettings {
   upiId: string | null;
   payNowQrUrl: string | null;
   shopName: string;
+  customerSideDisplay: boolean;
 }
 
 interface PaymentSettingsState {
@@ -23,6 +24,7 @@ export const usePaymentSettingsStore = create<PaymentSettingsState>()(
         upiId: null,
         payNowQrUrl: null,
         shopName: "My Restaurant",
+        customerSideDisplay: true,
       },
       loading: false,
 
@@ -38,6 +40,7 @@ export const usePaymentSettingsStore = create<PaymentSettingsState>()(
                 upiId: data.UPI_ID || null,
                 payNowQrUrl: data.PayNow_QR_Url || null,
                 shopName: data.ShopName || "My Restaurant",
+                customerSideDisplay: data.CustomerSideDisplay !== undefined ? Boolean(data.CustomerSideDisplay) : true,
               },
             });
           }
