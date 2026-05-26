@@ -52,7 +52,10 @@ export type DiscountInfo = {
   type: "percentage" | "fixed";
   value: number;
   label?: string;
+  discountId?: string;
+  discountCode?: string;
 };
+
 
 const getModifierKey = (mods?: any[]) => {
   if (!mods || mods.length === 0) return "";

@@ -88,7 +88,14 @@ export default function DiscountModal({
       return; // No valid discount value — do nothing
     }
 
-    const discountData = { applied: true, type, value, label: disc.Description || disc.DiscountCode };
+    const discountData = { 
+      applied: true, 
+      type, 
+      value, 
+      label: disc.Description || disc.DiscountCode,
+      discountId: disc.DiscountId || disc.discountId || null,
+      discountCode: disc.DiscountCode || disc.discountCode || null
+    };
     applyDiscount(discountData);
     const currentContext = getOrderContext();
     if (currentContext) updateOrderDiscount(currentContext, discountData);

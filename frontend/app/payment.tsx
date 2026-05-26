@@ -368,7 +368,12 @@ export default function PaymentScreen() {
       serverId: context?.serverId,
       serverName: context?.serverName,
       isSplit: !!splitItems,
-      splitItems: splitItems
+      splitItems: splitItems,
+      discountId: discount?.discountId || null,
+      discountPercentage: discount?.type === "percentage" ? discount.value : null,
+      discountRemarks: discount?.label || null,
+      orderDiscountAmount: discountAmount,
+      itemDiscountAmount: payItemDiscount
     };
 
     try {

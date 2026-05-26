@@ -758,7 +758,8 @@ router.post("/save", async (req, res) => {
     const {
       totalAmount, paymentMethod, items, subTotal, taxAmount,
       discountAmount, discountType, roundOff, orderId, orderType, tableNo, section, memberId, cashierId, tableId,
-      serverId, serverName, isSplit
+      serverId, serverName, isSplit,
+      discountId, discountPercentage, discountRemarks, orderDiscountAmount, itemDiscountAmount
     } = req.body;
 
     const validationError = validateSalePayload({ totalAmount, paymentMethod, items });
@@ -850,14 +851,24 @@ router.post("/save", async (req, res) => {
 
     // Split Bill unique bill/invoice suffix generator
     let finalBillNo = displayOrderId;
+    let splitIndexValue = null;
     if (isSplit) {
       const splitCountResult = await transaction.request()
         .input("OrderId", sql.UniqueIdentifier, guidOrderId)
         .query("SELECT COUNT(*) as count FROM RestaurantInvoice WHERE OrderId = @OrderId");
       const splitCount = splitCountResult.recordset[0].count + 1;
       finalBillNo = `${displayOrderId}-S${splitCount}`;
+      splitIndexValue = splitCount;
     }
-    console.log(`[SAVE SALE] Final Bill No: ${finalBillNo} (isSplit: ${isSplit || false})`);
+    console.log(`[SAVE SALE] Final Bill No: ${finalBillNo} (isSplit: ${isSplit || false}, index: ${splitIndexValue || "none"})`);
+
+    // Merge history count retriever
+    const mergeCountResult = await transaction.request()
+      .input("OrderId", sql.UniqueIdentifier, guidOrderId)
+      .query("SELECT COUNT(*) as count FROM OrderMergeHistory WHERE ParentOrderId = @OrderId");
+    const childCount = mergeCountResult.recordset[0].count;
+    const mergeCount = childCount > 0 ? childCount + 1 : null;
+    console.log(`[SAVE SALE] Merge Count: ${mergeCount || "none"} (child count: ${childCount})`);
 
     const normalizedPayMode = normalizePayMode(paymentMethod);
     const payModeCode = normalizedPayMode === "CASH" ? 1 : normalizedPayMode === "CARD" ? 2 : 3;
@@ -867,7 +878,7 @@ router.post("/save", async (req, res) => {
       .input("LastSettlementDate", sql.DateTime, now)
       .input("SubTotal", sql.Money, subTotal || 0)
       .input("TotalTax", sql.Money, taxAmount || 0)
-      .input("DiscountAmount", sql.Money, discountAmount || 0)
+      .input("DiscountAmount", sql.Money, orderDiscountAmount || 0)
       .input("DiscountType", sql.NVarChar(50), discountType || "fixed")
       .input("BillNo", sql.NVarChar(50), finalBillNo)
       .input("OrderType", sql.NVarChar(50), orderType || "DINE-IN")
@@ -889,6 +900,13 @@ router.post("/save", async (req, res) => {
       .input("PayModeCode", sql.Int, payModeCode)
       .input("DailySeq", sql.Int, dailySequence || 0)
       .input("OrderId", sql.UniqueIdentifier, guidOrderId)
+      .input("DiscountId", sql.UniqueIdentifier, toGuidOrNull(discountId))
+      .input("DiscountPercentage", sql.Decimal(18, 2), discountPercentage || null)
+      .input("DiscountRemarks", sql.NVarChar(1000), discountRemarks || null)
+      .input("TotalDiscountAmount", sql.Decimal(18, 2), discountAmount || 0)
+      .input("TotalLineItemDiscountAmount", sql.Decimal(18, 2), itemDiscountAmount || 0)
+      .input("MergeCount", sql.Numeric, mergeCount)
+      .input("SplitCount", sql.Numeric, splitIndexValue)
       .query(`
         -- 1. Insert into SettlementHeader
         INSERT INTO SettlementHeader (
@@ -908,12 +926,14 @@ router.post("/save", async (req, res) => {
           BusinessUnitId, RestaurantBillId, OrderId, BillNumber, OrderDateTime, TimeBilled, 
           TotalLineItemAmount, TotalTax, DiscountAmount, TotalAmount, StatusCode, 
           CreatedBy, CreatedOn, InvoiceDate, ServiceCharge, RoundedBy, TotalAmountLessFreight,
-          PaymentTermCode
+          PaymentTermCode, DiscountId, DiscountPercentage, DiscountRemarks, TotalDiscountAmount,
+          TotalLineItemDiscountAmount, MergeCount, SplitCount
         ) VALUES (
           @BusinessUnitId, @SettlementID, @OrderId, @BillNo, GETDATE(), GETDATE(),
           @SubTotal, @TotalTax, @DiscountAmount, @SysAmount, 3,
           @CreatedBy, GETDATE(), CAST(GETDATE() AS DATE), @ServiceCharge, @RoundedBy, @SubTotal,
-          @PayModeCode
+          @PayModeCode, @DiscountId, @DiscountPercentage, @DiscountRemarks, @TotalDiscountAmount,
+          @TotalLineItemDiscountAmount, @MergeCount, @SplitCount
         );
       `);
 
