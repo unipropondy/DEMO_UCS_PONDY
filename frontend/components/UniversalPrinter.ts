@@ -321,120 +321,122 @@ class UniversalPrinter {
     type: "NEW" | "ADDITIONAL" | "REPRINT" = "NEW",
     printerIpOverride?: string,
   ): Promise<boolean> {
-    try {
-      const company = await BillPDFGenerator.loadSettings(userId);
-      const html = this.generateKOTHTML(orderData, type);
-      const targetIp = printerIpOverride || company.printerIp;
+    // 🚀 NON-BLOCKING BACKGROUND EXECUTION: Run printing in the background to prevent UI lag on APK
+    (async () => {
+      try {
+        const company = await BillPDFGenerator.loadSettings(userId);
+        const html = this.generateKOTHTML(orderData, type);
+        const targetIp = printerIpOverride || company.printerIp;
 
-      // ✅ 1. Try Hardware Printer (WiFi or Bluetooth)
-      if (targetIp && targetIp.trim().length > 0) {
-        try {
-          const text = this.formatKOTThermalText(orderData, type);
-          const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(targetIp);
+        // ✅ 1. Try Hardware Printer (WiFi or Bluetooth)
+        if (targetIp && targetIp.trim().length > 0) {
+          try {
+            const text = this.formatKOTThermalText(orderData, type);
+            const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(targetIp);
 
-          if (isIp) {
-            console.log(`🌐 KOT WiFi print to: ${targetIp}`);
-            const printPromise = ThermalPrinter.printTcp({
-              ip: targetIp,
-              port: 9100,
-              payload: text,
-              mmFeedPaper: 60,
-            });
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("WiFi Timeout")), 3000),
-            );
-            await Promise.race([printPromise, timeoutPromise]);
-          } else {
-            console.log(`🔵 KOT Bluetooth print to: ${targetIp}`);
-            const printPromise = ThermalPrinter.printBluetooth({
-              macAddress: targetIp,
-              payload: text,
-              mmFeedPaper: 60,
-            });
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("BT Timeout")), 3000),
-            );
-            await Promise.race([printPromise, timeoutPromise]);
-          }
-          await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
-          return true;
-        } catch (printError) {
-          console.warn("❌ Hardware KOT failed/timeout, falling back...");
-        }
-      }
-
-      // ✅ 2. Try Sunmi direct print (Silent)
-      const sunmiReady = await SunmiPrinterService.init().catch(() => false);
-      if (sunmiReady) {
-        try {
-          const printPromise = SunmiPrinterService.printKOT(orderData, type);
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Sunmi Timeout")), 2000),
-          );
-          const printed = await Promise.race([printPromise, timeoutPromise]);
-
-          if (printed) {
-            console.log("✅ KOT Printed with Sunmi - NO PREVIEW");
+            if (isIp) {
+              console.log(`🌐 KOT WiFi print to: ${targetIp}`);
+              const printPromise = ThermalPrinter.printTcp({
+                ip: targetIp,
+                port: 9100,
+                payload: text,
+                mmFeedPaper: 60,
+              });
+              const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("WiFi Timeout")), 3000),
+              );
+              await Promise.race([printPromise, timeoutPromise]);
+            } else {
+              console.log(`🔵 KOT Bluetooth print to: ${targetIp}`);
+              const printPromise = ThermalPrinter.printBluetooth({
+                macAddress: targetIp,
+                payload: text,
+                mmFeedPaper: 60,
+              });
+              const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("BT Timeout")), 3000),
+              );
+              await Promise.race([printPromise, timeoutPromise]);
+            }
             await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
-            return true;
+            return;
+          } catch (printError) {
+            console.warn("❌ Hardware KOT failed/timeout, falling back...");
           }
-        } catch (sunmiErr) {
-          console.warn("❌ Sunmi KOT failed/timeout:", sunmiErr);
         }
-      }
 
-      // ✅ 3. Web Fallback (Bypass expo-print for better isolation)
-      if (Platform.OS === "web") {
-        try {
-          const frame = document.createElement("iframe");
-          frame.style.visibility = "hidden";
-          frame.style.position = "fixed";
-          frame.style.right = "0";
-          frame.style.bottom = "0";
-          frame.style.width = "0";
-          frame.style.height = "0";
-          document.body.appendChild(frame);
+        // ✅ 2. Try Sunmi direct print (Silent)
+        const sunmiReady = await SunmiPrinterService.init().catch(() => false);
+        if (sunmiReady) {
+          try {
+            const printPromise = SunmiPrinterService.printKOT(orderData, type);
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("Sunmi Timeout")), 2000),
+            );
+            const printed = await Promise.race([printPromise, timeoutPromise]);
 
-          const doc = frame.contentWindow?.document;
-          if (doc) {
-            doc.open();
-            doc.write(html);
-            doc.close();
-
-            // Wait for internal content to load
-            setTimeout(() => {
-              frame.contentWindow?.focus();
-              frame.contentWindow?.print();
-              setTimeout(() => document.body.removeChild(frame), 1000);
-            }, 500);
+            if (printed) {
+              console.log("✅ KOT Printed with Sunmi - NO PREVIEW");
+              await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
+              return;
+            }
+          } catch (sunmiErr) {
+            console.warn("❌ Sunmi KOT failed/timeout:", sunmiErr);
           }
-          await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
-          return true;
-        } catch (e) {
-          console.error("Web KOT isolated print failed:", e);
         }
-      }
 
-      // ✅ 3. Mobile Fallback (Android/iOS)
-      const { uri } = await Print.printToFileAsync({
-        html,
-        width: 226, // 80mm approximate
-      });
+        // ✅ 3. Web Fallback (Bypass expo-print for better isolation)
+        if (Platform.OS === "web") {
+          try {
+            const frame = document.createElement("iframe");
+            frame.style.visibility = "hidden";
+            frame.style.position = "fixed";
+            frame.style.right = "0";
+            frame.style.bottom = "0";
+            frame.style.width = "0";
+            frame.style.height = "0";
+            document.body.appendChild(frame);
 
-      if (Platform.OS === "android" || Platform.OS === "ios") {
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(uri);
+            const doc = frame.contentWindow?.document;
+            if (doc) {
+              doc.open();
+              doc.write(html);
+              doc.close();
+
+              // Wait for internal content to load
+              setTimeout(() => {
+                frame.contentWindow?.focus();
+                frame.contentWindow?.print();
+                setTimeout(() => document.body.removeChild(frame), 1000);
+              }, 500);
+            }
+            await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
+            return;
+          } catch (e) {
+            console.error("Web KOT isolated print failed:", e);
+          }
         }
+
+        // ✅ 3. Mobile Fallback (Android/iOS)
+        const { uri } = await Print.printToFileAsync({
+          html,
+          width: 226, // 80mm approximate
+        });
+
+        if (Platform.OS === "android" || Platform.OS === "ios") {
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(uri);
+          }
+        }
+
+        // ✅ 4. LOG TO DATABASE (Audit Trail)
+        await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
+      } catch (error) {
+        console.log("KOT Print Error:", error);
       }
+    })();
 
-      // ✅ 4. LOG TO DATABASE (Audit Trail)
-      await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
-
-      return true;
-    } catch (error) {
-      console.log("KOT Print Error:", error);
-      return false;
-    }
+    return true;
   }
 
   private static generateKOTHTML(data: any, type: string): string {
@@ -737,105 +739,105 @@ class UniversalPrinter {
     preferredType?: PrinterType,
     isReprint: boolean = false,
   ): Promise<boolean> {
-    try {
-      const company = await BillPDFGenerator.loadSettings(outletId);
-
-      // Load printer IPs dynamically from PrintMaster
-      let cashierIp = "";
-      let takeawayIp = "";
+    // 🚀 NON-BLOCKING BACKGROUND EXECUTION: Run printing in the background to prevent UI lag on APK
+    (async () => {
       try {
-        const response = await fetch(
-          `${API_URL}/api/settings/kitchen-printers`,
-        );
-        const printers = await response.json();
-        if (Array.isArray(printers)) {
-          const cashierPrinter = printers.find((p) => p.PrinterType === 1);
-          const takeawayPrinter = printers.find((p) => p.PrinterType === 3);
-          cashierIp = cashierPrinter?.PrinterPath || "";
-          takeawayIp = takeawayPrinter?.PrinterPath || "";
-        }
-      } catch (err) {
-        console.warn("Failed to fetch printer IPs from PrintMaster:", err);
-      }
+        const company = await BillPDFGenerator.loadSettings(outletId);
 
-      // Determine target printer IP based on order type (Dine-in vs Takeaway)
-      const isTakeaway =
-        !saleData.tableNo ||
-        String(saleData.tableNo).trim() === "" ||
-        String(saleData.tableNo).toUpperCase().startsWith("TW") ||
-        String(saleData.tableNo).toUpperCase() === "TAKEAWAY" ||
-        String(saleData.tableNo).toUpperCase() === "TAKE AWAY";
-
-      let targetIp = "";
-      if (isTakeaway) {
-        targetIp = takeawayIp || cashierIp || company.printerIp || "";
-      } else {
-        targetIp = cashierIp || company.printerIp || "";
-      }
-
-      // ✅ 1. Try WiFi Printer with 3s Timeout
-      if (targetIp && targetIp.trim().length > 0) {
-        console.log(
-          `🌐 Trying WiFi (${isTakeaway ? "TakeAway" : "Cashier"}): ${targetIp}`,
-        );
+        // Load printer IPs dynamically from PrintMaster
+        let cashierIp = "";
+        let takeawayIp = "";
         try {
-          const printPromise = this.printNetwork(
-            saleData,
-            outletId,
-            {
-              type: "network",
-              address: targetIp,
-            } as any,
-            discountInfo,
+          const response = await fetch(
+            `${API_URL}/api/settings/kitchen-printers`,
           );
-
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("WiFi Timeout")), 3000),
-          );
-          const printed = await Promise.race([printPromise, timeoutPromise]);
-
-          if (printed) return true;
+          const printers = await response.json();
+          if (Array.isArray(printers)) {
+            const cashierPrinter = printers.find((p) => p.PrinterType === 1);
+            const takeawayPrinter = printers.find((p) => p.PrinterType === 3);
+            cashierIp = cashierPrinter?.PrinterPath || "";
+            takeawayIp = takeawayPrinter?.PrinterPath || "";
+          }
         } catch (err) {
-          console.log("WiFi failed/timeout");
+          console.warn("Failed to fetch printer IPs from PrintMaster:", err);
         }
-      }
 
-      // ✅ 2. Sunmi Detection with Timeout
-      try {
-        const detectorPromise = PrinterDetector.detectPrinter();
-        const timeoutPromise = new Promise<string>((_, reject) =>
-          setTimeout(() => reject(new Error("Sunmi Timeout")), 2000),
-        );
-        const printerType = await Promise.race([
-          detectorPromise,
-          timeoutPromise,
-        ]).catch(() => "none");
+        // Determine target printer IP based on order type (Dine-in vs Takeaway)
+        const isTakeaway =
+          !saleData.tableNo ||
+          String(saleData.tableNo).trim() === "" ||
+          String(saleData.tableNo).toUpperCase().startsWith("TW") ||
+          String(saleData.tableNo).toUpperCase() === "TAKEAWAY" ||
+          String(saleData.tableNo).toUpperCase() === "TAKE AWAY";
 
-        if (printerType === "sunmi") {
-          const printed = await this.printThermalReceipt(
-            saleData,
-            outletId,
-            undefined,
-            discountInfo,
+        let targetIp = "";
+        if (isTakeaway) {
+          targetIp = takeawayIp || cashierIp || company.printerIp || "";
+        } else {
+          targetIp = cashierIp || company.printerIp || "";
+        }
+
+        // ✅ 1. Try WiFi Printer with 3s Timeout
+        if (targetIp && targetIp.trim().length > 0) {
+          console.log(
+            `🌐 Trying WiFi (${isTakeaway ? "TakeAway" : "Cashier"}): ${targetIp}`,
           );
-          if (printed) return true;
-        }
-      } catch (e) {
-        console.log("Sunmi failed/timeout");
-      }
+          try {
+            const printPromise = this.printNetwork(
+              saleData,
+              outletId,
+              {
+                type: "network",
+                address: targetIp,
+              } as any,
+              discountInfo,
+            );
 
-      // ✅ 3. Fallback to PDF/Web (Guaranteed)
-      console.log("🔄 Fallback to PDF Preview");
-      try {
-        return await this.offerPDFFallback(saleData, outletId, t, discountInfo);
-      } catch (fallbackErr) {
-        console.error("Final fallback failed:", fallbackErr);
-        return false;
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("WiFi Timeout")), 3000),
+            );
+            const printed = await Promise.race([printPromise, timeoutPromise]);
+
+            if (printed) return;
+          } catch (err) {
+            console.log("WiFi failed/timeout");
+          }
+        }
+
+        // ✅ 2. Sunmi Detection with Timeout
+        try {
+          const detectorPromise = PrinterDetector.detectPrinter();
+          const timeoutPromise = new Promise<string>((_, reject) =>
+            setTimeout(() => reject(new Error("Sunmi Timeout")), 2000),
+          );
+          const printerType = await Promise.race([
+            detectorPromise,
+            timeoutPromise,
+          ]).catch(() => "none");
+
+          if (printerType === "sunmi") {
+            const printed = await this.printThermalReceipt(
+              saleData,
+              outletId,
+              undefined,
+              discountInfo,
+            );
+            if (printed) return;
+          }
+        } catch (e) {
+          console.log("Sunmi failed/timeout");
+        }
+
+        // ✅ 3. Fallback to PDF/Web (Guaranteed)
+        console.log("🔄 Fallback to PDF Preview");
+        await this.offerPDFFallback(saleData, outletId, t, discountInfo);
+      } catch (error) {
+        console.log("SmartPrint error:", error);
+        await this.offerPDFFallback(saleData, outletId, t, discountInfo);
       }
-    } catch (error) {
-      console.log("SmartPrint error:", error);
-      return await this.offerPDFFallback(saleData, outletId, t, discountInfo);
-    }
+    })();
+
+    return true;
   }
 
   /**
