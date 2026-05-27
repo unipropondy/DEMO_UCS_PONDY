@@ -474,7 +474,10 @@ async function syncToProfessionalTables(
     WHERE OrderId = @orderId AND StatusCode NOT IN (0, 1) ${notInClause};
 
     -- Final Header Total Update
-    UPDATE RestaurantOrderCur SET TotalAmount = (SELECT ISNULL(SUM(ActualAmount), 0) FROM RestaurantOrderDetailCur WHERE OrderId = @orderId AND StatusCode <> 0) WHERE OrderId = @orderId;
+    UPDATE RestaurantOrderCur 
+    SET TotalAmount = (SELECT ISNULL(SUM(ActualAmount), 0) FROM RestaurantOrderDetailCur WHERE OrderId = @orderId AND StatusCode <> 0),
+        TotalLineItemAmount = (SELECT ISNULL(SUM(ActualAmount), 0) FROM RestaurantOrderDetailCur WHERE OrderId = @orderId AND StatusCode <> 0)
+    WHERE OrderId = @orderId;
   `;
 
   if (batchSql || items.length === 0) {
@@ -1689,17 +1692,19 @@ router.post("/merge", async (req, res) => {
         `[MERGE STEP 3 SUCCESS] Combined Total: ${targetCombinedTotal}`,
       );
 
-      // 3. Update Target Table Master Total
+      // 3. Update Target Table Master and RestaurantOrderCur Total
       console.log(
-        `[MERGE STEP 4] Updating target TableMaster total to: ${targetCombinedTotal}`,
+        `[MERGE STEP 4] Updating target TableMaster and RestaurantOrderCur total to: ${targetCombinedTotal}`,
       );
       await transaction
         .request()
         .input("tid", sql.UniqueIdentifier, cleanTargetId)
+        .input("parentOid", sql.UniqueIdentifier, targetOrderGuid)
         .input("total", sql.Decimal(18, 2), targetCombinedTotal)
-        .query(
-          "UPDATE TableMaster SET TotalAmount = @total WHERE TableId = @tid",
-        );
+        .query(`
+          UPDATE TableMaster SET TotalAmount = @total WHERE TableId = @tid;
+          UPDATE RestaurantOrderCur SET TotalAmount = @total, TotalLineItemAmount = @total WHERE OrderId = @parentOid;
+        `);
 
       console.log(`[MERGE STEP 5] Committing SQL transaction...`);
       await transaction.commit();
