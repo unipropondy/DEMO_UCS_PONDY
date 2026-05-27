@@ -357,10 +357,6 @@ private static escapeHtml(str: string): string {
         <tr>
             <td class="item-name">
                 ${item.name}
-                ${item.modifiers && item.modifiers.length > 0 ? 
-                  `<div class="item-modifiers">${item.modifiers.map((m: any) => `+ ${m.ModifierName || m.name}`).join('<br/>')}</div>` : 
-                  ''
-                }
                 ${(() => {
                   const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
                   if (discAmt > 0) {

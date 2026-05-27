@@ -120,9 +120,10 @@ class SunmiPrinterService {
   }
 
   // Center text (full width 32 chars)
-  private static async center(text: string): Promise<void> {
+  private static async center(text: any): Promise<void> {
+    if (!SunmiModule) return;
     const maxWidth = 32;
-    let displayText = text;
+    let displayText = String(text || "");
     if (displayText.length > maxWidth) {
       displayText = displayText.substring(0, maxWidth - 3) + "...";
     }
@@ -135,53 +136,71 @@ class SunmiPrinterService {
   }
 
   // Left aligned
-  private static async left(text: string): Promise<void> {
-    await SunmiModule.printText(text);
+  private static async left(text: any): Promise<void> {
+    if (!SunmiModule) return;
+    await SunmiModule.printText(String(text || ""));
   }
 
   // Divider line (full width 32 chars)
   private static async divider(char: string = "-"): Promise<void> {
+    if (!SunmiModule) return;
     await SunmiModule.printText(char.repeat(32));
   }
 
   // Double divider
   private static async doubleDivider(char: string = "="): Promise<void> {
+    if (!SunmiModule) return;
     await SunmiModule.printText(char.repeat(32));
   }
 
   // Two columns (for totals)
-  private static async twoCols(left: string, right: string): Promise<void> {
-    const leftWidth = 20;
-    let line = left.substring(0, leftWidth).padEnd(leftWidth, " ");
-    line += right.substring(0, 12).padStart(12, " ");
-    await SunmiModule.printText(line);
+  private static async twoCols(left: any, right: any): Promise<void> {
+    if (!SunmiModule) return;
+    const cleanLeft = String(left || "");
+    const cleanRight = String(right || "");
+    const totalWidth = 32;
+    const spaceCount = totalWidth - cleanLeft.length - cleanRight.length;
+    if (spaceCount > 0) {
+      await SunmiModule.printText(cleanLeft + " ".repeat(spaceCount) + cleanRight);
+    } else {
+      // If it doesn't fit in one line, print left first, then right on next line right-aligned
+      await SunmiModule.printText(cleanLeft);
+      await SunmiModule.printText(cleanRight.padStart(totalWidth, " "));
+    }
   }
 
   // Four columns for items (ITEM, QTY, PRICE, TOTAL)
   private static async itemRow(
-    name: string,
-    qty: string,
-    price: string,
-    total: string,
+    name: any,
+    qty: any,
+    price: any,
+    total: any,
   ): Promise<void> {
-    const nameWidth = 14;
-    const qtyWidth = 4;
-    const priceWidth = 6;
-    const totalWidth = 8;
+    if (!SunmiModule) return;
+    const cleanName = String(name || "");
+    const cleanQty = String(qty || "");
+    const cleanPrice = String(price || "");
+    const cleanTotal = String(total || "");
 
-    let line = name.substring(0, nameWidth).padEnd(nameWidth, " ");
-    line += qty.substring(0, qtyWidth).padStart(qtyWidth, " ");
-    line += price.substring(0, priceWidth).padStart(priceWidth, " ");
-    line += total.substring(0, totalWidth).padStart(totalWidth, " ");
+    const nameWidth = 12;
+    const qtyWidth = 3;
+    const priceWidth = 7;
+    const totalWidth = 10;
+
+    let line = cleanName.substring(0, nameWidth).padEnd(nameWidth, " ");
+    line += cleanQty.padStart(qtyWidth, " ");
+    line += cleanPrice.padStart(priceWidth, " ");
+    line += cleanTotal.padStart(totalWidth, " ");
     await SunmiModule.printText(line);
   }
 
   // Item header
   private static async itemHeader(): Promise<void> {
-    let line = "ITEM".padEnd(14, " ");
-    line += "QTY".padStart(4, " ");
-    line += "PRICE".padStart(6, " ");
-    line += "TOTAL".padStart(8, " ");
+    if (!SunmiModule) return;
+    let line = "ITEM".padEnd(12, " ");
+    line += "QTY".padStart(3, " ");
+    line += "PRICE".padStart(7, " ");
+    line += "TOTAL".padStart(10, " ");
     await SunmiModule.printText(line);
   }
 
@@ -269,7 +288,7 @@ class SunmiPrinterService {
           item.DishName ||
           item.ProductName ||
           ""
-        ).substring(0, 14);
+        ).substring(0, 12);
         const qtyNum =
           parseInt(String(item.qty || item.quantity || item.Quantity || 1)) ||
           1;
@@ -285,16 +304,11 @@ class SunmiPrinterService {
         await this.itemRow(itemName, qty, price, total);
 
         // Print full name if truncated
-        if ((item.name || "").length > 14) {
+        if ((item.name || "").length > 12) {
           await this.left(`   ${item.name}`);
         }
 
-        // ✅ Print Modifiers (Addons)
-        if (item.modifiers && item.modifiers.length > 0) {
-          for (const mod of item.modifiers) {
-            await this.left(`    + ${mod.ModifierName || mod.name}`);
-          }
-        }
+
 
         // ✅ Print Item Discount
         const discAmt = Number(item.discountAmount ?? item.discount ?? 0);

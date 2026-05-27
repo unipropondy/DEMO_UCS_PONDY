@@ -896,23 +896,8 @@ class UniversalPrinter {
         }
       }
 
-      // ✅ STEP 2: If Sunmi fails, create PDF (no preview)
-      const company = await BillPDFGenerator.loadSettings(userId);
-      const html = await BillPDFGenerator.generateHTML(
-        saleData,
-        userId,
-        discountInfo,
-        company,
-      );
-      const { uri } = await Print.printToFileAsync({
-        html,
-        width: this.getPrintWidth(
-          printer || ({ paperSize: "58mm" } as PrinterInfo),
-        ),
-      });
-
-      console.log("📄 PDF saved at:", uri);
-      return true;
+      // ✅ STEP 2: If Sunmi fails, return false so smartPrint falls back to PDF dialog/share
+      return false;
     } catch (error: any) {
       console.log("Thermal print error:", error);
       return false;
@@ -956,6 +941,18 @@ class UniversalPrinter {
     } catch (error: any) {
       console.log("❌ Network print error:", error);
       return false;
+    }
+  }
+
+  private static formatTwoCols48(left: any, right: any): string {
+    const cleanLeft = String(left || "");
+    const cleanRight = String(right || "");
+    const totalWidth = 48;
+    const spaceCount = totalWidth - cleanLeft.length - cleanRight.length;
+    if (spaceCount > 0) {
+      return `[L]${cleanLeft}${" ".repeat(spaceCount)}${cleanRight}\n`;
+    } else {
+      return `[L]${cleanLeft}\n[L]${cleanRight.padStart(totalWidth, " ")}\n`;
     }
   }
 
@@ -1021,12 +1018,7 @@ class UniversalPrinter {
         text += `[L]   ${item.name}\n`;
       }
 
-      // Modifiers
-      if (item.modifiers && item.modifiers.length > 0) {
-        item.modifiers.forEach((m: any) => {
-          text += `[L]      + ${m.ModifierName || m.name}\n`;
-        });
-      }
+
 
       // Item Discount
       const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
@@ -1086,10 +1078,10 @@ class UniversalPrinter {
     const hasAnyDiscount = totalItemDiscount > 0 || orderDiscount > 0;
     let currentSubtotal = grossTotal;
 
-    text += `[R]Sub Total: ${symbol}${grossTotal.toFixed(2)}\n`;
+    text += this.formatTwoCols48("Sub Total:", `${symbol}${grossTotal.toFixed(2)}`);
 
     if (totalItemDiscount > 0) {
-      text += `[R]Item Discounts: -${symbol}${totalItemDiscount.toFixed(2)}\n`;
+      text += this.formatTwoCols48("Item Discounts:", `-${symbol}${totalItemDiscount.toFixed(2)}`);
       currentSubtotal -= totalItemDiscount;
     }
 
@@ -1098,7 +1090,7 @@ class UniversalPrinter {
         finalDiscountInfo?.type === "percentage"
           ? `Discount (${finalDiscountInfo.value}%):`
           : "Discount:";
-      text += `[R]${discLabel} -${symbol}${orderDiscount.toFixed(2)}\n`;
+      text += this.formatTwoCols48(discLabel, `-${symbol}${orderDiscount.toFixed(2)}`);
       currentSubtotal -= orderDiscount;
     }
 
@@ -1106,7 +1098,7 @@ class UniversalPrinter {
       text += "[L]------------------------------------------------\n";
       const netLabel =
         (company.gstPercentage || 0) > 0 ? "Net Amt (bef GST):" : "Net Amount:";
-      text += `[R]${netLabel} ${symbol}${currentSubtotal.toFixed(2)}\n`;
+      text += this.formatTwoCols48(netLabel, `${symbol}${currentSubtotal.toFixed(2)}`);
     }
 
     // ============ GST ============
@@ -1117,15 +1109,15 @@ class UniversalPrinter {
       const gstAmount = currentSubtotal * (gstRate / (100 + gstRate));
       const beforeGst = currentSubtotal - gstAmount;
       if (!hasAnyDiscount) {
-        text += `[R]Sub Total (bef GST): ${symbol}${beforeGst.toFixed(2)}\n`;
+        text += this.formatTwoCols48("Sub Total (bef GST):", `${symbol}${beforeGst.toFixed(2)}`);
       }
-      text += `[R]GST (${gstRate}%): ${symbol}${gstAmount.toFixed(2)}\n`;
+      text += this.formatTwoCols48(`GST (${gstRate}%):`, `${symbol}${gstAmount.toFixed(2)}`);
       text += "[L]------------------------------------------------\n";
     }
 
     if (saleData.roundOff && saleData.roundOff !== 0) {
       const roSign = saleData.roundOff > 0 ? "+" : "";
-      text += `[R]Round Off: ${roSign}${symbol}${saleData.roundOff.toFixed(2)}\n`;
+      text += this.formatTwoCols48("Round Off:", `${roSign}${symbol}${saleData.roundOff.toFixed(2)}`);
       text += "[L]------------------------------------------------\n";
     }
 
@@ -1202,48 +1194,33 @@ class UniversalPrinter {
       }
     }
 
-    return new Promise((resolve) => {
-      Alert.alert(
-        t?.printerNotFound || "🖨️ No Printer Available",
-        t?.wantPDF || "Save as PDF?",
-        [
-          {
-            text: t?.no || "No",
-            onPress: () => resolve(false),
-            style: "cancel",
-          },
-          {
-            text: t?.yes || "Yes",
-            onPress: async () => {
-              try {
-                const company = await BillPDFGenerator.loadSettings(userId);
-                const html = await BillPDFGenerator.generateHTML(
-                  saleData,
-                  userId,
-                  discountInfo,
-                  company,
-                );
-
-                if (Platform.OS === "ios") {
-                  await Print.printAsync({ html });
-                } else {
-                  const { uri } = await Print.printToFileAsync({
-                    html,
-                    width: 226,
-                  });
-                  if (await Sharing.isAvailableAsync())
-                    await Sharing.shareAsync(uri);
-                }
-                resolve(true);
-              } catch (error) {
-                console.error("PDF Fallback Error:", error);
-                resolve(false);
-              }
-            },
-          },
-        ],
+    // Native Silent PDF Fallback without Alert prompt
+    try {
+      console.log("Generating PDF fallback silently...");
+      const company = await BillPDFGenerator.loadSettings(userId);
+      const html = await BillPDFGenerator.generateHTML(
+        saleData,
+        userId,
+        discountInfo,
+        company,
       );
-    });
+
+      if (Platform.OS === "ios") {
+        await Print.printAsync({ html });
+      } else {
+        const { uri } = await Print.printToFileAsync({
+          html,
+          width: 226,
+        });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri);
+        }
+      }
+      return true;
+    } catch (error) {
+      console.error("PDF Fallback Error:", error);
+      return false;
+    }
   }
 
   // ==================== UTILITIES ====================
