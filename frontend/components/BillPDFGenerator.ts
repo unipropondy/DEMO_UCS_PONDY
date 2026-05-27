@@ -34,6 +34,7 @@ interface DiscountInfo {
 }
 
 class BillPDFGenerator {
+  private static settingsCache: Record<string, { data: CompanySettings; time: number }> = {};
   
   static async uploadImage(fileUri: string): Promise<string | null> {
     try {
@@ -82,6 +83,14 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
         const cleanOutletId = (outletId && outletId !== 'undefined' && outletId !== 'null') ? outletId : null;
         const cleanUserId = (userId && String(userId) !== 'undefined' && String(userId) !== 'null') ? String(userId) : '1';
         const targetId = cleanOutletId || cleanUserId;
+
+        // Check cache (valid for 30 seconds)
+        const now = Date.now();
+        const cached = this.settingsCache[targetId];
+        if (cached && (now - cached.time < 30000)) {
+            console.log(`📥 USING CACHED SETTINGS for target: ${targetId}`);
+            return cached.data;
+        }
         
         // Add timestamp to prevent caching
         const timestamp = Date.now();
@@ -125,7 +134,7 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
                 return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
             };
             
-            return {
+            const result = {
                 name: settings.CompanyName || 'Komban',
                 address: settings.Address || '',
                 gstNo: settings.GSTNo || '',
@@ -141,6 +150,13 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
                 showCompanyLogo: showCompanyLogo === true,
                 showHalalLogo: showHalalLogo === true,
             };
+
+            this.settingsCache[targetId] = {
+                data: result,
+                time: now
+            };
+
+            return result;
         }
         return this.getDefaultSettings();
     } catch (error) {
@@ -236,6 +252,9 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
             console.log('⚠️ WARNING: Save verification failed! Trying one last time...');
             await API.post(`/company-settings/${targetId}?_t=${timestamp + 2}`, dbSettings);
         }
+        
+        // Invalidate settings cache
+        delete this.settingsCache[targetId];
         
         return true;
         
