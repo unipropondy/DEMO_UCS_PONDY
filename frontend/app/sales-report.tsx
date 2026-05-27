@@ -708,7 +708,8 @@ export default function SalesReport() {
   const formatOrderId = (order: any) => {
     if (!order) return "";
     const rawId = String(order.OrderId || order.BillNo || "");
-    if (rawId.includes("-")) return rawId;
+    // If the ID already has a dash or contains alphabetical/special characters (like ORD270524), return it as-is
+    if (rawId.includes("-") || !/^\d+$/.test(rawId)) return rawId;
 
     const d = order.SettlementDate
       ? new Date(order.SettlementDate)

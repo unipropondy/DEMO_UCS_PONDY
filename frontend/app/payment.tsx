@@ -678,13 +678,94 @@ export default function PaymentScreen() {
     </Modal>
   );
 
-  const renderItem = ({ item }: { item: any }) => (
-    <View style={styles.itemRow}>
-      <Text style={styles.itemQty}>{item.qty}x</Text>
-      <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-      <Text style={styles.itemPrice}>${(item.price * item.qty).toFixed(2)}</Text>
-    </View>
-  );
+  const renderItem = ({ item }: { item: any }) => {
+    const isVoided = item.status === "VOIDED" || item.isVoided;
+    const baseTotal = (item.price || 0) * item.qty;
+    const discountVal = Number(item.discountAmount ?? item.discount ?? 0);
+    const discountType = item.discountType || 'percentage';
+
+    const itemDiscount = discountType === 'fixed' || (discountType === 'percentage' && !item.discount && item.discountAmount > 0)
+      ? (discountVal * item.qty)
+      : (baseTotal * (discountVal / 100));
+
+    const finalPrice = baseTotal - itemDiscount;
+
+    return (
+      <View style={styles.itemRow}>
+        <Text style={[styles.itemQty, isVoided && styles.itemVoidedText]}>{item.qty}x</Text>
+        <View style={{ flex: 1, paddingRight: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
+            <Text 
+              style={[
+                styles.itemName, 
+                { flex: undefined },
+                isVoided && styles.itemVoidedText
+              ]} 
+              numberOfLines={2}
+            >
+              {item.name}
+              {isVoided && " (VOIDED)"}
+            </Text>
+            {item.isTakeaway && (
+              <View style={styles.itemTwBadge}>
+                <Text style={styles.itemTwBadgeText}>TW</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Modifiers & Notes */}
+          {((item.spicy && item.spicy !== "Medium") ||
+            (item.oil && item.oil !== "Normal") ||
+            (item.salt && item.salt !== "Normal") ||
+            (item.sugar && item.sugar !== "Normal") ||
+            item.note) ? (
+            <Text style={styles.itemSubText} numberOfLines={2}>
+              {[
+                item.spicy && item.spicy !== "Medium" ? `🌶 ${item.spicy}` : "",
+                item.oil && item.oil !== "Normal" ? `Oil: ${item.oil}` : "",
+                item.salt && item.salt !== "Normal" ? `Salt: ${item.salt}` : "",
+                item.sugar && item.sugar !== "Normal" ? `Sugar: ${item.sugar}` : "",
+                item.note ? `📝 ${item.note}` : "",
+              ]
+                .filter(Boolean)
+                .join("  ·  ")}
+            </Text>
+          ) : null}
+
+          {item.modifiers && Array.isArray(item.modifiers) && item.modifiers.length > 0 && (
+            <Text style={styles.itemSubText} numberOfLines={2}>
+              {item.modifiers.map((m: any) => `+ ${m.ModifierName}`).join("  ·  ")}
+            </Text>
+          )}
+        </View>
+
+        <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
+          {discountVal > 0 && !isVoided && (
+            <View style={styles.itemDiscountRow}>
+              <Text style={styles.itemOriginalPrice}>
+                {currencySymbol}{baseTotal.toFixed(2)}
+              </Text>
+              <View style={styles.itemDiscountBadge}>
+                <Text style={styles.itemDiscountBadgeText}>
+                  {discountType === 'fixed' || (discountType === 'percentage' && !item.discount && item.discountAmount > 0)
+                    ? `-${currencySymbol}${discountVal.toFixed(2)}`
+                    : `-${discountVal}%`}
+                </Text>
+              </View>
+            </View>
+          )}
+          <Text 
+            style={[
+              styles.itemPrice, 
+              isVoided && styles.itemVoidedText
+            ]}
+          >
+            {currencySymbol}{finalPrice.toFixed(2)}
+          </Text>
+        </View>
+      </View>
+    );
+  };
 
   if (!context) return null;
 
@@ -1003,6 +1084,54 @@ const styles = StyleSheet.create({
   itemQty: { width: 30, fontSize: 13, fontFamily: Fonts.black, color: Theme.primary },
   itemName: { flex: 1, fontSize: 13, fontFamily: Fonts.medium, color: Theme.textPrimary },
   itemPrice: { fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary },
+  itemVoidedText: {
+    textDecorationLine: 'line-through',
+    color: Theme.textMuted,
+  },
+  itemSubText: {
+    fontSize: 11,
+    color: Theme.textSecondary,
+    marginTop: 2,
+    fontFamily: Fonts.medium,
+  },
+  itemDiscountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  itemOriginalPrice: {
+    fontSize: 11,
+    textDecorationLine: 'line-through',
+    color: Theme.textMuted,
+  },
+  itemDiscountBadge: {
+    backgroundColor: '#22C55E15',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: '#22C55E30',
+  },
+  itemDiscountBadgeText: {
+    color: '#15803D',
+    fontSize: 9,
+    fontFamily: Fonts.black,
+  },
+  itemTwBadge: {
+    backgroundColor: Theme.danger + "15",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: Theme.danger + "30",
+    marginLeft: 6,
+  },
+  itemTwBadgeText: {
+    fontSize: 9,
+    fontFamily: Fonts.black,
+    color: Theme.danger,
+  },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   adjustModalContent: { width: '100%', maxWidth: 380, backgroundColor: '#fff', borderRadius: 24, padding: 24, ...Theme.shadowLg },
   adjustModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
