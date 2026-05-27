@@ -43,7 +43,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    console.log(`[DEBUG LOGIN] Attempting login for UserName: "${userName}"`);
+    console.log(`[AUTH] Attempting login for UserName: "${userName}"`);
 
     const result = await pool.request()
       .input("UserName", userName)
@@ -59,28 +59,26 @@ router.post("/login", async (req, res) => {
       `);
 
     if (result.recordset.length === 0) {
-      console.log(`[DEBUG LOGIN] No user found with UserName: "${userName}"`);
+      console.log(`[AUTH] Login failed: UserName "${userName}" not found.`);
       return res.status(401).json({ success: false, message: "Invalid User ID or Password." });
     }
 
     const user = result.recordset[0];
-    console.log(`[DEBUG LOGIN] User found:`, JSON.stringify(user, null, 2));
 
     // ✅ VALIDATE USER STATUS
     if (user.IsDisabled === true || user.IsDisabled === 1) {
-      console.log(`[DEBUG LOGIN] Account disabled for user: ${user.UserName}`);
+      console.log(`[AUTH] Login failed: Account disabled for user "${user.UserName}".`);
       return res.status(403).json({ success: false, message: "Your account is disabled." });
     }
 
     // ✅ VALIDATE USER GROUP (STRICT CHECK)
-    // As per user request: Check if UserGroupId matches and is active
     if (!user.UserGroupid || !user.RoleCode) {
-      console.log(`[DEBUG LOGIN] No valid group found for user: ${user.UserName}`);
+      console.log(`[AUTH] Login failed: No valid group assigned to user "${user.UserName}".`);
       return res.status(403).json({ success: false, message: "User has no valid group assigned." });
     }
 
     if (user.IsGroupActive === false || user.IsGroupActive === 0) {
-      console.log(`[DEBUG LOGIN] Group "${user.RoleName}" is inactive for user: ${user.UserName}`);
+      console.log(`[AUTH] Login failed: User group is inactive for user "${user.UserName}".`);
       return res.status(403).json({ success: false, message: "Your user group is currently inactive." });
     }
 
@@ -95,13 +93,12 @@ router.post("/login", async (req, res) => {
       if (cand === password) { isValid = true; break; }
       try {
         const decoded = Buffer.from(cand, "base64").toString("utf-8").trim();
-        console.log(`[DEBUG LOGIN] Candidate: "${cand}" | Decoded: "${decoded}" | Match: ${decoded === password}`);
         if (decoded === password) { isValid = true; break; }
       } catch (e) {}
     }
 
     if (!isValid) {
-      console.log(`[DEBUG LOGIN] Password mismatch for user: ${user.UserName}. Input: "${password}"`);
+      console.log(`[AUTH] Login failed: Password mismatch for user "${user.UserName}".`);
       return res.status(401).json({ success: false, message: "Invalid User ID or Password." });
     }
 
