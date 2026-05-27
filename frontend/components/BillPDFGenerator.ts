@@ -329,12 +329,14 @@ private static escapeHtml(str: string): string {
       totalItemDiscount += itemDiscount;
     });
 
+    const orderDiscount = finalDiscountInfo?.amount || 0;
+    const currentSubtotal = grossTotal - totalItemDiscount - orderDiscount;
     const hasOrderDiscount = finalDiscountInfo?.applied && finalDiscountInfo.amount > 0;
     const hasAnyDiscount = totalItemDiscount > 0 || hasOrderDiscount;
     const originalSubTotal = grossTotal;
 
-    const gstAmount = hasGST ? finalTotal * (gstRate / (100 + gstRate)) : 0;
-    const amountWithoutGST = hasGST ? finalTotal - gstAmount : finalTotal;
+    const gstAmount = hasGST ? currentSubtotal * (gstRate / (100 + gstRate)) : 0;
+    const amountWithoutGST = hasGST ? currentSubtotal - gstAmount : currentSubtotal;
     
     const companyLogoUrl = company.companyLogo || '';
     const halalLogoUrl = company.halalLogo || '';
@@ -683,7 +685,12 @@ private static escapeHtml(str: string): string {
           <!-- Items Table -->
           <table class="items-table">
             <thead>
-              <tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>TOTAL</th> </tr>
+              <tr>
+                <th style="text-align: left;">ITEM</th>
+                <th style="text-align: center;">QTY</th>
+                <th style="text-align: right;">PRICE</th>
+                <th style="text-align: right;">TOTAL</th>
+              </tr>
             </thead>
             <tbody>${itemsHTML}</tbody>
            </table>

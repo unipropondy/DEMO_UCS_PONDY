@@ -211,7 +211,7 @@ class UniversalPrinter {
       .category-title { font-size: 22px; font-weight: bold; text-align: center; margin: 20px 0; }
       .section-title { font-size: 18px; font-weight: bold; margin: 20px 0 10px; background: #f0f0f0; padding: 8px; }
       table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-      th, td { padding: 8px; border-bottom: 1px solid #eee; }
+      th, td { padding: 8px; text-align: left; border-bottom: 1px solid #eee; }
       .amount { text-align: right; }
       .transaction-card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
       .footer { margin-top: 30px; text-align: center; font-size: 12px; border-top: 1px solid #ddd; padding-top: 10px; }
@@ -257,7 +257,7 @@ class UniversalPrinter {
       .category-card { margin-bottom: 20px; border: 1px solid #ddd; border-radius: 5px; padding: 15px; }
       .category-name { font-size: 18px; font-weight: bold; }
       table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-      th, td { padding: 8px; border-bottom: 1px solid #eee; }
+      th, td { padding: 8px; text-align: left; border-bottom: 1px solid #eee; }
       .amount { text-align: right; }
       .footer { margin-top: 30px; text-align: center; font-size: 12px; border-top: 1px solid #ddd; padding-top: 10px; }
     </style></head><body>
@@ -290,6 +290,31 @@ class UniversalPrinter {
   }
 
   // ==================== KOT PRINTING (80mm) ====================
+  private static async logPrintJob(
+    orderId: string,
+    orderNo: string,
+    type: "NEW" | "ADDITIONAL" | "REPRINT"
+  ): Promise<void> {
+    try {
+      const baseUrl = API_URL;
+      await fetch(`${baseUrl}/api/orders/log-print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: orderId && orderId.length > 30 ? orderId : null,
+          orderNumber: orderNo,
+          printType: 1, // KOT
+          isEdit: type === "ADDITIONAL",
+          isReprint: type === "REPRINT",
+          isHold: false,
+        }),
+      });
+      console.log("📝 Print job logged to PrintReport");
+    } catch (logErr) {
+      console.warn("Failed to log print to DB:", logErr);
+    }
+  }
+
   static async printKOT(
     orderData: any,
     userId?: string | number,
@@ -331,6 +356,7 @@ class UniversalPrinter {
             );
             await Promise.race([printPromise, timeoutPromise]);
           }
+          await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
           return true;
         } catch (printError) {
           console.warn("❌ Hardware KOT failed/timeout, falling back...");
@@ -349,6 +375,7 @@ class UniversalPrinter {
 
           if (printed) {
             console.log("✅ KOT Printed with Sunmi - NO PREVIEW");
+            await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
             return true;
           }
         } catch (sunmiErr) {
@@ -381,6 +408,7 @@ class UniversalPrinter {
               setTimeout(() => document.body.removeChild(frame), 1000);
             }, 500);
           }
+          await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
           return true;
         } catch (e) {
           console.error("Web KOT isolated print failed:", e);
@@ -400,24 +428,7 @@ class UniversalPrinter {
       }
 
       // ✅ 4. LOG TO DATABASE (Audit Trail)
-      try {
-        const baseUrl = API_URL;
-        await fetch(`${baseUrl}/api/orders/log-print`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orderId: orderData.orderId,
-            orderNumber: orderData.orderNo,
-            printType: 1, // KOT
-            isEdit: type === "ADDITIONAL",
-            isReprint: type === "REPRINT",
-            isHold: false,
-          }),
-        });
-        console.log("📝 Print job logged to PrintReport");
-      } catch (logErr) {
-        console.warn("Failed to log print to DB:", logErr);
-      }
+      await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
 
       return true;
     } catch (error) {
@@ -503,7 +514,7 @@ class UniversalPrinter {
             font-weight: 900;
             text-transform: uppercase;
           }
-          .qty-head { width: 55px; }
+          .qty-head { width: 60px; margin-right: 10px; }
           
           .item-row {
             border-bottom: 2px solid #000;
@@ -751,7 +762,9 @@ class UniversalPrinter {
       const isTakeaway =
         !saleData.tableNo ||
         String(saleData.tableNo).trim() === "" ||
-        String(saleData.tableNo).toUpperCase().startsWith("TW");
+        String(saleData.tableNo).toUpperCase().startsWith("TW") ||
+        String(saleData.tableNo).toUpperCase() === "TAKEAWAY" ||
+        String(saleData.tableNo).toUpperCase() === "TAKE AWAY";
 
       let targetIp = "";
       if (isTakeaway) {

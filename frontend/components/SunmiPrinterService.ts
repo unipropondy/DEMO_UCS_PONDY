@@ -132,25 +132,25 @@ class SunmiPrinterService {
       Math.floor((maxWidth - displayText.length) / 2),
     );
     const centeredText = " ".repeat(padding) + displayText;
-    await SunmiModule.printText(centeredText);
+    await SunmiModule.printText(centeredText + "\n");
   }
 
   // Left aligned
   private static async left(text: any): Promise<void> {
     if (!SunmiModule) return;
-    await SunmiModule.printText(String(text || ""));
+    await SunmiModule.printText(String(text || "") + "\n");
   }
 
   // Divider line (full width 32 chars)
   private static async divider(char: string = "-"): Promise<void> {
     if (!SunmiModule) return;
-    await SunmiModule.printText(char.repeat(32));
+    await SunmiModule.printText(char.repeat(32) + "\n");
   }
 
   // Double divider
   private static async doubleDivider(char: string = "="): Promise<void> {
     if (!SunmiModule) return;
-    await SunmiModule.printText(char.repeat(32));
+    await SunmiModule.printText(char.repeat(32) + "\n");
   }
 
   // Two columns (for totals)
@@ -161,11 +161,11 @@ class SunmiPrinterService {
     const totalWidth = 32;
     const spaceCount = totalWidth - cleanLeft.length - cleanRight.length;
     if (spaceCount > 0) {
-      await SunmiModule.printText(cleanLeft + " ".repeat(spaceCount) + cleanRight);
+      await SunmiModule.printText(cleanLeft + " ".repeat(spaceCount) + cleanRight + "\n");
     } else {
       // If it doesn't fit in one line, print left first, then right on next line right-aligned
-      await SunmiModule.printText(cleanLeft);
-      await SunmiModule.printText(cleanRight.padStart(totalWidth, " "));
+      await SunmiModule.printText(cleanLeft + "\n");
+      await SunmiModule.printText(cleanRight.padStart(totalWidth, " ") + "\n");
     }
   }
 
@@ -191,7 +191,7 @@ class SunmiPrinterService {
     line += cleanQty.padStart(qtyWidth, " ");
     line += cleanPrice.padStart(priceWidth, " ");
     line += cleanTotal.padStart(totalWidth, " ");
-    await SunmiModule.printText(line);
+    await SunmiModule.printText(line + "\n");
   }
 
   // Item header
@@ -201,7 +201,7 @@ class SunmiPrinterService {
     line += "QTY".padStart(3, " ");
     line += "PRICE".padStart(7, " ");
     line += "TOTAL".padStart(10, " ");
-    await SunmiModule.printText(line);
+    await SunmiModule.printText(line + "\n");
   }
 
   static async printReceipt(
@@ -219,6 +219,13 @@ class SunmiPrinterService {
       // ============ HEADER SECTION ============
       await this.doubleDivider("=");
       await SunmiModule.lineWrap(1);
+
+      if (saleData.isCheckout) {
+        await this.center("CHECKOUT BILL");
+        await this.center("PAYMENT PENDING");
+        await this.doubleDivider("=");
+        await SunmiModule.lineWrap(1);
+      }
 
       // Print logos
       await this.printLogos(companySettings);
@@ -414,22 +421,30 @@ class SunmiPrinterService {
       await this.doubleDivider("=");
 
       // ============ PAYMENT ============
-      await this.twoCols("PAYMENT:", saleData.paymentMethod || "Cash");
+      if (saleData.isCheckout) {
+        await this.center("PAYMENT STATUS: PENDING");
+      } else {
+        await this.twoCols("PAYMENT:", saleData.paymentMethod || "Cash");
 
-      if (saleData.cashPaid && saleData.cashPaid > 0) {
-        await this.twoCols("PAID:", `${symbol}${saleData.cashPaid.toFixed(2)}`);
-        if (saleData.change && saleData.change > 0) {
-          await this.twoCols(
-            "CHANGE:",
-            `${symbol}${saleData.change.toFixed(2)}`,
-          );
+        if (saleData.cashPaid && saleData.cashPaid > 0) {
+          await this.twoCols("PAID:", `${symbol}${saleData.cashPaid.toFixed(2)}`);
+          if (saleData.change && saleData.change > 0) {
+            await this.twoCols(
+              "CHANGE:",
+              `${symbol}${saleData.change.toFixed(2)}`,
+            );
+          }
         }
       }
 
       await SunmiModule.lineWrap(1);
 
       // ============ FOOTER ============
-      await this.center("THANK YOU! COME AGAIN!");
+      if (saleData.isCheckout) {
+        await this.center("PLEASE PAY AT THE COUNTER");
+      } else {
+        await this.center("THANK YOU! COME AGAIN!");
+      }
       await SunmiModule.lineWrap(1);
       await this.center("SMART-POS BY UNIPROSG");
 
@@ -506,14 +521,9 @@ class SunmiPrinterService {
       // ============ ITEMS ============
       await SunmiModule.lineWrap(1);
       for (const item of items) {
-        // Quantity (Big)
-        await setSize(48);
-        await this.left(`[${item.qty || item.quantity || 1}] `);
-
-        // Item Name (Large)
+        // Quantity & Item Name combined on a single line at size 36
         await setSize(36);
-        await this.left(`${item.name}`);
-        await SunmiModule.lineWrap(1);
+        await this.left(`[${item.qty || item.quantity || 1}] ${item.name}`);
 
         const isTw = !!(
           item.isTakeaway ||
