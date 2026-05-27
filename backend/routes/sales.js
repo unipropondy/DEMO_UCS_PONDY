@@ -1304,7 +1304,7 @@ router.post("/save", async (req, res) => {
                 OrderDetailId, OrderId, DishId, Description, DishName, Quantity, PricePerUnit, 
                 ActualAmount, TotalDetailLineAmount, BaseAmount, StatusCode, CreatedBy, CreatedOn, 
                 BusinessUnitId, OrderDateTime, Spicy, Salt, Oil, Sugar, Remarks, 
-                OrderConfirmQty, VoidReason, DiscountAmount, DiscountType, isTakeAway
+                OrderConfirmQty, VoidReason, DiscountAmount, DiscountType, isTakeAway, ManualDiscountAmount
               )
               SELECT 
                 d.OrderDetailId, d.OrderId, d.DishId, d.Description, d.DishName, d.Quantity, d.PricePerUnit, 
@@ -1314,7 +1314,8 @@ router.post("/save", async (req, res) => {
                 d.BusinessUnitId, d.OrderDateTime, d.Spicy, d.Salt, d.Oil, d.Sugar, d.Remarks, 
                 d.OrderConfirmQty, d.VoidReason, 
                 ISNULL(d.DiscountAmount, 0), ISNULL(d.DiscountType, 'fixed'),
-                ISNULL(h.IsTakeAway, ISNULL(d.isTakeAway, 0))
+                ISNULL(h.IsTakeAway, ISNULL(d.isTakeAway, 0)),
+                ISNULL(d.DiscountAmount, 0)
               FROM RestaurantOrderDetailCur d
               INNER JOIN RestaurantOrderCur h ON d.OrderId = h.OrderId
               WHERE h.OrderNumber = @orderNo;
