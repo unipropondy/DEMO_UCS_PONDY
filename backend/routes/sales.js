@@ -168,7 +168,9 @@ router.get("/all", async (req, res) => {
         sh.CancelledByUserName,
         ri.OrderId AS MasterOrderId,
         ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
-        ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount
+        ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
+        sh.RoundedBy as RoundedBy,
+        ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage
       FROM SettlementHeader sh
       LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
       LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
@@ -287,10 +289,47 @@ router.get("/range", async (req, res) => {
 router.get("/detail/:id", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const result = await pool.request()
+    const itemsResult = await pool.request()
       .input("Id", sql.UniqueIdentifier, req.params.id)
       .query("SELECT * FROM SettlementItemDetail WHERE SettlementID = @Id");
-    res.json(result.recordset);
+    
+    const items = itemsResult.recordset || [];
+    
+    if (items.length > 0) {
+      // Fetch the master OrderId for this settlement from RestaurantInvoice
+      const orderIdResult = await pool.request()
+        .input("Id", sql.UniqueIdentifier, req.params.id)
+        .query("SELECT OrderId FROM RestaurantInvoice WHERE RestaurantBillId = @Id");
+        
+      const orderId = orderIdResult.recordset[0]?.OrderId;
+      
+      if (orderId) {
+        // Fetch modifiers from both history and live tables
+        const modifiersResult = await pool.request()
+          .input("OrderId", sql.UniqueIdentifier, orderId)
+          .query(`
+            SELECT DishId, ModifierName 
+            FROM Restaurantmodifierdetail 
+            WHERE OrderId = @OrderId
+            UNION ALL
+            SELECT DishId, ModifierName 
+            FROM RestaurantmodifierdetailCur 
+            WHERE OrderId = @OrderId
+          `);
+          
+        const modifiers = modifiersResult.recordset || [];
+        
+        // Group modifiers by DishId and attach to item details
+        items.forEach(item => {
+          const itemMods = modifiers
+            .filter(m => m.DishId && item.DishId && String(m.DishId).toLowerCase() === String(item.DishId).toLowerCase())
+            .map(m => ({ name: m.ModifierName, ModifierName: m.ModifierName }));
+          item.modifiers = itemMods;
+        });
+      }
+    }
+    
+    res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

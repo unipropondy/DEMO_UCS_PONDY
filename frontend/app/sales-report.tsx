@@ -965,27 +965,44 @@ export default function SalesReport() {
         name: item.DishName,
         price: item.Price,
         qty: item.Qty,
-        modifiers: [], // Modifiers are not typically in the standard sales report detail view
+        status: item.Status || "NORMAL",
+        discountAmount: item.DiscountAmount || 0,
+        discountType: item.DiscountType || "fixed",
+        modifiers: item.modifiers || [],
       }));
+
+      const isPercentage = selectedOrder.DiscountType === "percentage";
+      const discountValue = isPercentage
+        ? Number(selectedOrder.DiscountPercentage ?? 0)
+        : Number(selectedOrder.DiscountAmount ?? 0);
+
+      const discountInfo = {
+        applied: Number(selectedOrder.DiscountAmount ?? 0) > 0,
+        type: (selectedOrder.DiscountType || "fixed") as "fixed" | "percentage",
+        value: discountValue,
+        amount: Number(selectedOrder.DiscountAmount ?? 0),
+        subtotal: Number(selectedOrder.SubTotal ?? 0),
+      };
 
       const saleData = {
         invoiceNumber: formatOrderId(selectedOrder),
+        tableNo: selectedOrder.TableNo ?? "",
         total: selectedOrder.SysAmount,
         paymentMethod: selectedOrder.PayMode || "CASH",
         cashPaid: selectedOrder.SysAmount,
         change: 0,
         items: mappedItems,
+        roundOff: Number(selectedOrder.RoundedBy ?? 0),
         date: selectedOrder.SettlementDate || new Date().toISOString(),
+        isReprint: true,
+        // Sunmi template details
+        discountAmount: Number(selectedOrder.DiscountAmount ?? 0),
+        discountType: selectedOrder.DiscountType || null,
+        discountValue: discountValue,
+        subTotal: Number(selectedOrder.SubTotal ?? 0),
       };
 
-      const dummyDiscount = {
-        applied: false,
-        type: "fixed" as const,
-        value: 0,
-        amount: 0,
-      };
-
-      await UniversalPrinter.smartPrint(saleData, userId, {}, dummyDiscount);
+      await UniversalPrinter.smartPrint(saleData, userId, {}, discountInfo, undefined, true);
     } catch (error) {
       console.error("Reprint error:", error);
     } finally {
