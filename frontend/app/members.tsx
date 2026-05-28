@@ -48,6 +48,36 @@ export default function MembersScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Usage Modal State
+  const [showUsageModal, setShowUsageModal] = useState(false);
+  const [usageMember, setUsageMember] = useState<MemberType | null>(null);
+  const [usageData, setUsageData] = useState<{
+    summary: { TotalSpent: number; TotalOrders: number };
+    items: { DishName: string; TotalQty: number; TotalAmount: number }[];
+    transactions: { SettlementID: string; BillNo: string; LastSettlementDate: string; SysAmount: number }[];
+  } | null>(null);
+  const [loadingUsage, setLoadingUsage] = useState(false);
+
+  const handleViewUsage = async (member: MemberType) => {
+    setUsageMember(member);
+    setShowUsageModal(true);
+    setLoadingUsage(true);
+    setUsageData(null);
+    try {
+      const res = await fetch(`${API_URL}/api/members/usage/${member.MemberId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setUsageData(data);
+        }
+      }
+    } catch (err) {
+      console.error("[USAGE FETCH ERROR]", err);
+    } finally {
+      setLoadingUsage(false);
+    }
+  };
+
   // Form State
   const [formData, setFormData] = useState({
     name: "",
@@ -163,7 +193,7 @@ export default function MembersScreen() {
     );
   }, [members, searchQuery]);
 
-  const MemberCard = React.memo(({ item, onEdit, onDelete }: { item: MemberType; onEdit: (m: MemberType) => void; onDelete: (m: MemberType) => void }) => {
+  const MemberCard = React.memo(({ item, onEdit, onDelete, onViewUsage }: { item: MemberType; onEdit: (m: MemberType) => void; onDelete: (m: MemberType) => void; onViewUsage: (m: MemberType) => void }) => {
     return (
       <View style={styles.memberCard}>
         <View style={styles.cardHeader}>
@@ -178,6 +208,13 @@ export default function MembersScreen() {
             </View>
           </View>
           <View style={styles.cardActions}>
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              onPress={() => onViewUsage(item)} 
+              style={[styles.actionBtn, { backgroundColor: Theme.success + "15" }]}
+            >
+              <Ionicons name="stats-chart" size={18} color={Theme.success} />
+            </TouchableOpacity>
             <TouchableOpacity 
               activeOpacity={0.7}
               onPress={() => onEdit(item)} 
@@ -210,8 +247,8 @@ export default function MembersScreen() {
   });
 
   const renderMember = useCallback(({ item }: { item: MemberType }) => {
-    return <MemberCard item={item} onEdit={openEditModal} onDelete={handleDeleteMember} />;
-  }, [openEditModal, handleDeleteMember]);
+    return <MemberCard item={item} onEdit={openEditModal} onDelete={handleDeleteMember} onViewUsage={handleViewUsage} />;
+  }, [openEditModal, handleDeleteMember, handleViewUsage]);
 
   return (
     <View style={styles.container}>
@@ -370,6 +407,106 @@ export default function MembersScreen() {
                   <Text style={[styles.btnLabel, { color: '#fff' }]}>Delete</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        </Modal>
+        {/* Usage/Monthly History Modal */}
+        <Modal visible={showUsageModal} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.formSheet}>
+              <View style={styles.sheetHeader}>
+                <View>
+                  <Text style={styles.sheetTitle}>Monthly Usage Report</Text>
+                  <Text style={{ fontFamily: Fonts.bold, color: Theme.textSecondary, fontSize: 13, marginTop: 4 }}>
+                    {usageMember?.Name} • {usageMember?.Phone}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => { setShowUsageModal(false); setUsageMember(null); setUsageData(null); }} style={styles.sheetClose}>
+                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              {loadingUsage ? (
+                <View style={[styles.center, { padding: 40 }]}>
+                  <ActivityIndicator size="large" color={Theme.primary} />
+                </View>
+              ) : (
+                <ScrollView style={styles.sheetBody} showsVerticalScrollIndicator={false}>
+                  {/* Summary Dashboard */}
+                  <View style={{ flexDirection: 'row', gap: 15, marginBottom: 20 }}>
+                    <View style={{ flex: 1, backgroundColor: Theme.primary + '10', padding: 15, borderRadius: 16, borderLeftWidth: 4, borderLeftColor: Theme.primary }}>
+                      <Text style={{ fontSize: 10, fontFamily: Fonts.black, color: Theme.primary, marginBottom: 4 }}>TOTAL ORDERS</Text>
+                      <Text style={{ fontSize: 20, fontFamily: Fonts.black, color: Theme.textPrimary }}>
+                        {usageData?.summary?.TotalOrders || 0}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: Theme.success + '10', padding: 15, borderRadius: 16, borderLeftWidth: 4, borderLeftColor: Theme.success }}>
+                      <Text style={{ fontSize: 10, fontFamily: Fonts.black, color: Theme.success, marginBottom: 4 }}>TOTAL SPENT</Text>
+                      <Text style={{ fontSize: 20, fontFamily: Fonts.black, color: Theme.textPrimary }}>
+                        ${(usageData?.summary?.TotalSpent || 0).toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Consumed Items Breakdown */}
+                  <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary, marginBottom: 10, letterSpacing: 0.5 }}>
+                    ITEMS CONSUMED THIS MONTH
+                  </Text>
+                  {usageData?.items && usageData.items.length > 0 ? (
+                    <View style={{ backgroundColor: Theme.bgInput, borderRadius: 16, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: Theme.border }}>
+                      {usageData.items.map((item, idx) => (
+                        <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: idx < usageData.items.length - 1 ? 1 : 0, borderBottomColor: Theme.border }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>{item.DishName}</Text>
+                            <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted }}>Qty: {item.TotalQty}</Text>
+                          </View>
+                          <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.success }}>
+                            ${(item.TotalAmount || 0).toFixed(2)}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textMuted, marginBottom: 20, fontStyle: 'italic' }}>
+                      No items consumed this month.
+                    </Text>
+                  )}
+
+                  {/* Transaction History list */}
+                  <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary, marginBottom: 10, letterSpacing: 0.5 }}>
+                    RECENT BILLS
+                  </Text>
+                  {usageData?.transactions && usageData.transactions.length > 0 ? (
+                    <View style={{ gap: 8, marginBottom: 30 }}>
+                      {usageData.transactions.map((tx) => {
+                        const dateObj = new Date(tx.LastSettlementDate);
+                        return (
+                          <View key={tx.SettlementID} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Theme.bgInput, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: Theme.border }}>
+                            <View>
+                              <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>Bill #{tx.BillNo}</Text>
+                              <Text style={{ fontFamily: Fonts.medium, fontSize: 10, color: Theme.textMuted }}>
+                                {dateObj.toLocaleDateString([], { day: 'numeric', month: 'short' })} • {dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </Text>
+                            </View>
+                            <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary }}>
+                              ${(tx.SysAmount || 0).toFixed(2)}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textMuted, marginBottom: 30, fontStyle: 'italic' }}>
+                      No recent transaction records.
+                    </Text>
+                  )}
+
+                  <TouchableOpacity style={styles.submitBtn} onPress={() => { setShowUsageModal(false); setUsageMember(null); setUsageData(null); }}>
+                    <Text style={styles.submitBtnText}>Done</Text>
+                  </TouchableOpacity>
+                  <View style={{ height: 30 }} />
+                </ScrollView>
+              )}
             </View>
           </View>
         </Modal>

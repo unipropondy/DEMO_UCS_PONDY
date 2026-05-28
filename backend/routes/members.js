@@ -164,4 +164,67 @@ router.get("/validate/:memberId", async (req, res) => {
   }
 });
 
+router.get("/usage/:memberId", async (req, res) => {
+  try {
+    const { memberId } = req.params;
+    const pool = await poolPromise;
+
+    // 1. Summary
+    const summaryRes = await pool.request()
+      .input("MemberId", sql.UniqueIdentifier, memberId)
+      .query(`
+        SELECT 
+          ISNULL(SUM(SysAmount), 0) as TotalSpent, 
+          COUNT(*) as TotalOrders 
+        FROM SettlementHeader 
+        WHERE MemberId = @MemberId 
+          AND LastSettlementDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) 
+          AND IsCancelled = 0
+      `);
+
+    // 2. Items Consumed
+    const itemsRes = await pool.request()
+      .input("MemberId", sql.UniqueIdentifier, memberId)
+      .query(`
+        SELECT 
+          sid.DishName, 
+          SUM(sid.Qty) as TotalQty, 
+          SUM(sid.Price * sid.Qty) as TotalAmount 
+        FROM SettlementHeader sh 
+        INNER JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID 
+        WHERE sh.MemberId = @MemberId 
+          AND sh.LastSettlementDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) 
+          AND sh.IsCancelled = 0 
+        GROUP BY sid.DishName 
+        ORDER BY TotalQty DESC
+      `);
+
+    // 3. Transactions
+    const txsRes = await pool.request()
+      .input("MemberId", sql.UniqueIdentifier, memberId)
+      .query(`
+        SELECT 
+          SettlementID, 
+          BillNo, 
+          LastSettlementDate, 
+          SysAmount 
+        FROM SettlementHeader 
+        WHERE MemberId = @MemberId 
+          AND LastSettlementDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) 
+          AND IsCancelled = 0 
+        ORDER BY LastSettlementDate DESC
+      `);
+
+    res.json({
+      success: true,
+      summary: summaryRes.recordset[0] || { TotalSpent: 0, TotalOrders: 0 },
+      items: itemsRes.recordset || [],
+      transactions: txsRes.recordset || []
+    });
+  } catch (err) {
+    console.error("[MEMBERS USAGE ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
