@@ -213,6 +213,15 @@ async function initDB(pool) {
       END
     `);
 
+    // 12. Insert MEMBER Paymode if missing
+    await runQuery("Insert MEMBER Paymode", `
+      IF NOT EXISTS (SELECT 1 FROM [dbo].[Paymode] WHERE LTRIM(RTRIM(PayMode)) = 'MEMBER')
+      BEGIN
+          INSERT INTO [dbo].[Paymode] (Position, PayMode, Description, Active)
+          VALUES (5, 'MEMBER', 'MEMBER', 1)
+      END
+    `);
+
     console.log("✅ Database schema and performance indexes are up to date.");
   } catch (err) {
     console.error("❌ initDB CRITICAL ERROR:", err.message);

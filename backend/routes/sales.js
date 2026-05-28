@@ -820,6 +820,28 @@ router.post("/save", async (req, res) => {
       const activeOrg = await getActiveOrganization();
       const businessUnitId = activeOrg.businessUnitId;
 
+      // 🆕 MEMBER PAYMENT VALIDATION
+      if (memberId && ((paymentMethod || "").toUpperCase() === "MEMBER" || (paymentMethod || "").toUpperCase() === "CREDIT")) {
+        const memberCheck = await transaction.request()
+          .input("MemberId", sql.UniqueIdentifier, memberId)
+          .query("SELECT CreditLimit, CurrentBalance, IsActive FROM MemberMaster WITH (UPDLOCK) WHERE MemberId = @MemberId");
+        
+        if (memberCheck.recordset.length === 0) {
+          throw new Error("Member not found");
+        }
+        
+        const member = memberCheck.recordset[0];
+        if (!member.IsActive) {
+          throw new Error("Member is inactive");
+        }
+        
+        const currentBalance = parseFloat(member.CurrentBalance) || 0;
+        const creditLimit = parseFloat(member.CreditLimit) || 0;
+        if (currentBalance + parseFloat(totalAmount) > creditLimit) {
+          throw new Error("Credit Limit Exceeded");
+        }
+      }
+
     // 2. Order ID Retrieval
     const now = new Date();
     let displayOrderId = null;
@@ -1172,7 +1194,7 @@ router.post("/save", async (req, res) => {
         }
 
 
-      if (memberId && (paymentMethod || "").toUpperCase() === "CREDIT") {
+      if (memberId && ((paymentMethod || "").toUpperCase() === "CREDIT" || (paymentMethod || "").toUpperCase() === "MEMBER")) {
         await transaction.request()
           .input("MemberId", memberId)
           .input("Amount", totalAmount || 0)

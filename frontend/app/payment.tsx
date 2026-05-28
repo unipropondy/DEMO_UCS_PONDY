@@ -81,6 +81,7 @@ const PAYMODE_ICON_MAP: Record<string, string> = {
   DEAL:       "ticket-alt",
   UPI:        "mobile-alt",
   GPAY:       "google-pay",
+  MEMBER:     "user-tag",
 };
 
 function getPaymodeIcon(payMode: string): string {
@@ -127,6 +128,36 @@ export default function PaymentScreen() {
   const [cashInput, setCashInput] = useState("");
   const [processing, setProcessing] = useState(false);
   const [time, setTime] = useState(new Date());
+
+  // Member flow state
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [memberQuery, setMemberQuery] = useState("");
+  const [members, setMembers] = useState<any[]>([]);
+  const [selectedMember, setSelectedMember] = useState<any | null>(null);
+  const [searchingMembers, setSearchingMembers] = useState(false);
+
+  const searchMembers = async (q: string) => {
+    setSearchingMembers(true);
+    try {
+      const res = await fetch(`${API_URL}/api/members/search?query=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setMembers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Search members error:", err);
+      showToast({ type: "error", message: "Search Failed", subtitle: "Could not search members" });
+    } finally {
+      setSearchingMembers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showMemberModal) {
+      const timer = setTimeout(() => {
+        searchMembers(memberQuery);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [memberQuery, showMemberModal]);
 
   const { useLocalSearchParams } = require("expo-router");
   const localParams = useLocalSearchParams();
@@ -343,6 +374,20 @@ export default function PaymentScreen() {
     }
     const { settings } = usePaymentSettingsStore.getState();
     const mUpper = method.trim().toUpperCase();
+    
+    if (mUpper === "MEMBER" || mUpper === "CREDIT") {
+      if (!selectedMember) {
+        setShowMemberModal(true);
+        return;
+      }
+      
+      const isLimitExceeded = (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0);
+      if (isLimitExceeded) {
+        showToast({ type: "error", message: "Credit Limit Exceeded", subtitle: "Cannot complete billing" });
+        return;
+      }
+    }
+
     if (mUpper.includes("UPI") && settings.upiId) { setIsUPIVisible(true); return; }
     if (mUpper.includes("PAYNOW") && settings.payNowQrUrl) { setIsPayNowVisible(true); return; }
     executeFinalPayment();
@@ -362,6 +407,7 @@ export default function PaymentScreen() {
       discountType: discount?.type || "fixed",
       totalAmount: total,
       paymentMethod: method.trim(),
+      memberId: selectedMember?.MemberId || null,
       roundOff: roundOff,
       cashierId: user?.userId,
       tableId: context?.tableId,
@@ -1018,6 +1064,134 @@ export default function PaymentScreen() {
       {renderTestDisplayModal()}
       <UPIPaymentModal visible={isUPIVisible} onClose={() => setIsUPIVisible(false)} amount={total} onSuccess={() => executeFinalPayment()} />
       <PayNowPaymentModal visible={isPayNowVisible} onClose={() => setIsPayNowVisible(false)} amount={total} onSuccess={() => executeFinalPayment()} />
+
+      {/* MEMBER SEARCH MODAL */}
+      <Modal visible={showMemberModal} transparent animationType="fade" onRequestClose={() => setShowMemberModal(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowMemberModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.memberModalContent}>
+                <View style={styles.adjustModalHeader}>
+                  <Text style={styles.adjustModalTitle}>Select Member</Text>
+                  <TouchableOpacity onPress={() => setShowMemberModal(false)}>
+                    <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Search Bar */}
+                <View style={styles.searchBarBox}>
+                  <Ionicons name="search" size={20} color={Theme.textSecondary} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={{ flex: 1, fontSize: 16, fontFamily: Fonts.medium, color: Theme.textPrimary }}
+                    placeholder="Search by Name or Phone..."
+                    placeholderTextColor="#999"
+                    value={memberQuery}
+                    onChangeText={setMemberQuery}
+                    autoFocus
+                  />
+                  {searchingMembers && <ActivityIndicator size="small" color={Theme.primary} />}
+                </View>
+
+                {/* Members List */}
+                <View style={{ flex: 1, minHeight: 200, maxHeight: 300, marginVertical: 12 }}>
+                  <FlatList
+                    data={members}
+                    keyExtractor={(item) => item.MemberId}
+                    ListEmptyComponent={() => (
+                      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                        <Text style={{ fontSize: 14, fontFamily: Fonts.medium, color: Theme.textSecondary }}>No members found</Text>
+                      </View>
+                    )}
+                    renderItem={({ item }) => {
+                      const isSelected = selectedMember?.MemberId === item.MemberId;
+                      const remainingCredit = (item.CreditLimit || 0) - (item.CurrentBalance || 0);
+                      const isLimitExceeded = (item.CurrentBalance || 0) + total > (item.CreditLimit || 0);
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            styles.memberListItem,
+                            isSelected && styles.selectedMemberItem,
+                            !item.IsActive && { opacity: 0.5 }
+                          ]}
+                          disabled={!item.IsActive}
+                          onPress={() => {
+                            if (!item.IsActive) {
+                              showToast({ type: "warning", message: "Inactive Member", subtitle: "Cannot select inactive member" });
+                              return;
+                            }
+                            setSelectedMember(item);
+                          }}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={[styles.memberNameText, isSelected && { color: Theme.primary }]}>{item.Name}</Text>
+                              {!item.IsActive && <View style={styles.inactiveBadge}><Text style={styles.inactiveBadgeText}>INACTIVE</Text></View>}
+                            </View>
+                            <Text style={styles.memberPhoneText}>{item.Phone}</Text>
+                            <Text style={{ fontSize: 11, fontFamily: Fonts.medium, color: Theme.textMuted, marginTop: 4 }}>
+                              Limit: {currencySymbol}{(item.CreditLimit || 0).toFixed(2)} | Balance: {currencySymbol}{(item.CurrentBalance || 0).toFixed(2)}
+                            </Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: isLimitExceeded ? Theme.danger : Theme.success }}>
+                              Rem: {currencySymbol}{remainingCredit.toFixed(2)}
+                            </Text>
+                            {isLimitExceeded && (
+                              <Text style={{ fontSize: 10, fontFamily: Fonts.medium, color: Theme.danger, marginTop: 2 }}>
+                                Limit Exceeded
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    }}
+                  />
+                </View>
+
+                {/* Selected Member Details & Confirmation */}
+                {selectedMember && (
+                  <View style={styles.selectedMemberDetailCard}>
+                    <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary }}>SELECTED MEMBER</Text>
+                    <View style={{ marginTop: 6, gap: 4 }}>
+                      <Text style={{ fontSize: 14, fontFamily: Fonts.bold, color: Theme.primary }}>{selectedMember.Name} ({selectedMember.Phone})</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Bill Amount:</Text>
+                        <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>{currencySymbol}{total.toFixed(2)}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Remaining Credit:</Text>
+                        <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                          {currencySymbol}{(selectedMember.CreditLimit - selectedMember.CurrentBalance).toFixed(2)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* Modal Actions */}
+                <View style={styles.adjustModalActions}>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowMemberModal(false)}>
+                    <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.confirmBtn,
+                      (!selectedMember || ((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0))) && { backgroundColor: Theme.border, opacity: 0.7 }
+                    ]}
+                    disabled={!selectedMember || ((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0))}
+                    onPress={() => {
+                      setShowMemberModal(false);
+                      executeFinalPayment();
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Confirm Member Payment</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1251,5 +1425,93 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: Fonts.bold,
     fontSize: 13,
+  },
+  memberModalContent: {
+    width: '90%',
+    maxWidth: 550,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    ...Theme.shadowLg,
+  },
+  searchBarBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    backgroundColor: Theme.bgMuted,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    marginTop: 10,
+  },
+  memberListItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.border,
+    borderRadius: 8,
+  },
+  selectedMemberItem: {
+    backgroundColor: Theme.primaryLight,
+    borderColor: Theme.primaryBorder,
+    borderWidth: 1,
+  },
+  memberNameText: {
+    fontSize: 14,
+    fontFamily: Fonts.bold,
+    color: Theme.textPrimary,
+  },
+  memberPhoneText: {
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+    color: Theme.textSecondary,
+    marginTop: 2,
+  },
+  inactiveBadge: {
+    backgroundColor: Theme.danger + '22',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: Theme.danger + '40',
+  },
+  inactiveBadgeText: {
+    fontSize: 8,
+    fontFamily: Fonts.bold,
+    color: Theme.danger,
+  },
+  selectedMemberDetailCard: {
+    padding: 12,
+    backgroundColor: Theme.bgMuted,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    marginTop: 10,
+  },
+  cancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  confirmBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: Theme.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  adjustModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 16,
   },
 });

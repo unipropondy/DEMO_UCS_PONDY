@@ -94,4 +94,74 @@ router.post("/delete", async (req, res) => {
   }
 });
 
+router.get("/search", async (req, res) => {
+  try {
+    const { query } = req.query;
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input("query", sql.NVarChar, `%${query || ""}%`)
+      .query(`
+        SELECT MemberId, Name, Phone, CreditLimit, CurrentBalance, IsActive 
+        FROM MemberMaster 
+        WHERE (Name LIKE @query OR Phone LIKE @query)
+        ORDER BY Name
+      `);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error("[MEMBERS SEARCH ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/validate/:memberId", async (req, res) => {
+  try {
+    const { memberId } = req.params;
+    const { amount } = req.query;
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input("MemberId", sql.UniqueIdentifier, memberId)
+      .query(`
+        SELECT MemberId, Name, Phone, CreditLimit, CurrentBalance, IsActive 
+        FROM MemberMaster 
+        WHERE MemberId = @MemberId
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ success: false, error: "Member not found" });
+    }
+    
+    const member = result.recordset[0];
+    if (!member.IsActive) {
+      return res.status(400).json({ success: false, error: "Member is inactive" });
+    }
+    
+    const billAmount = parseFloat(amount) || 0;
+    const currentBalance = parseFloat(member.CurrentBalance) || 0;
+    const creditLimit = parseFloat(member.CreditLimit) || 0;
+    const remainingCredit = creditLimit - currentBalance;
+    
+    if (currentBalance + billAmount > creditLimit) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Credit Limit Exceeded",
+        member: {
+          ...member,
+          RemainingCredit: remainingCredit
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      member: {
+        ...member,
+        RemainingCredit: remainingCredit
+      }
+    });
+  } catch (err) {
+    console.error("[MEMBERS VALIDATE ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
