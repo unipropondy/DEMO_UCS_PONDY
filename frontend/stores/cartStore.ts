@@ -581,8 +581,13 @@ export const useCartStore = create<CartState>()(
           set((state) => {
             const nextDeleting = new Set(state.deletingItems);
             nextDeleting.delete(lineItemId);
+            const newQtyMap: Record<string, number> = {};
+            previousCart.forEach(item => {
+              newQtyMap[item.id] = (newQtyMap[item.id] || 0) + item.qty;
+            });
             return { 
               carts: { ...state.carts, [currentContextId]: previousCart },
+              cartQtyMap: { ...state.cartQtyMap, [currentContextId]: newQtyMap },
               deletingItems: nextDeleting
             };
           });
@@ -1133,12 +1138,19 @@ export const useCartStore = create<CartState>()(
 
             console.log(`[TRACE] [${Date.now()}] [${resolvedContextId}] fetchCartFromDB: APPLYING | Items: ${mergedItems.length}`);
 
-            set((state) => ({
-              carts: { ...state.carts, [resolvedContextId!]: mergedItems },
-              tableOrderIds: { ...state.tableOrderIds, [tableId]: orderId },
-              lastServerSync: { ...state.lastServerSync, [resolvedContextId!]: Date.now() },
-              pendingSync: false
-            }));
+            set((state) => {
+              const newQtyMap: Record<string, number> = {};
+              mergedItems.forEach((item: CartItem) => {
+                newQtyMap[item.id] = (newQtyMap[item.id] || 0) + item.qty;
+              });
+              return {
+                carts: { ...state.carts, [resolvedContextId!]: mergedItems },
+                cartQtyMap: { ...state.cartQtyMap, [resolvedContextId!]: newQtyMap },
+                tableOrderIds: { ...state.tableOrderIds, [tableId]: orderId },
+                lastServerSync: { ...state.lastServerSync, [resolvedContextId!]: Date.now() },
+                pendingSync: false
+              };
+            });
           } catch (err) {
             console.error("❌ [CartStore] Fetch failed:", err);
           }
@@ -1252,6 +1264,24 @@ export const useCartStore = create<CartState>()(
         if (!(merged.deletingItems instanceof Set)) {
           merged.deletingItems = new Set();
         }
+
+        // 🚀 RECOMPUTE QTY MAP: Compute cartQtyMap from hydrated carts to ensure badges display on refresh
+        const cartQtyMap: Record<string, Record<string, number>> = {};
+        if (merged.carts) {
+          Object.keys(merged.carts).forEach((contextId) => {
+            const items = merged.carts[contextId] || [];
+            const qtyMap: Record<string, number> = {};
+            items.forEach((item: any) => {
+              const dishId = item.id || item.DishId;
+              if (dishId) {
+                qtyMap[dishId] = (qtyMap[dishId] || 0) + (item.qty || 0);
+              }
+            });
+            cartQtyMap[contextId] = qtyMap;
+          });
+        }
+        merged.cartQtyMap = cartQtyMap;
+
         return merged;
       },
     }

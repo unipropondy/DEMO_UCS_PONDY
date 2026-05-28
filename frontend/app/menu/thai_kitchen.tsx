@@ -211,7 +211,11 @@ const DishCardWrapper = React.memo(
     const cartQty = useCartStore((state) => {
       if (!currentContextId) return 0;
       const qtyMap = state.cartQtyMap[currentContextId] || {};
-      return qtyMap[dishId] || 0;
+      const getDishQty = (id: string) => qtyMap[id] || 0;
+      const cartItems = state.carts[currentContextId] || [];
+      console.log("Cart Items:", cartItems);
+      console.log("Dish Count:", getDishQty(dishId));
+      return getDishQty(dishId);
     });
 
     return (
