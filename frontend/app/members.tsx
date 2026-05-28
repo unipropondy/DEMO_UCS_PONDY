@@ -255,7 +255,16 @@ export default function MembersScreen() {
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.circularBack}>
+          <TouchableOpacity
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(tabs)/category");
+              }
+            }}
+            style={styles.circularBack}
+          >
             <Ionicons name="chevron-back" size={24} color={Theme.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.screenTitle}>Member Management</Text>

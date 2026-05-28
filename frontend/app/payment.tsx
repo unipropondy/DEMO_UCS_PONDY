@@ -1082,9 +1082,18 @@ export default function PaymentScreen() {
                 <View style={styles.searchBarBox}>
                   <Ionicons name="search" size={20} color={Theme.textSecondary} style={{ marginRight: 8 }} />
                   <TextInput
-                    style={{ flex: 1, fontSize: 16, fontFamily: Fonts.medium, color: Theme.textPrimary }}
+                    style={{
+                      flex: 1,
+                      fontSize: 16,
+                      fontFamily: Fonts.medium,
+                      color: Theme.textPrimary,
+                      height: '100%',
+                      borderWidth: 0,
+                      marginLeft: 8,
+                      ...Platform.select({ web: { outlineStyle: "none" } as any })
+                    }}
                     placeholder="Search by Name or Phone..."
-                    placeholderTextColor="#999"
+                    placeholderTextColor={Theme.textMuted || "#999"}
                     value={memberQuery}
                     onChangeText={setMemberQuery}
                     autoFocus
@@ -1437,13 +1446,14 @@ const styles = StyleSheet.create({
   searchBarBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 48,
-    backgroundColor: Theme.bgMuted,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    height: 56,
+    backgroundColor: Theme.bgInput || '#f8f9fa',
+    borderRadius: 16,
+    paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: Theme.border,
     marginTop: 10,
+    ...Theme.shadowSm,
   },
   memberListItem: {
     flexDirection: 'row',
