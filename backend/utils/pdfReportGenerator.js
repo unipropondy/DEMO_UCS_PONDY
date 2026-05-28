@@ -183,7 +183,7 @@ const generateSalesReportPdf = (reportData) => {
   });
 
   // ========== PAYMENT BREAKDOWN SECTION ==========
-  const validPaymentModes = ['CASH', 'NETS', 'PAYNOW', 'CARD', 'CDC', 'UPI / GPAY', 'UPI', 'GPAY', 'PHONEPE', 'AMEX', 'DINERS', 'MASTER', 'VISA'];
+  const validPaymentModes = ['CASH', 'NETS', 'PAYNOW', 'CARD', 'CDC', 'UPI / GPAY', 'UPI', 'GPAY', 'PHONEPE', 'AMEX', 'DINERS', 'MASTER', 'VISA', 'MEMBER'];
   const filteredPayments = {};
 
   if (paymentBreakdown && typeof paymentBreakdown === 'object') {

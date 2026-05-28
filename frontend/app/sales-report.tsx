@@ -161,6 +161,7 @@ export default function SalesReport() {
     "NETS",
     "PAYNOW",
     "VOID",
+    "MEMBER",
   ]);
   const [activeOrderTypes, setActiveOrderTypes] = useState<string[]>([
     "DINE-IN",
@@ -850,6 +851,7 @@ export default function SalesReport() {
         else if (mode === "CARD") acc.Card += s.SysAmount;
         else if (mode === "NETS") acc.Nets += s.SysAmount;
         else if (mode === "PAYNOW") acc.PayNow += s.SysAmount;
+        else if (mode === "MEMBER") acc.Member += s.SysAmount;
 
         return acc;
       },
@@ -861,6 +863,7 @@ export default function SalesReport() {
         Card: 0,
         Nets: 0,
         PayNow: 0,
+        Member: 0,
         TotalVoids: 0,
         TotalVoidAmount: 0,
         CancelledCount: 0,
@@ -876,12 +879,13 @@ export default function SalesReport() {
 
   const paymentMix = useMemo(() => {
     if (!filteredMetrics.TotalSales)
-      return { cash: 0, card: 0, nets: 0, paynow: 0 };
+      return { cash: 0, card: 0, nets: 0, paynow: 0, member: 0 };
     return {
       cash: (filteredMetrics.Cash / filteredMetrics.TotalSales) * 100,
       card: (filteredMetrics.Card / filteredMetrics.TotalSales) * 100,
       nets: (filteredMetrics.Nets / filteredMetrics.TotalSales) * 100,
       paynow: (filteredMetrics.PayNow / filteredMetrics.TotalSales) * 100,
+      member: (filteredMetrics.Member / filteredMetrics.TotalSales) * 100,
     };
   }, [filteredMetrics]);
 
@@ -895,6 +899,8 @@ export default function SalesReport() {
       rows.push({ key: "NETS", pct: paymentMix.nets, color: "#3b82f6" });
     if (filteredMetrics.PayNow > 0)
       rows.push({ key: "DIGITAL", pct: paymentMix.paynow, color: "#f59e0b" });
+    if (filteredMetrics.Member > 0)
+      rows.push({ key: "MEMBER", pct: paymentMix.member, color: "#ec4899" });
     return rows.sort((a, b) => b.pct - a.pct);
   }, [filteredMetrics, paymentMix]);
 
@@ -1623,6 +1629,11 @@ export default function SalesReport() {
                         color: "#f59e0b",
                         label: "DIGITAL",
                       },
+                      {
+                        value: filteredMetrics.Member,
+                        color: "#ec4899",
+                        label: "MEMBER",
+                      },
                     ].filter((d) => d.value > 0)}
                     donut
                     radius={70}
@@ -1806,6 +1817,12 @@ export default function SalesReport() {
               val: filteredMetrics.PayNow,
               icon: "📱",
               color: "#f59e0b",
+            },
+            {
+              label: "MEMBER",
+              val: filteredMetrics.Member,
+              icon: "👤",
+              color: "#ec4899",
             },
           ].map((item, idx) => (
             <View key={idx} style={styles.breakdownItem}>
@@ -2306,7 +2323,7 @@ export default function SalesReport() {
                   <View style={styles.sidebarSection}>
                     <Text style={styles.sectionLabel}>PAYMENT MODES</Text>
                     <View style={styles.chipRow}>
-                      {["CASH", "CARD", "NETS", "PAYNOW", "VOID"].map((m) => (
+                      {["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER"].map((m) => (
                         <TouchableOpacity
                           key={m}
                           onPress={() => togglePaymentMode(m)}
@@ -2421,7 +2438,7 @@ export default function SalesReport() {
                 <View style={styles.sidebarFooter}>
                   <TouchableOpacity
                     onPress={() => {
-                      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "VOID"]);
+                      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER"]);
                       setActiveOrderTypes(["DINE-IN", "TAKEAWAY"]);
                       setSortOrder("NEWEST");
                       setShowCancelledOrders(true);

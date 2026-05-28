@@ -23,6 +23,7 @@ const normalizeReportPayModeSql = (columnName = "sts.PayMode") => `
       WHEN UPPER(LTRIM(RTRIM(ISNULL(${columnName}, '')))) IN ('PAYNOW', 'GRAB', 'FOODPANDA', '3') OR UPPER(${columnName}) LIKE '%PAYNOW%' THEN 'PAYNOW'
       WHEN UPPER(LTRIM(RTRIM(ISNULL(${columnName}, '')))) IN ('NETS', '2') OR UPPER(${columnName}) LIKE '%NETS%' THEN 'NETS'
       WHEN UPPER(LTRIM(RTRIM(ISNULL(${columnName}, '')))) IN ('UPI', '4') OR UPPER(${columnName}) LIKE '%UPI%' OR UPPER(${columnName}) LIKE '%GPAY%' THEN 'UPI'
+      WHEN UPPER(LTRIM(RTRIM(ISNULL(${columnName}, '')))) IN ('MEMBER', '5') OR UPPER(${columnName}) LIKE '%MEMBER%' THEN 'MEMBER'
       ELSE UPPER(LTRIM(RTRIM(ISNULL(${columnName}, 'CASH'))))
     END
   ))
@@ -91,6 +92,7 @@ const normalizePayMode = (paymentMethod = "CASH") => {
   if (raw.includes("PAYNOW") || raw.includes("GRAB") || raw.includes("FOODPANDA")) return "PAYNOW";
   if (raw.includes("UPI") || raw.includes("GPAY") || raw.includes("PHONE") || raw.includes("PAYTM")) return "UPI";
   if (raw.includes("NETS")) return "NETS";
+  if (raw.includes("MEMBER")) return "MEMBER";
   
   return raw;
 };

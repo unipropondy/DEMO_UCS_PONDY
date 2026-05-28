@@ -353,7 +353,7 @@ const generateSalesReportPdf = (reportData = {}) => {
 
   // ========== PAYMENT BREAKDOWN SECTION ==========
   if (showPaymentBreakdown && paymentBreakdown && Object.keys(paymentBreakdown).length > 0) {
-    const validPaymentModes = ['CASH', 'NETS', 'PAYNOW', 'CARD', 'CDC', 'UPI', 'GPAY', 'AMEX', 'DINERS', 'VISA', 'MASTER'];
+    const validPaymentModes = ['CASH', 'NETS', 'PAYNOW', 'CARD', 'CDC', 'UPI', 'GPAY', 'AMEX', 'DINERS', 'VISA', 'MASTER', 'MEMBER'];
     const filteredPayments = {};
 
     for (const [key, value] of Object.entries(paymentBreakdown)) {
