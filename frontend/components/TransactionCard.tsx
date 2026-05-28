@@ -41,9 +41,25 @@ const TransactionCard = React.memo(
       >
         <View style={styles.txIconWrap}>
           <Ionicons
-            name={item.PayMode === "CASH" ? "cash-outline" : "card-outline"}
+            name={
+              item.PayMode === "CASH"
+                ? "cash-outline"
+                : item.PayMode === "MEMBER"
+                ? "person-outline"
+                : item.PayMode === "PAYNOW" || item.PayMode === "UPI"
+                ? "qr-code-outline"
+                : "card-outline"
+            }
             size={16}
-            color={item.PayMode === "CASH" ? "#22c55e" : Theme.primary}
+            color={
+              item.PayMode === "CASH"
+                ? "#22c55e"
+                : item.PayMode === "MEMBER"
+                ? "#ec4899"
+                : item.PayMode === "PAYNOW" || item.PayMode === "UPI"
+                ? "#f59e0b"
+                : Theme.primary
+            }
           />
         </View>
         <View style={styles.txOrderInfo}>
