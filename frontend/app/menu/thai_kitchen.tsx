@@ -188,9 +188,9 @@ const DishCard = React.memo(
             isPhone ? { fontSize: 12 } : isTablet ? { fontSize: 14 } : null,
           ]}
         >
-          {dish.IsOpenItem ? "Open Price" : `$${(dish.Price || 0).toFixed(2)}`}
+          {(Number(dish.IsOpenItem) === 1 || dish.IsOpenItem === true || dish.IsOpenItem === 'true' || dish.IsOpenItem === '1') ? "Open Price" : `$${(dish.Price || 0).toFixed(2)}`}
         </Text>
-        {dish.IsOpenItem ? (
+        {(Number(dish.IsOpenItem) === 1 || dish.IsOpenItem === true || dish.IsOpenItem === 'true' || dish.IsOpenItem === '1') ? (
           <View style={{ backgroundColor: "#F59E0B22", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginTop: 2, borderWidth: 1, borderColor: "#F59E0B44", alignSelf: "center" }}>
             <Text style={{ fontSize: 9, color: "#B45309", fontFamily: Fonts.bold }}>OPEN</Text>
           </View>
@@ -819,7 +819,15 @@ export default function MenuScreen() {
       };
 
       // 🆕 OPEN ITEM: Prompt for custom price before doing anything else
-      if (dish.IsOpenItem === 1 || dish.IsOpenItem === true) {
+      const isItOpenItem = Number(dish.IsOpenItem) === 1 || dish.IsOpenItem === true || dish.IsOpenItem === 'true' || dish.IsOpenItem === '1';
+      console.log("🔍 [thai_kitchen] openModifiers clicked. IsOpenItem evaluation:", {
+        dishId: dish.DishId,
+        dishName: dish.Name,
+        IsOpenItemRawValue: dish.IsOpenItem,
+        isItOpenItemEvaluated: isItOpenItem
+      });
+
+      if (isItOpenItem) {
         setOpenItemDish({
           ...dish,
           _kitchenName: currentKitchenName,
@@ -982,6 +990,12 @@ export default function MenuScreen() {
 
     const dish = openItemDish;
     if (!dish) return;
+
+    console.log("✏️ [thai_kitchen] confirmOpenItemPrice adding custom price item:", {
+      dishId: dish.DishId,
+      dishName: dish.Name,
+      customPrice: parsed
+    });
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     addToCartGlobal({
