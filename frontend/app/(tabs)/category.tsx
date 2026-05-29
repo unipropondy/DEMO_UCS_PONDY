@@ -1308,27 +1308,7 @@ export default function Category() {
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setIsMenuVisible(false);
-                  router.push("/ai-chat");
-                }}
-              >
-                <View
-                  style={[
-                    styles.menuIconContainer,
-                    { backgroundColor: Theme.success + "10" },
-                  ]}
-                >
-                  <Ionicons
-                    name="chatbubble-ellipses-outline"
-                    size={18}
-                    color={Theme.success}
-                  />
-                </View>
-                <Text style={styles.menuItemText}>AI BI Assistant</Text>
-              </TouchableOpacity>
+
 
               {canAccessDayEnd() && (
                 <TouchableOpacity
