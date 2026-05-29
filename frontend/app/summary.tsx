@@ -99,6 +99,8 @@ export default function SummaryScreen() {
   const [extraSplitItems, setExtraSplitItems] = useState<any[]>([]);
   const [hasAttemptedInitialFetch, setHasAttemptedInitialFetch] = useState(false);
   const [isSplitMode, setIsSplitMode] = useState(false);
+  const [splitType, setSplitType] = useState<"items" | "parts">("items");
+  const [partCount, setPartCount] = useState<number>(2);
 
   const settings = useCompanySettingsStore((state) => state.settings);
   const currencySymbol = settings.currencySymbol || "$";
@@ -440,6 +442,8 @@ export default function SummaryScreen() {
     setSplitQuantities(initialSplit);
     setExtraSplitItems([]);
     setSearchDishText("");
+    setSplitType("items");
+    setPartCount(2);
     setShowSplitModal(true);
     setShowBillOptions(false);
   };
@@ -1618,229 +1622,300 @@ export default function SummaryScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={{ flex: 1 }}>
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
+            {/* Mode Toggle Bar for Split Method */}
+            <View style={styles.modeToggleBar}>
+              <TouchableOpacity
+                style={[
+                  styles.modeToggleBtn,
+                  splitType === "items" && styles.activeModeToggleBtn,
+                ]}
+                onPress={() => setSplitType("items")}
               >
-                <Text style={[styles.sectionLabel, { marginBottom: 10 }]}>
-                  Select Items from Cart
+                <Text
+                  style={[
+                    styles.modeToggleText,
+                    splitType === "items" && styles.activeModeToggleText,
+                  ]}
+                >
+                  Split by Items
                 </Text>
-                {cart
-                  .filter((i: any) => i.status !== "VOIDED")
-                  .map((item: any) => (
-                    <View key={item.lineItemId} style={styles.splitItemRow}>
-                      <View style={styles.splitItemInfo}>
-                        <Text style={styles.splitItemName}>{item.name}</Text>
-                        <Text
-                          style={[
-                            styles.splitItemPrice,
-                            { color: Theme.primary, fontFamily: Fonts.bold },
-                          ]}
-                        >
-                          {currencySymbol}
-                          {item.price?.toFixed(2)}
-                        </Text>
-                      </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modeToggleBtn,
+                  splitType === "parts" && styles.activeModeToggleBtn,
+                ]}
+                onPress={() => setSplitType("parts")}
+              >
+                <Text
+                  style={[
+                    styles.modeToggleText,
+                    splitType === "parts" && styles.activeModeToggleText,
+                  ]}
+                >
+                  Split by Parts
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-                      <View style={styles.splitQtyControls}>
-                        <TouchableOpacity
-                          style={styles.splitQtyBtn}
-                          onPress={() => {
-                            const current =
-                              splitQuantities[item.lineItemId] || 0;
-                            if (current > 0) {
-                              setSplitQuantities((prev) => ({
-                                ...prev,
-                                [item.lineItemId]: current - 1,
-                              }));
-                            }
-                          }}
-                        >
-                          <Ionicons
-                            name="remove"
-                            size={16}
-                            color={Theme.primary}
-                          />
-                        </TouchableOpacity>
-
-                        <Text style={styles.splitQtyText}>
-                          {splitQuantities[item.lineItemId] || 0}
-                        </Text>
-
-                        <TouchableOpacity
-                          style={styles.splitQtyBtn}
-                          onPress={() => {
-                            const current =
-                              splitQuantities[item.lineItemId] || 0;
-                            if (current < item.qty) {
-                              setSplitQuantities((prev) => ({
-                                ...prev,
-                                [item.lineItemId]: current + 1,
-                              }));
-                            }
-                          }}
-                        >
-                          <Ionicons
-                            name="add"
-                            size={16}
-                            color={Theme.primary}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
-
-                {extraSplitItems.length > 0 && (
-                  <>
-                    <Text
-                      style={[
-                        styles.sectionLabel,
-                        { marginTop: 20, marginBottom: 10 },
-                      ]}
-                    >
-                      Extra Items Added
-                    </Text>
-                    {extraSplitItems.map((item, idx) => (
-                      <View
-                        key={`extra-${idx}`}
-                        style={[
-                          styles.splitItemRow,
-                          { borderColor: Theme.success },
-                        ]}
-                      >
+            {splitType === "items" ? (
+              <View style={{ flexShrink: 1 }}>
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <Text style={[styles.sectionLabel, { marginBottom: 10 }]}>
+                    Select Items from Cart
+                  </Text>
+                  {cart
+                    .filter((i: any) => i.status !== "VOIDED")
+                    .map((item: any) => (
+                      <View key={item.lineItemId} style={styles.splitItemRow}>
                         <View style={styles.splitItemInfo}>
                           <Text style={styles.splitItemName}>{item.name}</Text>
                           <Text
                             style={[
                               styles.splitItemPrice,
-                              { color: Theme.success, fontFamily: Fonts.bold },
+                              { color: Theme.primary, fontFamily: Fonts.bold },
                             ]}
                           >
                             {currencySymbol}
                             {item.price?.toFixed(2)}
                           </Text>
                         </View>
+
                         <View style={styles.splitQtyControls}>
                           <TouchableOpacity
                             style={styles.splitQtyBtn}
                             onPress={() => {
-                              const newExtras = [...extraSplitItems];
-                              if (newExtras[idx].qty > 1) {
-                                newExtras[idx].qty -= 1;
-                                setExtraSplitItems(newExtras);
-                              } else {
-                                newExtras.splice(idx, 1);
-                                setExtraSplitItems(newExtras);
+                              const current =
+                                splitQuantities[item.lineItemId] || 0;
+                              if (current > 0) {
+                                setSplitQuantities((prev) => ({
+                                  ...prev,
+                                  [item.lineItemId]: current - 1,
+                                }));
                               }
                             }}
                           >
                             <Ionicons
                               name="remove"
                               size={16}
-                              color={Theme.danger}
+                              color={Theme.primary}
                             />
                           </TouchableOpacity>
-                          <Text style={styles.splitQtyText}>{item.qty}</Text>
+
+                          <Text style={styles.splitQtyText}>
+                            {splitQuantities[item.lineItemId] || 0}
+                          </Text>
+
                           <TouchableOpacity
                             style={styles.splitQtyBtn}
                             onPress={() => {
-                              const newExtras = [...extraSplitItems];
-                              newExtras[idx].qty += 1;
-                              setExtraSplitItems(newExtras);
+                              const current =
+                                splitQuantities[item.lineItemId] || 0;
+                              if (current < item.qty) {
+                                setSplitQuantities((prev) => ({
+                                  ...prev,
+                                  [item.lineItemId]: current + 1,
+                                }));
+                              }
                             }}
                           >
                             <Ionicons
                               name="add"
                               size={16}
-                              color={Theme.success}
+                              color={Theme.primary}
                             />
                           </TouchableOpacity>
                         </View>
                       </View>
                     ))}
-                  </>
-                )}
 
-                <View
-                  style={{
-                    marginTop: 20,
-                    paddingTop: 20,
-                    borderTopWidth: 1,
-                    borderTopColor: Theme.border,
-                  }}
-                >
-                  <Text style={styles.sectionLabel}>Add Extra Items</Text>
-                  <View style={[styles.searchWrap, { marginTop: 10 }]}>
-                    <Ionicons name="search" size={20} color={Theme.textMuted} />
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder="Search dish to add..."
-                      value={searchDishText}
-                      onChangeText={setSearchDishText}
-                    />
+                  {extraSplitItems.length > 0 && (
+                    <>
+                      <Text
+                        style={[
+                          styles.sectionLabel,
+                          { marginTop: 20, marginBottom: 10 },
+                        ]}
+                      >
+                        Extra Items Added
+                      </Text>
+                      {extraSplitItems.map((item, idx) => (
+                        <View
+                          key={`extra-${idx}`}
+                          style={[
+                            styles.splitItemRow,
+                            { borderColor: Theme.success },
+                          ]}
+                        >
+                          <View style={styles.splitItemInfo}>
+                            <Text style={styles.splitItemName}>{item.name}</Text>
+                            <Text
+                              style={[
+                                styles.splitItemPrice,
+                                { color: Theme.success, fontFamily: Fonts.bold },
+                              ]}
+                            >
+                              {currencySymbol}
+                              {item.price?.toFixed(2)}
+                            </Text>
+                          </View>
+                          <View style={styles.splitQtyControls}>
+                            <TouchableOpacity
+                              style={styles.splitQtyBtn}
+                              onPress={() => {
+                                const newExtras = [...extraSplitItems];
+                                if (newExtras[idx].qty > 1) {
+                                  newExtras[idx].qty -= 1;
+                                  setExtraSplitItems(newExtras);
+                                } else {
+                                  newExtras.splice(idx, 1);
+                                  setExtraSplitItems(newExtras);
+                                }
+                              }}
+                            >
+                              <Ionicons
+                                name="remove"
+                                size={16}
+                                color={Theme.danger}
+                              />
+                            </TouchableOpacity>
+                            <Text style={styles.splitQtyText}>{item.qty}</Text>
+                            <TouchableOpacity
+                              style={styles.splitQtyBtn}
+                              onPress={() => {
+                                const newExtras = [...extraSplitItems];
+                                newExtras[idx].qty += 1;
+                                setExtraSplitItems(newExtras);
+                              }}
+                            >
+                              <Ionicons
+                                name="add"
+                                size={16}
+                                color={Theme.success}
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))}
+                    </>
+                  )}
+
+                  <View
+                    style={{
+                      marginTop: 20,
+                      paddingTop: 20,
+                      borderTopWidth: 1,
+                      borderTopColor: Theme.border,
+                    }}
+                  >
+                    <Text style={styles.sectionLabel}>Add Extra Items</Text>
+                    <View style={[styles.searchWrap, { marginTop: 10 }]}>
+                      <Ionicons name="search" size={20} color={Theme.textMuted} />
+                      <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search dish to add..."
+                        value={searchDishText}
+                        onChangeText={setSearchDishText}
+                      />
+                      {searchDishText.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearchDishText("")}>
+                          <Ionicons
+                            name="close-circle"
+                            size={20}
+                            color={Theme.textMuted}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
                     {searchDishText.length > 0 && (
-                      <TouchableOpacity onPress={() => setSearchDishText("")}>
-                        <Ionicons
-                          name="close-circle"
-                          size={20}
-                          color={Theme.textMuted}
-                        />
-                      </TouchableOpacity>
+                      <View style={styles.searchResults}>
+                        {allDishes
+                          .filter((d) =>
+                            (d.Name || d.DishName || "")
+                              .toLowerCase()
+                              .includes(searchDishText.toLowerCase()),
+                          )
+                          .slice(0, 5)
+                          .map((dish) => (
+                            <TouchableOpacity
+                              key={dish.DishId}
+                              style={styles.searchResultItem}
+                              onPress={() => {
+                                const existingIdx = extraSplitItems.findIndex(
+                                  (i) => i.id === dish.DishId,
+                                );
+                                if (existingIdx > -1) {
+                                  const newExtras = [...extraSplitItems];
+                                  newExtras[existingIdx].qty += 1;
+                                  setExtraSplitItems(newExtras);
+                                } else {
+                                  setExtraSplitItems([
+                                    ...extraSplitItems,
+                                    {
+                                      lineItemId: `extra-${Date.now()}`,
+                                      id: dish.DishId,
+                                      name: dish.Name || dish.DishName,
+                                      price: dish.Price || 0,
+                                      qty: 1,
+                                    },
+                                  ]);
+                                }
+                                setSearchDishText("");
+                                Keyboard.dismiss();
+                              }}
+                            >
+                              <Text style={styles.searchResultName}>
+                                {dish.Name || dish.DishName}
+                              </Text>
+                              <Text style={styles.searchResultPrice}>
+                                {currencySymbol}
+                                {dish.Price?.toFixed(2)}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                      </View>
                     )}
                   </View>
-
-                  {searchDishText.length > 0 && (
-                    <View style={styles.searchResults}>
-                      {allDishes
-                        .filter((d) =>
-                          (d.Name || d.DishName || "")
-                            .toLowerCase()
-                            .includes(searchDishText.toLowerCase()),
-                        )
-                        .slice(0, 5)
-                        .map((dish) => (
-                          <TouchableOpacity
-                            key={dish.DishId}
-                            style={styles.searchResultItem}
-                            onPress={() => {
-                              const existingIdx = extraSplitItems.findIndex(
-                                (i) => i.id === dish.DishId,
-                              );
-                              if (existingIdx > -1) {
-                                const newExtras = [...extraSplitItems];
-                                newExtras[existingIdx].qty += 1;
-                                setExtraSplitItems(newExtras);
-                              } else {
-                                setExtraSplitItems([
-                                  ...extraSplitItems,
-                                  {
-                                    lineItemId: `extra-${Date.now()}`,
-                                    id: dish.DishId,
-                                    name: dish.Name || dish.DishName,
-                                    price: dish.Price || 0,
-                                    qty: 1,
-                                  },
-                                ]);
-                              }
-                              setSearchDishText("");
-                              Keyboard.dismiss();
-                            }}
-                          >
-                            <Text style={styles.searchResultName}>
-                              {dish.Name || dish.DishName}
-                            </Text>
-                            <Text style={styles.searchResultPrice}>
-                              {currencySymbol}
-                              {dish.Price?.toFixed(2)}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                    </View>
-                  )}
+                </ScrollView>
+              </View>
+            ) : (
+              <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                <Text style={[styles.sectionLabel, { marginBottom: 15 }]}>
+                  Select Number of Parts
+                </Text>
+                <View style={{ flexDirection: "row", gap: 10, justifyContent: "center", width: "100%", flexWrap: "wrap" }}>
+                  {[2, 3, 4, 5].map((num) => (
+                    <TouchableOpacity
+                      key={num}
+                      style={[
+                        styles.chip,
+                        { paddingHorizontal: 20, paddingVertical: 12 },
+                        partCount === num && styles.activeChip,
+                      ]}
+                      onPress={() => setPartCount(num)}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          partCount === num && styles.activeChipText,
+                          { fontSize: 16 },
+                        ]}
+                      >
+                        {num} Parts
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              </ScrollView>
-            </View>
+                <Text style={{ marginTop: 24, color: Theme.textSecondary, fontFamily: Fonts.bold, fontSize: 14, textAlign: "center", lineHeight: 22 }}>
+                  Total Bill: {currencySymbol}{grandTotal.toFixed(2)}{"\n"}
+                  Each Part: <Text style={{ color: Theme.primary, fontFamily: Fonts.black }}>{currencySymbol}{(grandTotal / partCount).toFixed(2)}</Text>
+                </Text>
+              </View>
+            )}
 
             <View style={styles.splitFooter}>
               <View style={styles.splitTotalRow}>
@@ -1850,31 +1925,35 @@ export default function SummaryScreen() {
                 </View>
                 <Text style={styles.splitTotalValue}>
                   {currencySymbol}
-                  {(
-                    Object.entries(splitQuantities).reduce(
-                      (sum, [lineItemId, qty]: [string, any]) => {
-                        const item = cart.find(
-                          (i: any) => i.lineItemId === lineItemId,
-                        );
-                        return sum + (item?.price || 0) * qty;
-                      },
-                      0,
-                    ) +
-                    extraSplitItems.reduce(
-                      (sum, item) => sum + (item.price || 0) * item.qty,
-                      0,
-                    )
-                  ).toFixed(2)}
+                  {splitType === "items"
+                    ? (
+                        Object.entries(splitQuantities).reduce(
+                          (sum, [lineItemId, qty]: [string, any]) => {
+                            const item = cart.find(
+                              (i: any) => i.lineItemId === lineItemId,
+                            );
+                            return sum + (item?.price || 0) * qty;
+                          },
+                          0,
+                        ) +
+                        extraSplitItems.reduce(
+                          (sum, item) => sum + (item.price || 0) * item.qty,
+                          0,
+                        )
+                      ).toFixed(2)
+                    : (grandTotal / partCount).toFixed(2)}
                 </Text>
               </View>
 
               <TouchableOpacity
                 style={[
                   styles.proceedBtn,
-                  Object.values(splitQuantities).every((q) => q === 0) &&
+                  splitType === "items" &&
+                    Object.values(splitQuantities).every((q) => q === 0) &&
                     extraSplitItems.length === 0 && { opacity: 0.5 },
                 ]}
                 disabled={
+                  splitType === "items" &&
                   Object.values(splitQuantities).every((q) => q === 0) &&
                   extraSplitItems.length === 0
                 }
@@ -1897,15 +1976,20 @@ export default function SummaryScreen() {
                     }
                     return;
                   }
-                  const selectedItems = [
-                    ...cart
-                      .map((item: any) => ({
+                  const selectedItems = splitType === "items"
+                    ? [
+                        ...cart
+                          .map((item: any) => ({
+                            ...item,
+                            qty: splitQuantities[item.lineItemId] || 0,
+                          }))
+                          .filter((i: any) => i.qty > 0),
+                        ...extraSplitItems,
+                      ]
+                    : cart.map((item: any) => ({
                         ...item,
-                        qty: splitQuantities[item.lineItemId] || 0,
-                      }))
-                      .filter((i: any) => i.qty > 0),
-                    ...extraSplitItems,
-                  ];
+                        qty: item.qty / partCount,
+                      }));
 
                   setShowSplitModal(false);
                   router.push({
@@ -1942,7 +2026,11 @@ export default function SummaryScreen() {
             <FlatList
               style={{ flexShrink: 1, marginBottom: 15 }}
               data={activeOrders.filter(
-                (o: any) => o.context?.orderType === "DINE_IN" && o.context?.tableId && o.orderId !== (displayOrderId || activeOrder?.orderId)
+                (o: any) => 
+                  o.context?.orderType === "DINE_IN" && 
+                  o.context?.tableId && 
+                  String(o.context.tableId).replace(/^\{|\}$/g, "").trim().toLowerCase() !== 
+                  String(context?.tableId || "").replace(/^\{|\}$/g, "").trim().toLowerCase()
               )}
               keyExtractor={(item) => item.orderId}
               renderItem={({ item }) => {
@@ -2893,4 +2981,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#fff",
   },
+  modeToggleBar: {
+    flexDirection: "row",
+    backgroundColor: Theme.bgNav,
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Theme.border,
+  },
+  modeToggleBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  activeModeToggleBtn: {
+    backgroundColor: Theme.bgCard,
+    ...Theme.shadowSm,
+  },
+  modeToggleText: {
+    fontSize: 10,
+    fontFamily: Fonts.black,
+    color: Theme.textMuted,
+  },
+  activeModeToggleText: {
+    color: Theme.primary,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: Theme.bgMuted,
+    borderWidth: 1,
+    borderColor: Theme.border,
+  },
+  activeChip: { backgroundColor: Theme.primary, borderColor: Theme.primary },
+  chipText: {
+    color: Theme.textSecondary,
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+  },
+  activeChipText: { color: "#fff" },
 });

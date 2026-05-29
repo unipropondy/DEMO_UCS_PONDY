@@ -92,6 +92,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="menu" />
           <Stack.Screen name="sales-report" />
+          <Stack.Screen name="ai-chat" />
           <Stack.Screen name="day-end" />
           <Stack.Screen name="company-settings" />
           <Stack.Screen name="waiters" />

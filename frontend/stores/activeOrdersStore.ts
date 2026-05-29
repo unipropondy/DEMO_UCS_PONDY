@@ -354,7 +354,6 @@ const storeCreator: StateCreator<
       
       set({ isFetching: true });
       try {
-        const { API_URL } = require("../constants/Config");
         const res = await fetch(`${API_URL}/api/orders/active-kitchen`);
         if (!res.ok) throw new Error("Failed to fetch active kitchen orders");
         const result = await res.json();

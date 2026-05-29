@@ -1308,6 +1308,28 @@ export default function Category() {
                 </TouchableOpacity>
               )}
 
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setIsMenuVisible(false);
+                  router.push("/ai-chat");
+                }}
+              >
+                <View
+                  style={[
+                    styles.menuIconContainer,
+                    { backgroundColor: Theme.success + "10" },
+                  ]}
+                >
+                  <Ionicons
+                    name="chatbubble-ellipses-outline"
+                    size={18}
+                    color={Theme.success}
+                  />
+                </View>
+                <Text style={styles.menuItemText}>AI BI Assistant</Text>
+              </TouchableOpacity>
+
               {canAccessDayEnd() && (
                 <TouchableOpacity
                   style={styles.menuItem}
@@ -1654,12 +1676,38 @@ export default function Category() {
         visible={isGeneralSettingsVisible}
         onClose={() => setIsGeneralSettingsVisible(false)}
       />
+
+      {/* Floating AI Chat Assistant Button */}
+      <TouchableOpacity
+        style={styles.floatingAiBtn}
+        onPress={() => router.push("/ai-chat")}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="sparkles" size={24} color="#fff" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Theme.bgMain },
+  floatingAiBtn: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Theme.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    zIndex: 9999,
+  },
 
   /* â”€â”€ Loading â”€â”€ */
   loadingContainer: {
