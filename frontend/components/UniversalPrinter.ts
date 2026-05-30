@@ -39,6 +39,8 @@ interface DiscountInfo {
 class UniversalPrinter {
   private static detectedPrinters: PrinterInfo[] = [];
   private static defaultPrinter: PrinterInfo | null = null;
+  private static cachedPrinters: any = null;
+  private static lastPrintersFetchTime: number = 0;
 
   static async detectAllPrinters(): Promise<PrinterInfo[]> {
     const printers: PrinterInfo[] = [];
@@ -343,7 +345,7 @@ class UniversalPrinter {
                 mmFeedPaper: 60,
               });
               const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("WiFi Timeout")), 3000),
+                setTimeout(() => reject(new Error("WiFi Timeout")), 1500),
               );
               await Promise.race([printPromise, timeoutPromise]);
             } else {
@@ -744,14 +746,20 @@ class UniversalPrinter {
       try {
         const company = await BillPDFGenerator.loadSettings(outletId);
 
-        // Load printer IPs dynamically from PrintMaster
+        // Load printer IPs dynamically from PrintMaster with caching
         let cashierIp = "";
         let takeawayIp = "";
         try {
-          const response = await fetch(
-            `${API_URL}/api/settings/kitchen-printers`,
-          );
-          const printers = await response.json();
+          const now = Date.now();
+          let printers = this.cachedPrinters;
+          if (!printers || (now - this.lastPrintersFetchTime > 30000)) {
+            const response = await fetch(
+              `${API_URL}/api/settings/kitchen-printers`,
+            );
+            printers = await response.json();
+            this.cachedPrinters = printers;
+            this.lastPrintersFetchTime = now;
+          }
           if (Array.isArray(printers)) {
             const cashierPrinter = printers.find((p) => p.PrinterType === 1);
             const takeawayPrinter = printers.find((p) => p.PrinterType === 3);
@@ -794,7 +802,7 @@ class UniversalPrinter {
             );
 
             const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("WiFi Timeout")), 3000),
+              setTimeout(() => reject(new Error("WiFi Timeout")), 1500),
             );
             const printed = await Promise.race([printPromise, timeoutPromise]);
 

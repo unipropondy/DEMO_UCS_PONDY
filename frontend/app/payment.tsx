@@ -1098,7 +1098,7 @@ export default function PaymentScreen() {
                 </View>
 
                 {/* Members List */}
-                <View style={{ flex: 1, minHeight: 200, maxHeight: 300, marginVertical: 12 }}>
+                <View style={{ maxHeight: 220, marginVertical: 8 }}>
                   <FlatList
                     data={members}
                     keyExtractor={(item) => item.MemberId}
@@ -1434,6 +1434,7 @@ const styles = StyleSheet.create({
   memberModalContent: {
     width: '90%',
     maxWidth: 550,
+    maxHeight: '85%',
     backgroundColor: '#fff',
     borderRadius: 20,
     padding: 20,
