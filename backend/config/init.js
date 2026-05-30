@@ -239,6 +239,39 @@ async function initDB(pool) {
       END
     `);
 
+    // 13. Create AIChatSessions and AIChatMessages tables
+    await runQuery("Create AIChatSessions", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AIChatSessions]') AND type in (N'U'))
+      BEGIN
+        CREATE TABLE [dbo].[AIChatSessions] (
+          [SessionID] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
+          [OrgID] INT NULL,
+          [StoreID] INT NULL,
+          [UserID] INT NULL,
+          [Title] NVARCHAR(255) NULL,
+          [CreatedAt] DATETIME NOT NULL DEFAULT GETDATE(),
+          [LastActivityAt] DATETIME NOT NULL DEFAULT GETDATE()
+        )
+      END
+    `);
+
+    await runQuery("Create AIChatMessages", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AIChatMessages]') AND type in (N'U'))
+      BEGIN
+        CREATE TABLE [dbo].[AIChatMessages] (
+          [MessageID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          [SessionID] UNIQUEIDENTIFIER NOT NULL,
+          [Sender] NVARCHAR(50) NOT NULL,
+          [ContentText] NVARCHAR(MAX) NULL,
+          [StructuredPayload] NVARCHAR(MAX) NULL,
+          [SQLExecuted] NVARCHAR(MAX) NULL,
+          [ResponseTimeMs] INT NULL,
+          [Timestamp] DATETIME NOT NULL DEFAULT GETDATE(),
+          CONSTRAINT [FK_AIChatMessages_AIChatSessions] FOREIGN KEY ([SessionID]) REFERENCES [dbo].[AIChatSessions] ([SessionID]) ON DELETE CASCADE
+        )
+      END
+    `);
+
     console.log("✅ Database schema and performance indexes are up to date.");
   } catch (err) {
     console.error("❌ initDB CRITICAL ERROR:", err.message);

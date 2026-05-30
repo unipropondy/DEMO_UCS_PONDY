@@ -9,11 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   Modal,
   useWindowDimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Theme } from "@/constants/theme";
@@ -65,9 +65,9 @@ export default function AIChatScreen() {
   const isTabletOrDesktop = width > 768;
 
   const getAiEndpoint = () => {
-    if (API_URL.includes("localhost") || API_URL.includes("127.0.0.1") || API_URL.includes("192.168.")) {
-      const cleanUrl = API_URL.replace(/:\d+$/, "");
-      return `${cleanUrl}:5001/api/ai/chat`;
+    // If API_URL is a hosted/production URL, always point directly to backend's integrated AI route
+    if (!API_URL.includes("localhost") && !API_URL.includes("127.0.0.1") && !API_URL.includes("192.168.")) {
+      return `${API_URL}/api/ai/chat`;
     }
 
     try {
@@ -76,15 +76,15 @@ export default function AIChatScreen() {
       if (hostUri) {
         const hostIp = hostUri.split(":")[0];
         if (hostIp && hostIp !== "localhost" && hostIp !== "127.0.0.1") {
-          console.log(`📱 Dynamic AI service host IP resolved: ${hostIp}`);
-          return `http://${hostIp}:5001/api/ai/chat`;
+          console.log(`📱 Dynamic AI service host IP resolved (dev): ${hostIp}`);
+          return `http://${hostIp}:3000/api/ai/chat`;
         }
       }
     } catch (e) {
       console.warn("Could not resolve host URI via expo-constants:", e);
     }
 
-    return "http://localhost:5001/api/ai/chat";
+    return `${API_URL}/api/ai/chat`;
   };
 
   useEffect(() => {
@@ -149,7 +149,7 @@ export default function AIChatScreen() {
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         sender: "ASSISTANT",
-        text: "⚠️ Connection to AI BI Assistant service failed. Make sure the microservice on port 5001 is running.",
+        text: "⚠️ Connection to AI BI Assistant service failed. Make sure the backend service is running.",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMsg]);

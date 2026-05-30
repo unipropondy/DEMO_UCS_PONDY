@@ -1347,6 +1347,9 @@ export default function SalesReport() {
     <>
       {/* Dashboard Header moved here for better scroll integration */}
       <View style={styles.dashboardHeader}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/category" as any)} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={Theme.textPrimary} />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.dashboardYear}>{new Date().getFullYear()}</Text>
           <Text style={styles.dashboardTitle}>SALES ANALYTICS 📊</Text>
@@ -1355,9 +1358,6 @@ export default function SalesReport() {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/category" as any)} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color={Theme.textPrimary} />
-          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setShowDownloadPanel(true)}
             style={styles.filterMenuBtn}
@@ -1803,7 +1803,15 @@ export default function SalesReport() {
           <Text style={styles.cardTitle}>PAYMENT BREAKDOWN</Text>
           <Ionicons name="wallet-outline" size={14} color={Theme.primary} />
         </View>
-        <View style={styles.breakdownRow}>
+        <View style={[
+          styles.breakdownRow, 
+          { 
+            flexWrap: "wrap", 
+            justifyContent: SCREEN_W > 768 ? "space-between" : "flex-start", 
+            width: "100%",
+            gap: 10 
+          }
+        ]}>
           {[
             {
               label: "CASH",
@@ -1841,15 +1849,24 @@ export default function SalesReport() {
               icon: "👤",
               color: "#ec4899",
             },
-          ].map((item, idx) => (
-            <View key={idx} style={styles.breakdownItem}>
-              <Text style={styles.breakdownIcon}>{item.icon}</Text>
-              <Text style={styles.breakdownLabel}>{item.label}</Text>
-              <Text style={[styles.breakdownValue, { color: item.color }]}>
-                {formatCurrency(item.val)}
-              </Text>
-            </View>
-          ))}
+          ].map((item, idx) => {
+            const layoutStyle = SCREEN_W > 768 
+              ? { flex: 1, minWidth: 0 } 
+              : { width: (SCREEN_W - 88) / 3 - 8 }; // Perfectly calculated column width for 3x2 mobile grid
+            return (
+              <View key={idx} style={[styles.breakdownItem, layoutStyle]}>
+                <Text style={styles.breakdownIcon}>{item.icon}</Text>
+                <Text style={styles.breakdownLabel}>{item.label}</Text>
+                <Text 
+                  style={[styles.breakdownValue, { color: item.color }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {formatCurrency(item.val)}
+                </Text>
+              </View>
+            );
+          })}
         </View>
       </View>
 
@@ -2864,7 +2881,7 @@ const styles = StyleSheet.create({
   dashboardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     paddingVertical: 12,
     gap: 12,
   },
@@ -3314,10 +3331,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   breakdownItem: {
-    flex: 1,
+    minWidth: 95,
     alignItems: "center",
     gap: 6,
     paddingVertical: 14,
+    paddingHorizontal: 8,
     borderRadius: 12,
     backgroundColor: Theme.bgMuted,
     borderWidth: 1,

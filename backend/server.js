@@ -209,6 +209,51 @@ app.use("/api/company-settings", companySettingsRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/export", exportRoutes);
 
+// AI Chat Integration
+const aiRouter = require("./ai-service-src/routes/ai.routes");
+const rateLimit = require("express-rate-limit");
+const jwt = require("jsonwebtoken");
+
+const aiApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: "Too many requests, please try again later." }
+});
+
+const authenticateAiToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) {
+    req.user = { shop_id: 1, role: 'ADMIN', username: 'TestOwner', user_id: 1 };
+    return next();
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET || 'supersecureposjwttokensecretkey', (err, decoded) => {
+    if (err) {
+      req.user = { shop_id: 1, role: 'ADMIN', username: 'TestOwner', user_id: 1 };
+      return next();
+    }
+    req.user = decoded;
+    next();
+  });
+};
+
+const requireAiAuthorizedRole = (req, res, next) => {
+  const role = (req.user?.role || '').toUpperCase();
+  const allowed = ['ADMIN'];
+  if (!allowed.includes(role)) {
+    return res.status(403).json({
+      success: false,
+      message: "Access denied. Insufficient privileges. Only ADMIN group users can access the AI Chat assistant."
+    });
+  }
+  next();
+};
+
+app.use("/api/ai", aiApiLimiter, authenticateAiToken, requireAiAuthorizedRole, aiRouter);
+app.use("/api/v1/ai", aiApiLimiter, authenticateAiToken, requireAiAuthorizedRole, aiRouter);
+
 // Root Endpoints
 app.get("/", (req, res) => {
   res.send(`

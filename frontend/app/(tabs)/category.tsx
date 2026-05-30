@@ -1658,13 +1658,15 @@ export default function Category() {
       />
 
       {/* Floating AI Chat Assistant Button */}
-      <TouchableOpacity
-        style={styles.floatingAiBtn}
-        onPress={() => router.push("/ai-chat")}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="sparkles" size={24} color="#fff" />
-      </TouchableOpacity>
+      {user?.role === "ADMIN" && (
+        <TouchableOpacity
+          style={styles.floatingAiBtn}
+          onPress={() => router.push("/ai-chat")}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="sparkles" size={24} color="#fff" />
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 }
