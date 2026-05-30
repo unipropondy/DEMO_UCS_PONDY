@@ -122,6 +122,7 @@ export default function SummaryScreen() {
   useEffect(() => {
     // Only show loading briefly — don't block forever
     const t = setTimeout(() => setOrderLoadTimeout(false), 2000);
+    useCartStore.getState().setActiveSplitItems(null);
     return () => clearTimeout(t);
   }, []);
 
@@ -1991,11 +1992,9 @@ export default function SummaryScreen() {
                         qty: item.qty / partCount,
                       }));
 
+                  useCartStore.getState().setActiveSplitItems(selectedItems);
                   setShowSplitModal(false);
-                  router.push({
-                    pathname: "/payment",
-                    params: { splitItems: JSON.stringify(selectedItems) },
-                  });
+                  router.push("/payment");
                 }}
               >
                 <Ionicons name="card-outline" size={22} color="#fff" />

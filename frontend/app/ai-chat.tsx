@@ -274,7 +274,11 @@ export default function AIChatScreen() {
     const data = Array.isArray(item.structuredData) ? item.structuredData[0] : item.structuredData;
     if (!data || typeof data !== 'object') return null;
 
-    const isSales = data.TotalRevenue !== undefined || data.TotalOrders !== undefined;
+    const isSales = (data.TotalRevenue !== undefined || data.TotalOrders !== undefined) &&
+                    data.item_name === undefined &&
+                    data.staff_name === undefined &&
+                    data.mode === undefined;
+
     const isDiscount = data.DiscountedBills !== undefined || data.TotalDiscountGiven !== undefined;
 
     if (isSales) {

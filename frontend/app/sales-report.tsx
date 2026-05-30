@@ -160,6 +160,7 @@ export default function SalesReport() {
     "CARD",
     "NETS",
     "PAYNOW",
+    "UPI",
     "VOID",
     "MEMBER",
   ]);
@@ -801,7 +802,11 @@ export default function SalesReport() {
 
   const baseFilteredSales = useMemo(() => {
     return dateScopedSales.filter((s) => {
-      const modeMatch = activePaymentModes.includes(s.PayMode?.trim()) || (showCancelledOrders && s.IsCancelled);
+      const modeUpper = s.PayMode?.toUpperCase().trim() || "";
+      const isUpiMode = modeUpper.includes("UPI") || modeUpper.includes("GPAY");
+      const modeMatch = activePaymentModes.includes(s.PayMode?.trim()) || 
+                       (activePaymentModes.includes("UPI") && isUpiMode) ||
+                       (showCancelledOrders && s.IsCancelled);
       const typeMatch =
         activeOrderTypes.length === 2 ||
         (s.OrderType
@@ -846,11 +851,13 @@ export default function SalesReport() {
         acc.TotalVoids += s.VoidQty || 0;
         acc.TotalVoidAmount += s.VoidAmount || 0;
 
-        const mode = s.PayMode?.trim();
+        const mode = s.PayMode?.trim().toUpperCase() || "";
+        const isUpi = mode.includes("UPI") || mode.includes("GPAY");
         if (mode === "CASH") acc.Cash += s.SysAmount;
         else if (mode === "CARD") acc.Card += s.SysAmount;
         else if (mode === "NETS") acc.Nets += s.SysAmount;
         else if (mode === "PAYNOW") acc.PayNow += s.SysAmount;
+        else if (isUpi) acc.Upi += s.SysAmount;
         else if (mode === "MEMBER") acc.Member += s.SysAmount;
 
         return acc;
@@ -863,6 +870,7 @@ export default function SalesReport() {
         Card: 0,
         Nets: 0,
         PayNow: 0,
+        Upi: 0,
         Member: 0,
         TotalVoids: 0,
         TotalVoidAmount: 0,
@@ -879,12 +887,13 @@ export default function SalesReport() {
 
   const paymentMix = useMemo(() => {
     if (!filteredMetrics.TotalSales)
-      return { cash: 0, card: 0, nets: 0, paynow: 0, member: 0 };
+      return { cash: 0, card: 0, nets: 0, paynow: 0, upi: 0, member: 0 };
     return {
       cash: (filteredMetrics.Cash / filteredMetrics.TotalSales) * 100,
       card: (filteredMetrics.Card / filteredMetrics.TotalSales) * 100,
       nets: (filteredMetrics.Nets / filteredMetrics.TotalSales) * 100,
       paynow: (filteredMetrics.PayNow / filteredMetrics.TotalSales) * 100,
+      upi: (filteredMetrics.Upi / filteredMetrics.TotalSales) * 100,
       member: (filteredMetrics.Member / filteredMetrics.TotalSales) * 100,
     };
   }, [filteredMetrics]);
@@ -899,6 +908,8 @@ export default function SalesReport() {
       rows.push({ key: "NETS", pct: paymentMix.nets, color: "#3b82f6" });
     if (filteredMetrics.PayNow > 0)
       rows.push({ key: "DIGITAL", pct: paymentMix.paynow, color: "#f59e0b" });
+    if (filteredMetrics.Upi > 0)
+      rows.push({ key: "UPI", pct: paymentMix.upi, color: "#a855f7" });
     if (filteredMetrics.Member > 0)
       rows.push({ key: "MEMBER", pct: paymentMix.member, color: "#ec4899" });
     return rows.sort((a, b) => b.pct - a.pct);
@@ -1819,6 +1830,12 @@ export default function SalesReport() {
               color: "#f59e0b",
             },
             {
+              label: "UPI",
+              val: filteredMetrics.Upi,
+              icon: "⚡",
+              color: "#a855f7",
+            },
+            {
               label: "MEMBER",
               val: filteredMetrics.Member,
               icon: "👤",
@@ -2323,7 +2340,7 @@ export default function SalesReport() {
                   <View style={styles.sidebarSection}>
                     <Text style={styles.sectionLabel}>PAYMENT MODES</Text>
                     <View style={styles.chipRow}>
-                      {["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER"].map((m) => (
+                      {["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER"].map((m) => (
                         <TouchableOpacity
                           key={m}
                           onPress={() => togglePaymentMode(m)}
@@ -2438,7 +2455,7 @@ export default function SalesReport() {
                 <View style={styles.sidebarFooter}>
                   <TouchableOpacity
                     onPress={() => {
-                      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER"]);
+                      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER"]);
                       setActiveOrderTypes(["DINE-IN", "TAKEAWAY"]);
                       setSortOrder("NEWEST");
                       setShowCancelledOrders(true);

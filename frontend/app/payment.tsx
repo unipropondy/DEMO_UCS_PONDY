@@ -159,12 +159,7 @@ export default function PaymentScreen() {
     }
   }, [memberQuery, showMemberModal]);
 
-  const { useLocalSearchParams } = require("expo-router");
-  const localParams = useLocalSearchParams();
-  const splitItems = useMemo(() => {
-    if (!localParams.splitItems) return null;
-    try { return JSON.parse(localParams.splitItems as string); } catch { return null; }
-  }, [localParams.splitItems]);
+  const splitItems = useCartStore((s: any) => s.activeSplitItems);
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [loadingMethods, setLoadingMethods] = useState(true);
@@ -463,6 +458,7 @@ export default function PaymentScreen() {
                 }).filter(i => i.qty > 0);
                 setCartItems(currentContextId, updated);
               }
+              useCartStore.getState().setActiveSplitItems(null);
               // Do not clean table context if items remain. 
               // If empty, backend socket handles cleanup automatically.
             } else {

@@ -205,6 +205,23 @@ async function initDB(pool) {
     await runQuery("AppSettings - EnableDirectProcessToPay", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'EnableDirectProcessToPay') ALTER TABLE [dbo].[AppSettings] ADD EnableDirectProcessToPay BIT NOT NULL DEFAULT 0");
     await runQuery("AppSettings - CustomerSideDisplay", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'CustomerSideDisplay') ALTER TABLE [dbo].[AppSettings] ADD CustomerSideDisplay BIT NOT NULL DEFAULT 1");
 
+    // 11. OrderMergeHistory Setup
+    await runQuery("Create OrderMergeHistory", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OrderMergeHistory]') AND type in (N'U'))
+      BEGIN
+        CREATE TABLE [dbo].[OrderMergeHistory] (
+          [MergeId] UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+          [ParentOrderId] UNIQUEIDENTIFIER NOT NULL,
+          [ChildOrderId] UNIQUEIDENTIFIER NOT NULL,
+          [ParentTableNo] NVARCHAR(50) NULL,
+          [ChildTableNo] NVARCHAR(50) NULL,
+          [MergedAt] DATETIME NOT NULL DEFAULT GETDATE(),
+          [MergedBy] UNIQUEIDENTIFIER NULL,
+          CONSTRAINT [PK_OrderMergeHistory] PRIMARY KEY CLUSTERED ([MergeId] ASC)
+        )
+      END
+    `);
+
 
     await runQuery("Insert Default CompanySettings", `
       IF NOT EXISTS (SELECT TOP 1 1 FROM [dbo].[CompanySettings])

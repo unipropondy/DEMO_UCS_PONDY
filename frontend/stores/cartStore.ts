@@ -188,6 +188,8 @@ type CartState = {
   isClearing: Record<string, boolean>; // 🛡️ CLEAR LOCK: Block fetches during clear
   deletingItems: Set<string>; // 🛡️ DELETE LOCK: Block interactions for specific lineItemIds
   cartQtyMap: Record<string, Record<string, number>>; // 🚀 PERFORMANCE: contextId -> dishId -> totalQty
+  activeSplitItems: any[] | null;
+  setActiveSplitItems: (items: any[] | null) => void;
 
   setCurrentContext: (contextId: string | null) => void;
 
@@ -261,8 +263,10 @@ export const useCartStore = create<CartState>()(
       deletingItems: new Set(),
       cartQtyMap: {},
       _syncAbortControllers: {},
+      activeSplitItems: null,
 
       setCurrentContext: (contextId) => set({ currentContextId: contextId }),
+      setActiveSplitItems: (items) => set({ activeSplitItems: items }),
 
       getCart: () => {
         const { carts, currentContextId } = get();

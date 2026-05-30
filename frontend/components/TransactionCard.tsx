@@ -22,6 +22,11 @@ const TransactionCard = React.memo(
     const { width: SCREEN_W } = useWindowDimensions();
     const settlementDate = new Date(item.SettlementDate);
 
+    const modeUpper = String(item.PayMode || "").toUpperCase();
+    const isUpi = modeUpper.includes("UPI") || modeUpper.includes("GPAY");
+    const isPayNow = modeUpper.includes("PAYNOW");
+    const isNets = modeUpper.includes("NETS");
+
     return (
       <TouchableOpacity
         onPress={() => onPress(item)}
@@ -46,8 +51,12 @@ const TransactionCard = React.memo(
                 ? "cash-outline"
                 : item.PayMode === "MEMBER"
                 ? "person-outline"
-                : item.PayMode === "PAYNOW" || item.PayMode === "UPI"
+                : isUpi
+                ? "flash-outline"
+                : isPayNow
                 ? "qr-code-outline"
+                : isNets
+                ? "grid-outline"
                 : "card-outline"
             }
             size={16}
@@ -56,9 +65,13 @@ const TransactionCard = React.memo(
                 ? "#22c55e"
                 : item.PayMode === "MEMBER"
                 ? "#ec4899"
-                : item.PayMode === "PAYNOW" || item.PayMode === "UPI"
-                ? "#f59e0b"
-                : Theme.primary
+                : isUpi
+                ? "#a855f7"
+                : isPayNow
+                ? "#f97316"
+                : isNets
+                ? "#3b82f6"
+                : "#818cf8"
             }
           />
         </View>
