@@ -248,23 +248,23 @@ async function runConversationalChat(userQuestion, chatHistory = []) {
     lowerQ.includes('good morning') || lowerQ.includes('good moring') || lowerQ.includes('good mng') || lowerQ === 'gm' ||
     lowerQ === 'hi' || lowerQ === 'hello' || lowerQ === 'hlo' || lowerQ === 'hey' || lowerQ === 'vanakkam'
   ) {
-    return "Good morning, Macha! 😎 Hope you're having an awesome day. How can I help you with your restaurant sales or metrics today?";
+    return "Good morning! 📈 I hope you are having a productive day. How can I assist you with your restaurant metrics, sales analysis, or operations today?";
   }
 
   if (isInvalidKey) {
     if (lowerQ.includes('how are you')) {
-      return "I'm doing awesome, Macha! 😎 Thanks for asking. Ready to crunch some numbers for your restaurant! Ask me about today's sales or waiter performance.";
+      return "I am doing well, thank you! I am ready to analyze your restaurant's business performance. Feel free to ask about sales metrics, popular dishes, or staff performance.";
     }
     if (lowerQ.includes('thank you') || lowerQ.includes('thanks') || lowerQ === 'nandri') {
-      return "Welcome, Macha! 🤝 Let me know if you need any other sales or performance reports.";
+      return "You are very welcome! Please let me know if you would like to run any other analysis or review specific reports.";
     }
     if (lowerQ.includes('who are you')) {
-      return "I am Macha AI, your smart POS restaurant advisor! 🍽️ I help you analyze sales metrics, popular dishes, staff productivity, and payment methods.";
+      return "I am your AI Business Assistant, a smart operations and metrics advisor for your POS system. I help you track sales, identify top menu items, monitor staff productivity, and analyze payment statistics.";
     }
     if (lowerQ.includes('help')) {
-      return "Sure Macha! Here are the things you can ask me:\n• 'today's sales' or 'sales last week'\n• 'top selling items'\n• 'which server performs best'\n• 'payment methods breakdown'\n• 'unsold items'";
+      return "I can assist you with running various restaurant intelligence reports. Try asking:\n• 'Today's sales' or 'Sales report for this month'\n• 'Top selling menu items'\n• 'Waiter performance comparison'\n• 'Payment methods distribution'\n• 'Slow moving / unsold dishes'";
     }
-    return "Macha! 🖖 I'm currently running in local mode (no LLM key active). Ask me for reports like 'sales today', 'top selling items', or 'payment modes' to see some charts!";
+    return "Welcome! I am running in local metrics mode. You can ask for reports like 'sales today', 'top menu items', or 'payment methods' to view statistics and charts.";
   }
 
   try {
@@ -275,7 +275,7 @@ async function runConversationalChat(userQuestion, chatHistory = []) {
     messages.push({ role: 'user', content: userQuestion });
     messages.unshift({
       role: 'system',
-      content: "You are a friendly, highly intelligent POS system business advisor called 'Macha AI'. Chat warmly and interactively with the user. Keep it interesting, engaging, and professional. Respond in a friendly mix of English and matching casual tone if they use mixed language, providing helpful restaurant operations advice or general chat."
+      content: "You are a professional, polite, and highly intelligent AI Business Assistant for a restaurant POS system. Communicate as a knowledgeable business consultant. Respond professionally in English, or matching professional Tamil/Tanglish if the user asks in mixed language, helping them with business intelligence and operations advice."
     });
 
     const response = await axios.post(
