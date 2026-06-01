@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
+const { processSplitPayments } = require("../services/payment.service");
 
 router.get("/", async (req, res) => {
   try {
@@ -223,6 +224,88 @@ router.get("/usage/:memberId", async (req, res) => {
     });
   } catch (err) {
     console.error("[MEMBERS USAGE ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/pay", async (req, res) => {
+  const pool = await poolPromise;
+  const { memberId, amount, payments, userId } = req.body;
+
+  if (!memberId) {
+    return res.status(400).json({ error: "memberId is required" });
+  }
+
+  const numericAmt = parseFloat(amount);
+  if (isNaN(numericAmt) || numericAmt <= 0) {
+    return res.status(400).json({ error: "Amount must be a positive number" });
+  }
+
+  if (!payments || !Array.isArray(payments) || payments.length === 0) {
+    return res.status(400).json({ error: "payments array is required and cannot be empty" });
+  }
+
+  // Validation
+  let sum = 0;
+  for (let i = 0; i < payments.length; i++) {
+    const p = payments[i];
+    const amt = parseFloat(p.amount);
+    if (isNaN(amt) || amt <= 0) {
+      return res.status(400).json({ error: `Payment row ${i + 1} has an invalid or negative amount.` });
+    }
+    if (!p.payModeId && !p.payMode) {
+      return res.status(400).json({ error: `Payment row ${i + 1} is missing payment mode.` });
+    }
+    sum += amt;
+  }
+
+  const diff = Math.abs(sum - numericAmt);
+  if (diff > 0.01) {
+    return res.status(400).json({ error: `Sum of payments (${sum.toFixed(2)}) must equal total amount (${numericAmt.toFixed(2)})` });
+  }
+
+  const transaction = new sql.Transaction(pool);
+  await transaction.begin();
+
+  try {
+    // 1. Verify member exists and is active
+    const memberCheck = await transaction.request()
+      .input("MemberId", sql.UniqueIdentifier, memberId)
+      .query("SELECT CreditLimit, CurrentBalance, IsActive FROM MemberMaster WITH (UPDLOCK) WHERE MemberId = @MemberId");
+    
+    if (memberCheck.recordset.length === 0) {
+      throw new Error("Member not found");
+    }
+    
+    const member = memberCheck.recordset[0];
+    if (!member.IsActive) {
+      throw new Error("Member is inactive");
+    }
+
+    // 2. Generate a new MemberPaymentId
+    const payIdRes = await transaction.request().query("SELECT NEWID() as id");
+    const memberPaymentId = payIdRes.recordset[0].id;
+
+    // 3. Process split payments using unified service
+    await processSplitPayments({
+      referenceType: "MEMBER",
+      referenceId: memberPaymentId,
+      payments,
+      transaction,
+      cashierId: userId ? String(userId).trim() : null
+    });
+
+    // 4. Update member balance (subtract paid amount to clear/reduce credit balance)
+    await transaction.request()
+      .input("MemberId", sql.UniqueIdentifier, memberId)
+      .input("Amount", sql.Decimal(18, 2), numericAmt)
+      .query("UPDATE MemberMaster SET CurrentBalance = CurrentBalance - @Amount WHERE MemberId = @MemberId");
+
+    await transaction.commit();
+    res.json({ success: true, memberPaymentId });
+  } catch (err) {
+    console.error("[MEMBER PAYMENT ERROR]", err);
+    await transaction.rollback();
     res.status(500).json({ error: err.message });
   }
 });

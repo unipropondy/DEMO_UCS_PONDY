@@ -43,9 +43,10 @@ import { usePaymentSettingsStore } from "../stores/paymentSettingsStore";
 import { useAuthStore } from "../stores/authStore";
 import { useOrderContextStore } from "../stores/orderContextStore";
 import UPIPaymentModal from "../components/payment/UPIPaymentModal";
+import PayNowPaymentModal from "../components/payment/PayNowPaymentModal";
+import SplitPaymentComponent from "../components/payment/SplitPaymentComponent";
 
 const EMPTY_ARRAY: any[] = [];
-import PayNowPaymentModal from "../components/payment/PayNowPaymentModal";
 
 const formatSection = (sec: string) => {
   if (!sec) return "";
@@ -388,7 +389,7 @@ export default function PaymentScreen() {
     executeFinalPayment();
   };
 
-  const executeFinalPayment = async (m?: string) => {
+  const executeFinalPayment = async (payments?: Array<{ payModeId: number; amount: number; referenceNo?: string }>) => {
     setProcessing(true);
     const saleData = {
       orderId: displayOrderId || activeOrder?.orderId,
@@ -401,7 +402,8 @@ export default function PaymentScreen() {
       discountAmount: discountAmount + payItemDiscount,
       discountType: discount?.type || "fixed",
       totalAmount: total,
-      paymentMethod: method.trim(),
+      paymentMethod: payments && payments.length > 0 ? "SPLIT" : method.trim(),
+      payments: payments || null,
       memberId: selectedMember?.MemberId || null,
       roundOff: roundOff,
       cashierId: user?.userId,
@@ -883,72 +885,41 @@ export default function PaymentScreen() {
                       )}
                     </View>
                   )}
-
-                  <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Select Payment Method</Text></View>
-                  {loadingMethods ? (
-                    <View style={{ height: 100, alignItems: 'center', justifyContent: 'center' }}>
-                      <ActivityIndicator size="large" color={Theme.primary} />
-                      <Text style={{ marginTop: 8, fontSize: 13, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Loading methods...</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.methodsGrid}>
-                      {paymentMethods.map((m) => (
-                        <TouchableOpacity key={m.payMode} style={[styles.methodCard, method === m.payMode && styles.activeMethodCard, isMobile && { width: '30%', height: 75 }]} onPress={() => handleSelectMethod(m)}>
-                          <View style={[styles.methodIconBox, method === m.payMode && styles.activeIconBox, isMobile && { width: 30, height: 30 }]}>
-                            <FontAwesome5 name={m.icon} size={isMobile ? 16 : 20} color={method === m.payMode ? "#fff" : Theme.primary} />
-                          </View>
-                          <Text style={[styles.methodLabel, method === m.payMode && styles.activeMethodLabel, isMobile && { fontSize: 10 }]}>{m.description}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-
-                  {isCashMethod(method) && (
-                    <View style={styles.cashSection}>
-                      <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Cash Received</Text></View>
-                      <View style={styles.cashInputBox}>
-                        <Text style={styles.currencyPrefix}>{currencySymbol}</Text>
-                        <TextInput style={styles.cashInput} value={cashInput} onChangeText={setCashInput} keyboardType="numeric" placeholder="0.00" />
-                      </View>
-                      <View style={styles.quickCashContainer}>
-                        {quickCash.map((v) => {
-                          const isSelected = parseFloat(cashInput) === v;
-                          return (
-                            <TouchableOpacity 
-                              key={v} 
-                              style={[styles.quickCashBtn, isSelected && styles.activeQuickCashBtn]} 
-                              onPress={() => setCashInput(v.toString())}
-                            >
-                              <Text style={[styles.quickCashText, isSelected && styles.activeQuickCashText]}>
-                                {currencySymbol}{v}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                        {(() => {
-                          const isExact = Math.abs(parseFloat(cashInput) - total) < 0.01;
-                          return (
-                            <TouchableOpacity 
-                              style={[styles.quickCashBtn, isExact && styles.activeQuickCashBtn]} 
-                              onPress={() => setCashInput(total.toFixed(2))}
-                            >
-                              <Text style={[styles.quickCashText, isExact && styles.activeQuickCashText]}>Exact</Text>
-                            </TouchableOpacity>
-                          );
-                        })()}
-                      </View>
-                      {paidNum > 0 && (
-                        <View style={styles.changeBox}>
-                          <Text style={styles.changeLabel}>Change to Return</Text>
-                          <Text style={styles.changeValue}>{currencySymbol}{change.toFixed(2)}</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-
-                  <TouchableOpacity style={[styles.completeBtn, processing && { opacity: 0.7 }]} onPress={confirmPayment} disabled={processing}>
-                    {processing ? <ActivityIndicator color="#fff" /> : <><Ionicons name="checkmark-circle" size={24} color="#fff" /><Text style={styles.completeBtnText}>Complete Settlement</Text></>}
-                  </TouchableOpacity>
+                  <SplitPaymentComponent
+                    targetTotal={total}
+                    paymentMethods={paymentMethods.map((pm) => ({
+                      payMode: pm.payMode,
+                      description: pm.description,
+                      position: pm.position,
+                    }))}
+                    onComplete={(finalPayments) => {
+                      // Check if member payment was used
+                      const memberPayments = finalPayments.filter(p => {
+                        const pm = paymentMethods.find(x => x.position === p.payModeId);
+                        return pm && (pm.payMode.toUpperCase().trim() === "MEMBER" || pm.payMode.toUpperCase().trim() === "CREDIT");
+                      });
+                      
+                      if (memberPayments.length > 0) {
+                        if (!selectedMember) {
+                          showToast({ type: "warning", message: "Member Required", subtitle: "Please select a member first" });
+                          setShowMemberModal(true);
+                          return;
+                        }
+                        
+                        const memberTotal = memberPayments.reduce((sum, p) => sum + p.amount, 0);
+                        const isLimitExceeded = (selectedMember.CurrentBalance || 0) + memberTotal > (selectedMember.CreditLimit || 0);
+                        if (isLimitExceeded) {
+                          showToast({ type: "error", message: "Credit Limit Exceeded", subtitle: "Cannot complete billing" });
+                          return;
+                        }
+                      }
+                      
+                      executeFinalPayment(finalPayments);
+                    }}
+                    onCancel={() => router.back()}
+                    processing={processing}
+                    currencySymbol={currencySymbol}
+                  />
                 </View>
 
                 {showOrderPanel && (

@@ -21,6 +21,7 @@ import { API_URL } from "@/constants/Config";
 import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
 import { useAuthStore } from "@/stores/authStore";
+import SplitPaymentComponent from "../components/payment/SplitPaymentComponent";
 
 
 type MemberType = {
@@ -78,6 +79,13 @@ export default function MembersScreen() {
     }
   };
 
+  const handleCollectPayment = (member: MemberType) => {
+    setPaymentMember(member);
+    setPaymentAmount(String(member.CurrentBalance || 0));
+    setPaymentStep("AMOUNT");
+    setShowPaymentModal(true);
+  };
+
   // Form State
   const [formData, setFormData] = useState({
     name: "",
@@ -89,6 +97,24 @@ export default function MembersScreen() {
     currentBalance: "0",
     balance: "0",
   });
+
+  // Member Payment States
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMember, setPaymentMember] = useState<MemberType | null>(null);
+  const [paymentStep, setPaymentStep] = useState<"AMOUNT" | "SPLIT">("AMOUNT");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [processingPayment, setProcessingPayment] = useState(false);
+
+  const fetchPaymentMethods = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/sales/payment-methods`);
+      const data = await res.json();
+      setPaymentMethods(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("[FETCH PAYMENT METHODS ERROR]", err);
+    }
+  };
 
   const fetchMembers = useCallback(async () => {
     try {
@@ -106,6 +132,7 @@ export default function MembersScreen() {
 
   useEffect(() => {
     fetchMembers();
+    fetchPaymentMethods();
   }, [fetchMembers]);
 
   const openAddModal = () => {
@@ -193,7 +220,7 @@ export default function MembersScreen() {
     );
   }, [members, searchQuery]);
 
-  const MemberCard = React.memo(({ item, onEdit, onDelete, onViewUsage }: { item: MemberType; onEdit: (m: MemberType) => void; onDelete: (m: MemberType) => void; onViewUsage: (m: MemberType) => void }) => {
+  const MemberCard = React.memo(({ item, onEdit, onDelete, onViewUsage, onCollectPayment }: { item: MemberType; onEdit: (m: MemberType) => void; onDelete: (m: MemberType) => void; onViewUsage: (m: MemberType) => void; onCollectPayment: (m: MemberType) => void }) => {
     return (
       <View style={styles.memberCard}>
         <View style={styles.cardHeader}>
@@ -208,6 +235,13 @@ export default function MembersScreen() {
             </View>
           </View>
           <View style={styles.cardActions}>
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              onPress={() => onCollectPayment(item)} 
+              style={[styles.actionBtn, { backgroundColor: Theme.primary + "15" }]}
+            >
+              <Ionicons name="cash-outline" size={18} color={Theme.primary} />
+            </TouchableOpacity>
             <TouchableOpacity 
               activeOpacity={0.7}
               onPress={() => onViewUsage(item)} 
@@ -247,8 +281,8 @@ export default function MembersScreen() {
   });
 
   const renderMember = useCallback(({ item }: { item: MemberType }) => {
-    return <MemberCard item={item} onEdit={openEditModal} onDelete={handleDeleteMember} onViewUsage={handleViewUsage} />;
-  }, [openEditModal, handleDeleteMember, handleViewUsage]);
+    return <MemberCard item={item} onEdit={openEditModal} onDelete={handleDeleteMember} onViewUsage={handleViewUsage} onCollectPayment={handleCollectPayment} />;
+  }, [openEditModal, handleDeleteMember, handleViewUsage, handleCollectPayment]);
 
   return (
     <View style={styles.container}>
@@ -515,6 +549,103 @@ export default function MembersScreen() {
                   </TouchableOpacity>
                   <View style={{ height: 30 }} />
                 </ScrollView>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Payment Collection Modal */}
+        <Modal visible={showPaymentModal} transparent animationType="slide" onRequestClose={() => setShowPaymentModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.formSheet, { maxHeight: '95%', paddingBottom: 20 }]}>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>Collect Payment</Text>
+                <TouchableOpacity onPress={() => setShowPaymentModal(false)} style={styles.sheetClose}>
+                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              {paymentStep === "AMOUNT" ? (
+                <View style={{ padding: 25 }}>
+                  <Text style={{ fontFamily: Fonts.bold, color: Theme.textSecondary, fontSize: 14, marginBottom: 4 }}>
+                    MEMBER
+                  </Text>
+                  <Text style={{ fontFamily: Fonts.black, color: Theme.primary, fontSize: 18, marginBottom: 15 }}>
+                    {paymentMember?.Name} • {paymentMember?.Phone}
+                  </Text>
+
+                  <View style={{ backgroundColor: Theme.primary + '10', padding: 15, borderRadius: 16, borderLeftWidth: 4, borderLeftColor: Theme.primary, marginBottom: 20 }}>
+                    <Text style={{ fontSize: 11, fontFamily: Fonts.black, color: Theme.primary, marginBottom: 4 }}>OUTSTANDING BALANCE</Text>
+                    <Text style={{ fontSize: 24, fontFamily: Fonts.black, color: Theme.textPrimary }}>
+                      ${(paymentMember?.CurrentBalance || 0).toFixed(2)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>AMOUNT TO COLLECT</Text>
+                    <TextInput
+                      style={styles.sheetInput}
+                      keyboardType="numeric"
+                      value={paymentAmount}
+                      onChangeText={setPaymentAmount}
+                      placeholder="0.00"
+                      placeholderTextColor={Theme.textMuted}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.submitBtn}
+                    onPress={() => {
+                      const amt = parseFloat(paymentAmount);
+                      if (isNaN(amt) || amt <= 0) {
+                        Alert.alert("Invalid Amount", "Please enter a valid amount to collect.");
+                        return;
+                      }
+                      setPaymentStep("SPLIT");
+                    }}
+                  >
+                    <Text style={styles.submitBtnText}>Continue to Split Payment</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={{ minHeight: 450, padding: 10 }}>
+                  <SplitPaymentComponent
+                    targetTotal={parseFloat(paymentAmount) || 0}
+                    paymentMethods={paymentMethods.map(pm => ({ payMode: pm.payMode, description: pm.description, position: pm.Position }))}
+                    memberFlow={true}
+                    processing={processingPayment}
+                    currencySymbol="$"
+                    onCancel={() => setPaymentStep("AMOUNT")}
+                    onComplete={async (payments) => {
+                      setProcessingPayment(true);
+                      try {
+                        const res = await fetch(`${API_URL}/api/members/pay`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            memberId: paymentMember?.MemberId,
+                            amount: parseFloat(paymentAmount) || 0,
+                            payments,
+                            userId: user?.userId
+                          })
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.success) {
+                          Alert.alert("Success", "Payment collected successfully.");
+                          setShowPaymentModal(false);
+                          setPaymentMember(null);
+                          fetchMembers();
+                        } else {
+                          Alert.alert("Failed", data.error || "Payment collection failed.");
+                        }
+                      } catch (err) {
+                        Alert.alert("Error", "A network error occurred.");
+                      } finally {
+                        setProcessingPayment(false);
+                      }
+                    }}
+                  />
+                </View>
               )}
             </View>
           </View>

@@ -3,6 +3,7 @@ const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
 const { getActiveOrganization } = require("../utils/organizationHelper");
+const { processSplitPayments } = require("../services/payment.service");
 
 // Helper to generate a random 8-character hex ID (e.g. A996E780)
 const generateRandomBillId = () => {
@@ -110,8 +111,25 @@ const sanitizeGuid = (value, fallback = DEFAULT_GUID) => {
   return toGuidOrNull(value) || fallback;
 };
 
-const validateSalePayload = ({ totalAmount, paymentMethod, items }) => {
-  if (!paymentMethod || !String(paymentMethod).trim()) {
+const validateSalePayload = ({ totalAmount, paymentMethod, items, payments }) => {
+  if (payments && Array.isArray(payments) && payments.length > 0) {
+    let sum = 0;
+    for (let i = 0; i < payments.length; i++) {
+      const p = payments[i];
+      const amt = parseFloat(p.amount);
+      if (isNaN(amt) || amt <= 0) {
+        return `Payment row ${i + 1} has an invalid or negative amount.`;
+      }
+      if (!p.payModeId && !p.payMode) {
+        return `Payment row ${i + 1} is missing a payment mode.`;
+      }
+      sum += amt;
+    }
+    const diff = Math.abs(sum - Number(totalAmount));
+    if (diff > 0.01) {
+      return `Total paid amount (${sum.toFixed(2)}) does not match the bill total (${Number(totalAmount).toFixed(2)})`;
+    }
+  } else if (!paymentMethod || !String(paymentMethod).trim()) {
     return "Payment mode is required";
   }
 
@@ -802,10 +820,10 @@ router.post("/save", async (req, res) => {
       totalAmount, paymentMethod, items, subTotal, taxAmount,
       discountAmount, discountType, roundOff, orderId, orderType, tableNo, section, memberId, cashierId, tableId,
       serverId, serverName, isSplit,
-      discountId, discountPercentage, discountRemarks, orderDiscountAmount, itemDiscountAmount
+      discountId, discountPercentage, discountRemarks, orderDiscountAmount, itemDiscountAmount, payments
     } = req.body;
 
-    const validationError = validateSalePayload({ totalAmount, paymentMethod, items });
+    const validationError = validateSalePayload({ totalAmount, paymentMethod, items, payments });
     if (validationError) {
       console.warn(`[SAVE SALE] Validation failed: ${validationError}`);
       return res.status(400).json({ error: validationError });
@@ -1022,47 +1040,61 @@ router.post("/save", async (req, res) => {
 
       console.log(`[SAVE SALE] Step 3: Inserting Settlement Tables (ID: ${settlementId})...`);
       
-      let settlementSql = `
-        INSERT INTO SettlementTotalSales (SettlementID, PayMode, SysAmount, ManualAmount, AmountDiff, ReceiptCount)
-        VALUES (@SettlementID, @PayMode, @SysAmount, @ManualAmount, @AmountDiff, @ReceiptCount);
+      if (payments && Array.isArray(payments) && payments.length > 0) {
+        if (Number(discountAmount) > 0) {
+          const discReq = transaction.request()
+            .input("SettlementID", sql.UniqueIdentifier, settlementId)
+            .input("DiscountID", sql.UniqueIdentifier, DEFAULT_GUID)
+            .input("DiscountDesc", sql.VarChar(255), String(discountType || "Fixed") + " Discount")
+            .input("DiscAmount", sql.Money, discountAmount);
+          await discReq.query(`
+            INSERT INTO SettlementDiscountDetail (SettlementId, DiscountId, Description, SysAmount, ManualAmount, SortageOrExces)
+            VALUES (@SettlementID, @DiscountID, @DiscountDesc, @DiscAmount, @DiscAmount, 0);
+          `);
+        }
+      } else {
+        let settlementSql = `
+          INSERT INTO SettlementTotalSales (SettlementID, PayMode, SysAmount, ManualAmount, AmountDiff, ReceiptCount)
+          VALUES (@SettlementID, @PayMode, @SysAmount, @ManualAmount, @AmountDiff, @ReceiptCount);
 
-        INSERT INTO [dbo].[SettlementDetail] (SettlementId, Paymode, SysAmount, ManualAmount, SortageOrExces, ReceiptCount, IsCollected)
-        VALUES (@SettlementID, @PayMode, @SysAmount, @ManualAmount, @AmountDiff, @ReceiptCount, 0);
+          INSERT INTO [dbo].[SettlementDetail] (SettlementId, Paymode, SysAmount, ManualAmount, SortageOrExces, ReceiptCount, IsCollected)
+          VALUES (@SettlementID, @PayMode, @SysAmount, @ManualAmount, @AmountDiff, @ReceiptCount, 0);
 
-        INSERT INTO SettlementTranDetail (SettlementID, PayMode, CashIn, CashOut)
-        VALUES (@SettlementID, @PayMode, @SysAmount, 0);
-      `;
-
-      if (normalizedPayMode === 'CREDIT') {
-        settlementSql += `
-          INSERT INTO SettlementCreditSales (SettlementID, PayMode, SysAmount, ManualAmount, AmountDiff)
-          VALUES (@SettlementID, @PayMode, @SysAmount, @ManualAmount, @AmountDiff);
+          INSERT INTO SettlementTranDetail (SettlementID, PayMode, CashIn, CashOut)
+          VALUES (@SettlementID, @PayMode, @SysAmount, 0);
         `;
+
+        if (normalizedPayMode === 'CREDIT') {
+          settlementSql += `
+            INSERT INTO SettlementCreditSales (SettlementID, PayMode, SysAmount, ManualAmount, AmountDiff)
+            VALUES (@SettlementID, @PayMode, @SysAmount, @ManualAmount, @AmountDiff);
+          `;
+        }
+
+        if (Number(discountAmount) > 0) {
+          settlementSql += `
+            INSERT INTO SettlementDiscountDetail (SettlementId, DiscountId, Description, SysAmount, ManualAmount, SortageOrExces)
+            VALUES (@SettlementID, @DiscountID, @DiscountDesc, @DiscAmount, @DiscAmount, 0);
+          `;
+        }
+
+        const settlementReq = transaction.request()
+          .input("SettlementID", sql.UniqueIdentifier, settlementId)
+          .input("PayMode", sql.VarChar(50), normalizedPayMode)
+          .input("SysAmount", sql.Money, totalAmount || 0)
+          .input("ManualAmount", sql.Money, totalAmount || 0)
+          .input("AmountDiff", sql.Money, 0)
+          .input("ReceiptCount", sql.Numeric(18, 0), receiptCount);
+
+        if (Number(discountAmount) > 0) {
+          settlementReq.input("DiscountID", sql.UniqueIdentifier, DEFAULT_GUID)
+            .input("DiscountDesc", sql.VarChar(255), String(discountType || "Fixed") + " Discount")
+            .input("DiscAmount", sql.Money, discountAmount);
+        }
+
+        await settlementReq.query(settlementSql);
+        console.log(`[SAVE SALE] Settlement tables updated successfully.`);
       }
-
-      if (Number(discountAmount) > 0) {
-        settlementSql += `
-          INSERT INTO SettlementDiscountDetail (SettlementId, DiscountId, Description, SysAmount, ManualAmount, SortageOrExces)
-          VALUES (@SettlementID, @DiscountID, @DiscountDesc, @DiscAmount, @DiscAmount, 0);
-        `;
-      }
-
-      const settlementReq = transaction.request()
-        .input("SettlementID", sql.UniqueIdentifier, settlementId)
-        .input("PayMode", sql.VarChar(50), normalizedPayMode)
-        .input("SysAmount", sql.Money, totalAmount || 0)
-        .input("ManualAmount", sql.Money, totalAmount || 0)
-        .input("AmountDiff", sql.Money, 0)
-        .input("ReceiptCount", sql.Numeric(18, 0), receiptCount);
-
-      if (Number(discountAmount) > 0) {
-        settlementReq.input("DiscountID", sql.UniqueIdentifier, DEFAULT_GUID)
-          .input("DiscountDesc", sql.VarChar(255), String(discountType || "Fixed") + " Discount")
-          .input("DiscAmount", sql.Money, discountAmount);
-      }
-
-      await settlementReq.query(settlementSql);
-      console.log(`[SAVE SALE] Settlement tables updated successfully.`);
 
       if (items && Array.isArray(items)) {
         for (const item of items) {
@@ -1146,6 +1178,51 @@ router.post("/save", async (req, res) => {
         }
       }
 
+      if (payments && Array.isArray(payments) && payments.length > 0) {
+        console.log(`[SAVE SALE] Processing Split Payments for Bill ${settlementId}...`);
+        try {
+          await processSplitPayments({
+            referenceType: "BILL",
+            referenceId: settlementId,
+            payments,
+            transaction,
+            businessUnitId: sanitizeGuid(businessUnitId),
+            cashierId: sanitizeGuid(cashierId),
+            orderId: guidOrderId,
+            now,
+            receiptCount
+          });
+
+          // Update member balance if credit was used
+          if (memberId) {
+            const pmRequest = new sql.Request(transaction);
+            const pmRes = await pmRequest.query("SELECT Position, PayMode FROM [dbo].[Paymode] WHERE Active = 1");
+            const activePMs = pmRes.recordset;
+
+            let memberPaidAmt = 0;
+            for (const p of payments) {
+              const pmInfo = activePMs.find(x => 
+                x.Position === Number(p.payModeId) || 
+                String(x.PayMode).trim().toUpperCase() === String(p.payModeId || p.payMode || "").trim().toUpperCase()
+              );
+              if (pmInfo && (pmInfo.PayMode.toUpperCase().trim() === "MEMBER" || pmInfo.PayMode.toUpperCase().trim() === "CREDIT")) {
+                memberPaidAmt += parseFloat(p.amount) || 0;
+              }
+            }
+
+            if (memberPaidAmt > 0) {
+              await transaction.request()
+                .input("MemberId", memberId)
+                .input("Amount", memberPaidAmt)
+                .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
+              console.log(`[SAVE SALE] Updated member balance for credit amount: ${memberPaidAmt}`);
+            }
+          }
+        } catch (payErr) {
+          console.error(`[SAVE SALE ERROR] processSplitPayments Failed for Order ${guidOrderId}:`, payErr.message);
+          throw payErr;
+        }
+      } else {
         console.log(`[SAVE SALE] Step 5: Inserting Payment Data (PayMode: ${normalizedPayMode})...`);
         console.log(`[TRACE] [${Date.now()}] [SETTLEMENT_SYNC] Order: ${displayOrderId} | Settlement: ${settlementId} | Amount: ${totalAmount} | Mode: ${normalizedPayMode}`);
 
@@ -1195,12 +1272,12 @@ router.post("/save", async (req, res) => {
           throw payErr; // Throw to trigger transaction rollback
         }
 
-
-      if (memberId && ((paymentMethod || "").toUpperCase() === "CREDIT" || (paymentMethod || "").toUpperCase() === "MEMBER")) {
-        await transaction.request()
-          .input("MemberId", memberId)
-          .input("Amount", totalAmount || 0)
-          .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
+        if (memberId && ((paymentMethod || "").toUpperCase() === "CREDIT" || (paymentMethod || "").toUpperCase() === "MEMBER")) {
+          await transaction.request()
+            .input("MemberId", memberId)
+            .input("Amount", totalAmount || 0)
+            .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
+        }
       }
 
       // ================= SPLIT BILL QUANTITY SUBTRACTION =================
@@ -1731,6 +1808,76 @@ router.get("/consolidated-report/pdf", async (req, res) => {
   } catch (err) {
     console.error('[SALES/consolidated-report] Error:', err.message);
     res.status(500).json({ error: 'Failed to generate report PDF', details: err.message });
+  }
+});
+
+/* ================= REPORTING ENDPOINTS ================= */
+
+// 1. Member Payment Collection By Payment Mode
+router.get("/reports/member-collection-by-mode", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT pm.Description as PayMode, SUM(ptd.Amount) as TotalCollected, COUNT(*) as TransactionCount
+      FROM PaymentTransactionDetails ptd
+      JOIN Paymode pm ON pm.Position = ptd.PayModeId
+      WHERE ptd.ReferenceType = 'MEMBER'
+      GROUP BY pm.Description
+    `);
+    res.json(result.recordset || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Daily Member Collection
+router.get("/reports/daily-member-collection", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT CAST(ptd.CreatedDate AS DATE) as CollectionDate, pm.Description as PayMode, SUM(ptd.Amount) as TotalAmount
+      FROM PaymentTransactionDetails ptd
+      JOIN Paymode pm ON pm.Position = ptd.PayModeId
+      WHERE ptd.ReferenceType = 'MEMBER'
+      GROUP BY CAST(ptd.CreatedDate AS DATE), pm.Description
+      ORDER BY CollectionDate DESC
+    `);
+    res.json(result.recordset || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Member Collection Summary
+router.get("/reports/member-collection-summary", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT m.Name as MemberName, m.Phone, SUM(ptd.Amount) as TotalPaid, MAX(ptd.CreatedDate) as LastPaymentDate
+      FROM PaymentTransactionDetails ptd
+      JOIN MemberMaster m ON m.MemberId = ptd.ReferenceId
+      WHERE ptd.ReferenceType = 'MEMBER'
+      GROUP BY m.Name, m.Phone
+    `);
+    res.json(result.recordset || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Combined Collection Summary (Bills + Members)
+router.get("/reports/combined-collection-summary", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT ptd.ReferenceType, pm.Description as PayMode, SUM(ptd.Amount) as TotalAmount, COUNT(*) as TransactionCount
+      FROM PaymentTransactionDetails ptd
+      JOIN Paymode pm ON pm.Position = ptd.PayModeId
+      GROUP BY ptd.ReferenceType, pm.Description
+    `);
+    res.json(result.recordset || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -272,6 +272,23 @@ async function initDB(pool) {
       END
     `);
 
+    // 14. Create PaymentTransactionDetails table for unified split payments
+    await runQuery("Create PaymentTransactionDetails", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[PaymentTransactionDetails]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[PaymentTransactionDetails](
+              [PaymentTransactionId] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT NEWID(),
+              [ReferenceType] [nvarchar](50) NOT NULL,
+              [ReferenceId] [uniqueidentifier] NOT NULL,
+              [PayModeId] [int] NOT NULL,
+              [Amount] [decimal](18, 2) NOT NULL,
+              [ReferenceNo] [nvarchar](100) NULL,
+              [CreatedDate] [datetime] NOT NULL DEFAULT GETDATE(),
+              [CreatedBy] [uniqueidentifier] NULL
+          )
+      END
+    `);
+
     console.log("✅ Database schema and performance indexes are up to date.");
   } catch (err) {
     console.error("❌ initDB CRITICAL ERROR:", err.message);
