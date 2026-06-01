@@ -45,6 +45,7 @@ export type CartItem = {
   KitchenTypeCode?: string;
   sent?: number;
   sentDate?: string | number;
+  IsOpenItem?: boolean | number | string;
 };
 
 export type DiscountInfo = {
@@ -66,6 +67,11 @@ const getModifierKey = (mods?: any[]) => {
     .map((m) => String(m?.ModifierId || m?.ModifierID || ""))
     .sort()
     .join("|");
+};
+
+const isOpenPriceItem = (item?: any) => {
+  if (!item) return false;
+  return Number(item.IsOpenItem) === 1 || item.IsOpenItem === true || item.IsOpenItem === 'true' || item.IsOpenItem === '1';
 };
 
 const getNormalizedText = (...values: any[]) => {
@@ -145,20 +151,27 @@ const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartIte
     KitchenTypeName: item.KitchenTypeName || fallback.KitchenTypeName,
     PrinterIP: item.PrinterIP || fallback.PrinterIP,
     KitchenTypeCode: item.KitchenTypeCode || fallback.KitchenTypeCode,
+    IsOpenItem: item.IsOpenItem !== undefined ? item.IsOpenItem : fallback.IsOpenItem,
   };
 };
 
-const canMergeCartItems = (left: CartItem, right: CartItem) =>
-  left.id === right.id &&
-  (left.status || "NEW") === "NEW" &&
-  (right.status || "NEW") === "NEW" &&
-  !!left.isTakeaway === !!right.isTakeaway &&
-  (left.note || "") === (right.note || "") &&
-  (left.spicy || "") === (right.spicy || "") &&
-  (left.salt || "") === (right.salt || "") &&
-  (left.oil || "") === (right.oil || "") &&
-  (left.sugar || "") === (right.sugar || "") &&
-  getModifierKey(left.modifiers) === getModifierKey(right.modifiers);
+const canMergeCartItems = (left: CartItem, right: CartItem) => {
+  if (left.id !== right.id) return false;
+  if (isOpenPriceItem(left) || isOpenPriceItem(right)) {
+    if (left.price !== right.price) return false;
+  }
+  return (
+    (left.status || "NEW") === "NEW" &&
+    (right.status || "NEW") === "NEW" &&
+    !!left.isTakeaway === !!right.isTakeaway &&
+    (left.note || "") === (right.note || "") &&
+    (left.spicy || "") === (right.spicy || "") &&
+    (left.salt || "") === (right.salt || "") &&
+    (left.oil || "") === (right.oil || "") &&
+    (left.sugar || "") === (right.sugar || "") &&
+    getModifierKey(left.modifiers) === getModifierKey(right.modifiers)
+  );
+};
 
 const mergeCartItems = (items: CartItem[]) => {
   const merged: CartItem[] = [];
@@ -364,6 +377,10 @@ export const useCartStore = create<CartState>()(
                 (p.oil || "") !== (normalizedIncoming.oil || "") ||
                 (p.sugar || "") !== (normalizedIncoming.sugar || "")) return false;
             
+            if (isOpenPriceItem(p) || isOpenPriceItem(normalizedIncoming)) {
+              if (p.price !== normalizedIncoming.price) return false;
+            }
+
             return getModifierKey(p.modifiers) === newItemModKey;
           });
 
@@ -1127,10 +1144,16 @@ export const useCartStore = create<CartState>()(
 
             // Add any purely local items that don't exist on server at all (NEWly added)
             localPendingItems.forEach(localItem => {
-              const existsOnServer = filteredDbItems.some((dbItem: CartItem) => 
-                dbItem.lineItemId === localItem.lineItemId || 
-                (dbItem.id === localItem.id && getModifierKey(dbItem.modifiers) === getModifierKey(localItem.modifiers))
-              );
+              const existsOnServer = filteredDbItems.some((dbItem: CartItem) => {
+                if (dbItem.lineItemId === localItem.lineItemId) return true;
+                if (dbItem.id === localItem.id && getModifierKey(dbItem.modifiers) === getModifierKey(localItem.modifiers)) {
+                  if (isOpenPriceItem(dbItem) || isOpenPriceItem(localItem)) {
+                    return dbItem.price === localItem.price;
+                  }
+                  return true;
+                }
+                return false;
+              });
               
               if (!existsOnServer) {
                 const shieldExpiry = deletedItemsShield[localItem.lineItemId];

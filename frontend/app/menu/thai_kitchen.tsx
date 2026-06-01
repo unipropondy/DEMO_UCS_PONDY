@@ -819,6 +819,7 @@ export default function MenuScreen() {
           KitchenTypeName: dish.KitchenTypeName || currentKitchenName,
           PrinterIP: dish.PrinterIP,
           KitchenTypeCode: dish.KitchenTypeCode || currentKitchenCode,
+          IsOpenItem: dish.IsOpenItem,
         });
       };
 
@@ -968,6 +969,7 @@ export default function MenuScreen() {
         KitchenTypeName: selectedDish.KitchenTypeName || currentKitchenName,
         PrinterIP: selectedDish.PrinterIP,
         KitchenTypeCode: selectedDish.KitchenTypeCode || currentKitchenCode,
+        IsOpenItem: selectedDish.IsOpenItem,
       });
 
       // addToCartGlobal handles both local state and database sync
@@ -1010,6 +1012,7 @@ export default function MenuScreen() {
       KitchenTypeName: dish.KitchenTypeName || dish._kitchenName,
       PrinterIP: dish.PrinterIP,
       KitchenTypeCode: dish.KitchenTypeCode || dish._kitchenCode,
+      IsOpenItem: dish.IsOpenItem,
     });
 
     // Reset
