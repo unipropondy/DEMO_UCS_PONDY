@@ -243,8 +243,13 @@ async function runConversationalChat(userQuestion, chatHistory = []) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   const isInvalidKey = !apiKey || apiKey.includes('your_openrouter_api_key') || apiKey === '';
 
+  const lowerQ = userQuestion.toLowerCase();
+  if (lowerQ.includes('good morning') || lowerQ === 'hi' || lowerQ === 'hello' || lowerQ === 'vanakkam') {
+    return "Good morning, Macha! Hope you are having an awesome day. How can I help you with your restaurant sales or metrics today?";
+  }
+
   if (isInvalidKey) {
-    return "I'm currently running in local sandbox mode with no active LLM key. Try asking query-specific prompts like 'sales today' or 'top menu items'!";
+    return "Macha, I'm currently running in local sandbox mode with no active LLM key. Try asking for specific reports like 'sales today', 'top selling items', or 'payment modes'!";
   }
 
   try {
@@ -255,7 +260,7 @@ async function runConversationalChat(userQuestion, chatHistory = []) {
     messages.push({ role: 'user', content: userQuestion });
     messages.unshift({
       role: 'system',
-      content: "You are a friendly, highly intelligent POS system business advisor. Chat with the user about their restaurant analytics, general restaurant operations advice, or menu configuration."
+      content: "You are a friendly, highly intelligent POS system business advisor called 'Macha AI'. Chat warmly with the user, responding naturally to greetings, casual talk, or requests. If they chat in Tanglish/English mix, respond in a matching, friendly, and helpful tone."
     });
 
     const response = await axios.post(
@@ -277,7 +282,7 @@ async function runConversationalChat(userQuestion, chatHistory = []) {
     return response.data.choices[0].message.content;
   } catch (error) {
     console.warn('⚠️ OpenRouter chat failed:', error.message);
-    return "I had trouble reaching my AI advisor engine. Please try asking about sales or performance reports.";
+    return "Macha, I had trouble reaching my AI advisor engine. Please try asking about sales or performance reports.";
   }
 }
 

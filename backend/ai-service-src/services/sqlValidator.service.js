@@ -1,4 +1,4 @@
-const BLACKLIST = /\b(ALTER|DROP|TRUNCATE|DELETE|INSERT|UPDATE|EXEC|EXECUTE|CREATE|REPLACE|MERGE|GRANT|REVOKE|INTO|CURSOR)\b/i;
+const BLACKLIST = /\b(ALTER|DROP|TRUNCATE|DELETE|INSERT|UPDATE|EXEC|EXECUTE|CREATE|REPLACE|MERGE|GRANT|REVOKE|INTO|CURSOR|WRITETEXT|UPDATETEXT|BACKUP|RESTORE)\b/i;
 
 /**
  * Validates a generated SQL string for read-only correctness, blacklisted keywords, and tenant isolation constraints.
@@ -11,15 +11,15 @@ function validateSQL(sqlString, shopId, schema = {}) {
     throw new Error("Security Violation: Empty or invalid query payload.");
   }
 
-  // 1. Blacklist Regex Check
-  if (BLACKLIST.test(sqlString)) {
-    throw new Error("Security Violation: Unauthorized execution payload or mutation keyword detected.");
+  // 1. Strict SELECT only check (must begin with SELECT after optional whitespace/comments)
+  const normalized = sqlString.trim().replace(/^\s*--.*?\n/gs, '').trim().toLowerCase();
+  if (!normalized.startsWith("select")) {
+    throw new Error("Security Violation: Unauthorized execution pattern. Only SELECT read queries are permitted.");
   }
 
-  // 2. Strict SELECT only verification
-  const normalized = sqlString.trim().toLowerCase();
-  if (!normalized.startsWith("select")) {
-    throw new Error("Security Violation: Queries must strictly start with SELECT.");
+  // 2. Blacklist Regex Check
+  if (BLACKLIST.test(sqlString)) {
+    throw new Error("Security Violation: Unauthorized query mutation or DDL keyword detected.");
   }
 
   // 3. Multi-Statement blocker

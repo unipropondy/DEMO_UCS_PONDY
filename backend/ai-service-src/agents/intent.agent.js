@@ -52,7 +52,16 @@ function getLocalFallbackIntent(userMessage) {
     titlePeriod = "This Year's";
   }
 
-  // Intent Detection
+  // Intent Detection for Chat & Greetings (Tanglish & English)
+  if (
+    msg === 'hi' || msg === 'hello' || msg === 'good morning' || msg === 'good afternoon' || msg === 'good evening' ||
+    msg.includes('macha') || msg.includes('bro') || msg.includes('da') || msg.includes('dude') ||
+    msg.includes('how are you') || msg.includes('who are you') || msg.includes('thank you') || msg.includes('thanks') ||
+    msg.includes('chat panna') || msg.includes('chat history') || msg.includes('help')
+  ) {
+    return { intent: 'general_query', params: { textResponse: null } };
+  }
+
   if (
     msg.includes('not sale') || 
     msg.includes('no sale') || 
@@ -78,8 +87,12 @@ function getLocalFallbackIntent(userMessage) {
     return { intent: 'get_cancelled_orders', params: { startDate, endDate, titlePeriod } };
   }
 
-  if (msg.includes('top') || msg.includes('best') || msg.includes('popular') || msg.includes('item') || msg.includes('dish') || msg.includes('menu') || msg.includes('selling')) {
-    return { intent: 'get_top_selling_items', params: { startDate, endDate, limit: 5, titlePeriod } };
+  if (
+    msg.includes('top') || msg.includes('best') || msg.includes('popular') || msg.includes('item') || 
+    msg.includes('dish') || msg.includes('menu') || msg.includes('selling') || msg.includes('sales report') || 
+    msg.includes('sales') || msg.includes('sales analysis') || msg.includes('report') || msg.includes('katta') || msg.includes('sales-report')
+  ) {
+    return { intent: 'get_sales_metrics', params: { startDate, endDate, titlePeriod } };
   }
 
   if (msg.includes('tax') || msg.includes('gst')) {
@@ -94,6 +107,19 @@ function getLocalFallbackIntent(userMessage) {
 }
 
 async function extractIntent(userMessage) {
+  const msg = userMessage.toLowerCase().trim();
+  
+  // 1. Force match greetings, chat requests, and casual words locally before any LLM API key checks
+  if (
+    msg === 'hi' || msg === 'hello' || msg === 'good morning' || msg === 'good afternoon' || msg === 'good evening' || msg === 'vanakkam' ||
+    msg.includes('macha') || msg.includes('bro') || msg.includes('da') || msg.includes('dude') ||
+    msg.includes('how are you') || msg.includes('who are you') || msg.includes('thank you') || msg.includes('thanks') ||
+    msg.includes('chat panna') || msg.includes('chat history') || msg.includes('help')
+  ) {
+    const today = getFormattedDate(0);
+    return { intent: 'general_query', params: { startDate: today, endDate: today, titlePeriod: "Today's" } };
+  }
+
   const apiKey = process.env.OPENROUTER_API_KEY;
   const isInvalidKey = !apiKey || apiKey.includes('your_openrouter_api_key') || apiKey === '';
 
@@ -118,7 +144,7 @@ Identify the user's intent. The valid intents are:
 5. get_discount_analysis (requests for total discounts, promo codes use, coupon analyses)
 6. get_cancelled_orders (requests for void/cancelled bills, refund amounts)
 7. get_payment_distribution (requests for payment methods breakdown, payment mode breakdown, cash vs card distribution, UPI/NETS/PayNow sales contribution)
-8. general_query (questions not matching structural query intents, requiring direct answers or conversational chat)
+8. general_query (greetings like 'hi', 'good morning', casual chat, questions not matching structural query intents, requiring direct answers or conversational chat, or any Tanglish/mixed-language messages asking to chat or requesting updates)
 
 Extract these parameters as JSON:
 - startDate: String (YYYY-MM-DD)
