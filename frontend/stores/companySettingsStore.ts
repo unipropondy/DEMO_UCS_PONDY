@@ -58,10 +58,9 @@ export const useCompanySettingsStore = create<CompanySettingsState>()(
       loading: false,
 
       fetchSettings: async (userId: string) => {
-        if (!userId) return;
         set({ loading: true });
         try {
-          const response = await API.get(`/company-settings/${userId}`);
+          const response = await API.get(`/company-settings/1`);
           const data = response.data;
           
           if (data && data.success && data.settings) {
@@ -104,7 +103,6 @@ export const useCompanySettingsStore = create<CompanySettingsState>()(
         // Update local state first for immediate UI response
         set({ settings: updated });
 
-        if (!userId) return true; // Just local update if no user ID
         try {
           // Map frontend names back to backend DB names
           const payload = {
@@ -127,7 +125,7 @@ export const useCompanySettingsStore = create<CompanySettingsState>()(
             HoldOvertimeMinutes: updated.holdOvertimeMinutes,
           };
 
-          const response = await API.post(`/company-settings/${userId}`, payload);
+          const response = await API.post(`/company-settings/1`, payload);
           if (response.data?.success) {
             console.log("✅ [CompanySettingsStore] Global settings saved to DB");
             return true;

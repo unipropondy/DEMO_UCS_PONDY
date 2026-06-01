@@ -43,8 +43,7 @@ export default function WaitersScreen() {
 
   const toggleWaiterRequired = async () => {
     const newVal = !settings.waiterRequired;
-    const currentUserId = user?.userId || (user as any)?.id || (user as any)?.UserId;
-    await updateSettings({ waiterRequired: newVal }, currentUserId);
+    await updateSettings({ waiterRequired: newVal }, "1");
   };
 
   // Modal State

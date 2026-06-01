@@ -44,15 +44,8 @@ export default function CompanySettingsScreen() {
 
   useEffect(() => {
     const load = async () => {
-      // ✅ CONSISTENT ID LOGIC: Match BillPDFGenerator
-      const outletId = await AsyncStorage.getItem('selectedOutletId');
-      const storedUserId = await AsyncStorage.getItem('userId');
-      const cleanOutletId = (outletId && outletId !== 'undefined' && outletId !== 'null') ? outletId : null;
-      const cleanUserId = (storedUserId && storedUserId !== 'undefined' && storedUserId !== 'null') ? storedUserId : '1';
-      const targetId = cleanOutletId || cleanUserId;
-      
-      setUserId(targetId);
-      await fetchSettings(targetId);
+      setUserId("1");
+      await fetchSettings("1");
       await fetchKitchenPrinters();
     };
     load();
@@ -163,17 +156,9 @@ export default function CompanySettingsScreen() {
   };
 
   const handleSave = async () => {
-    // ✅ CONSISTENT ID LOGIC: Match BillPDFGenerator
-    const outletId = await AsyncStorage.getItem('selectedOutletId');
-    const storedUserId = await AsyncStorage.getItem('userId');
-    const cleanOutletId = (outletId && outletId !== 'undefined' && outletId !== 'null') ? outletId : null;
-    const cleanUserId = (storedUserId && storedUserId !== 'undefined' && storedUserId !== 'null') ? storedUserId : '1';
-    const targetId = cleanOutletId || cleanUserId;
-
-    if (!targetId) return;
     setSaving(true);
     try {
-      const success = await BillPDFGenerator.saveSettings(settings, targetId);
+      const success = await BillPDFGenerator.saveSettings(settings, "1");
       
       // Build payload for all printers in PrintMaster
       const printersPayload = [

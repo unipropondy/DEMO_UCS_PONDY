@@ -78,11 +78,7 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
     try {
         if (!userId) return this.getDefaultSettings();
         
-        // Get outlet ID for multi-outlet
-        const outletId = await AsyncStorage.getItem('selectedOutletId');
-        const cleanOutletId = (outletId && outletId !== 'undefined' && outletId !== 'null') ? outletId : null;
-        const cleanUserId = (userId && String(userId) !== 'undefined' && String(userId) !== 'null') ? String(userId) : '1';
-        const targetId = cleanOutletId || cleanUserId;
+        const targetId = '1';
 
         // Check cache (valid for 30 seconds)
         const now = Date.now();
@@ -183,13 +179,9 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
     try {
         if (!userId) return false;
         
-        // ✅ CRITICAL FIX: Get outlet ID for multi-outlet support
-        const outletId = await AsyncStorage.getItem('selectedOutletId');
-        const cleanOutletId = (outletId && outletId !== 'undefined' && outletId !== 'null') ? outletId : null;
-        const cleanUserId = (userId && String(userId) !== 'undefined' && String(userId) !== 'null') ? String(userId) : '1';
-        const targetId = cleanOutletId || cleanUserId;
+        const targetId = '1';
         
-        console.log(`💾 SAVING SETTINGS TO BACKEND for target: ${targetId} (outlet: ${outletId || 'none'})`, {
+        console.log(`💾 SAVING SETTINGS TO BACKEND for target: 1`, {
             showCompanyLogo: settings.showCompanyLogo ? 1 : 0,
             showHalalLogo: settings.showHalalLogo ? 1 : 0,
             companyLogo: settings.companyLogo ? 'YES' : 'NO',

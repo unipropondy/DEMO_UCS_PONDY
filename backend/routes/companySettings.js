@@ -6,26 +6,20 @@ const { poolPromise } = require("../config/db");
 // 🔹 GET Settings
 router.get("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
     const pool = await poolPromise;
     
-    // 1. Try to get specific settings
+    // 1. Try to get specific Master Settings (ID 1)
     let result = await pool.request()
-      .input("Id", sql.NVarChar, id)
-      .query("SELECT * FROM CompanySettings WHERE Id = @Id");
+      .query("SELECT * FROM CompanySettings WHERE Id = '1'");
     
     // 2. Fallback: If not found OR if the found record has NO NAME (empty shell)
     if (result.recordset.length === 0 || !result.recordset[0].CompanyName || result.recordset[0].CompanyName.trim() === '') {
-      // ✅ Improved Fallback: Try to get Master Settings (ID 1) first
-      const masterResult = await pool.request()
-        .query("SELECT * FROM CompanySettings WHERE Id = '1'");
+      // Get the most recently updated record that ACTUALLY HAS A NAME
+      const fallbackResult = await pool.request()
+        .query("SELECT TOP 1 * FROM CompanySettings WHERE CompanyName IS NOT NULL AND CompanyName <> '' ORDER BY UpdatedOn DESC");
       
-      if (masterResult.recordset.length > 0) {
-        result = masterResult;
-      } else {
-        // Final Fallback: Get the most recently updated record that ACTUALLY HAS A NAME
-        result = await pool.request()
-          .query("SELECT TOP 1 * FROM CompanySettings WHERE CompanyName IS NOT NULL AND CompanyName <> '' ORDER BY UpdatedOn DESC");
+      if (fallbackResult.recordset.length > 0) {
+        result = fallbackResult;
       }
     }
     
@@ -42,12 +36,10 @@ router.get("/:id", async (req, res) => {
 // 🔹 POST Settings (Upsert)
 router.post("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
     const s = req.body;
     const pool = await poolPromise;
 
     await pool.request()
-      .input("Id", sql.NVarChar, id)
       .input("CompanyName", sql.NVarChar, s.CompanyName || "My Restaurant")
       .input("Address", sql.NVarChar, s.Address || "")
       .input("GSTNo", sql.NVarChar, s.GSTNo || "")
@@ -66,7 +58,7 @@ router.post("/:id", async (req, res) => {
       .input("WaiterRequired", sql.Bit, s.WaiterRequired !== undefined && s.WaiterRequired !== null ? s.WaiterRequired : 0)
       .input("HoldOvertimeMinutes", sql.Int, s.HoldOvertimeMinutes !== undefined && s.HoldOvertimeMinutes !== null ? s.HoldOvertimeMinutes : 30)
       .query(`
-        IF EXISTS (SELECT 1 FROM CompanySettings WHERE Id = @Id)
+        IF EXISTS (SELECT 1 FROM CompanySettings WHERE Id = '1')
         BEGIN
           UPDATE CompanySettings SET
             CompanyName = @CompanyName,
@@ -87,12 +79,12 @@ router.post("/:id", async (req, res) => {
             WaiterRequired = @WaiterRequired,
             HoldOvertimeMinutes = @HoldOvertimeMinutes,
             UpdatedOn = GETDATE()
-          WHERE Id = @Id
+          WHERE Id = '1'
         END
         ELSE
         BEGIN
-          INSERT INTO CompanySettings (Id, CompanyName, Address, GSTNo, GSTPercentage, Phone, Email, CashierName, Currency, CurrencySymbol, CompanyLogoUrl, HalalLogoUrl, PrinterIP, ShowCompanyLogo, ShowHalalLogo, TaxMode, WaiterRequired, HoldOvertimeMinutes)
-          VALUES (@Id, @CompanyName, @Address, @GSTNo, @GSTPercentage, @Phone, @Email, @CashierName, @Currency, @CurrencySymbol, @CompanyLogoUrl, @HalalLogoUrl, @PrinterIP, @ShowCompanyLogo, @ShowHalalLogo, @TaxMode, @WaiterRequired, @HoldOvertimeMinutes)
+          INSERT INTO CompanySettings (Id, CompanyName, Address, GSTNo, GSTPercentage, Phone, Email, CashierName, Currency, CurrencySymbol, CompanyLogoUrl, HalalLogoUrl, PrinterIP, ShowCompanyLogo, ShowHalalLogo, TaxMode, WaiterRequired, HoldOvertimeMinutes, UpdatedOn)
+          VALUES ('1', @CompanyName, @Address, @GSTNo, @GSTPercentage, @Phone, @Email, @CashierName, @Currency, @CurrencySymbol, @CompanyLogoUrl, @HalalLogoUrl, @PrinterIP, @ShowCompanyLogo, @ShowHalalLogo, @TaxMode, @WaiterRequired, @HoldOvertimeMinutes, GETDATE())
         END
       `);
 
@@ -112,11 +104,9 @@ router.post("/:id", async (req, res) => {
 // 🔹 DELETE Settings
 router.delete("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
     const pool = await poolPromise;
     await pool.request()
-      .input("Id", sql.NVarChar, id)
-      .query("DELETE FROM CompanySettings WHERE Id = @Id");
+      .query("DELETE FROM CompanySettings WHERE Id = '1'");
     res.json({ success: true, message: "Settings deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
