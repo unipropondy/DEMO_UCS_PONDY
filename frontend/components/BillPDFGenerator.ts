@@ -346,8 +346,17 @@ private static escapeHtml(str: string): string {
     const hasAnyDiscount = totalItemDiscount > 0 || hasOrderDiscount;
     const originalSubTotal = grossTotal;
 
-    const gstAmount = hasGST ? currentSubtotal * (gstRate / 100) : 0;
+    const gstAmountRaw = hasGST ? currentSubtotal * (gstRate / 100) : 0;
+    const gstAmount = Math.round(gstAmountRaw * 100) / 100;
     const amountWithoutGST = currentSubtotal;
+    
+    if (finalTotal === 0) {
+      finalTotal = amountWithoutGST + gstAmount;
+    }
+    
+    const printedRoundOff = saleData.roundOff && saleData.roundOff !== 0
+      ? parseFloat((finalTotal - (amountWithoutGST + gstAmount)).toFixed(2))
+      : 0;
     
     const companyLogoUrl = company.companyLogo || '';
     const halalLogoUrl = company.halalLogo || '';
@@ -742,12 +751,12 @@ private static escapeHtml(str: string): string {
               <span>${currencySymbol}${gstAmount.toFixed(2)}</span>
             </div>
             ` : ''}
-            ${saleData.roundOff && saleData.roundOff !== 0 ? `
-            <div class="total-row">
-              <span>Round Off:</span>
-              <span>${saleData.roundOff > 0 ? '+' : ''}${currencySymbol}${saleData.roundOff.toFixed(2)}</span>
-            </div>
-            ` : ''}
+             ${printedRoundOff && printedRoundOff !== 0 ? `
+             <div class="total-row">
+               <span>Round Off:</span>
+               <span>${printedRoundOff > 0 ? '+' : ''}${currencySymbol}${printedRoundOff.toFixed(2)}</span>
+             </div>
+             ` : ''}
             <div class="grand-total">
               <span>${hasGST ? 'GRAND TOTAL (incl GST):' : 'GRAND TOTAL:'}</span>
               <span>${currencySymbol}${finalTotal.toFixed(2)}</span>

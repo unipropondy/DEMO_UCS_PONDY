@@ -1123,12 +1123,21 @@ class UniversalPrinter {
       text += this.formatTwoCols48(netLabel, `${symbol}${currentSubtotal.toFixed(2)}`);
     }
 
-    // ============ GST ============
     let finalTotal = saleData.total || saleData.totalAmount || currentSubtotal;
     const hasGST = (company.gstPercentage || 0) > 0;
     const gstRate = company.gstPercentage || 0;
+    const gstAmountRaw = hasGST ? currentSubtotal * (gstRate / 100) : 0;
+    const gstAmount = Math.round(gstAmountRaw * 100) / 100;
+    
+    if (finalTotal === 0) {
+      finalTotal = currentSubtotal + gstAmount;
+    }
+    
+    const printedRoundOff = saleData.roundOff && saleData.roundOff !== 0
+      ? parseFloat((finalTotal - (currentSubtotal + gstAmount)).toFixed(2))
+      : 0;
+
     if (hasGST) {
-      const gstAmount = currentSubtotal * (gstRate / 100);
       const beforeGst = currentSubtotal;
       if (!hasAnyDiscount) {
         text += this.formatTwoCols48("Sub Total:", `${symbol}${beforeGst.toFixed(2)}`);
@@ -1137,9 +1146,9 @@ class UniversalPrinter {
       text += "[L]------------------------------------------------\n";
     }
 
-    if (saleData.roundOff && saleData.roundOff !== 0) {
-      const roSign = saleData.roundOff > 0 ? "+" : "";
-      text += this.formatTwoCols48("Round Off:", `${roSign}${symbol}${saleData.roundOff.toFixed(2)}`);
+    if (printedRoundOff && printedRoundOff !== 0) {
+      const roSign = printedRoundOff > 0 ? "+" : "";
+      text += this.formatTwoCols48("Round Off:", `${roSign}${symbol}${printedRoundOff.toFixed(2)}`);
       text += "[L]------------------------------------------------\n";
     }
 

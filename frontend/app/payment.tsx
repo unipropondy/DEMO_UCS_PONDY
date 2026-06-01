@@ -383,6 +383,9 @@ export default function PaymentScreen() {
   }, [baseTotal, roundType, method]);
 
   const total = Math.max(0, baseTotal + roundOff);
+  const displayedTax = Math.round(tax * 100) / 100;
+  const netAmountForDisplay = subtotal - discountAmount;
+  const displayedRoundOff = parseFloat((total - (netAmountForDisplay + displayedTax)).toFixed(2));
   const paidNum = isCashMethod(method) ? (parseFloat(cashInput) || 0) : total;
   const change = Math.max(0, paidNum - total);
   const quickCash = [20, 50, 100, 200, 500, 1000];
@@ -428,14 +431,14 @@ export default function PaymentScreen() {
       section: context?.section,
       items: finalItems.map((item: any) => ({ lineItemId: item.lineItemId, dishId: item.id, name: item.name, qty: item.qty, price: item.price, status: item.status, discountAmount: item.discountAmount ?? item.discount ?? null, discountType: item.discountType ?? null })),
       subTotal: subtotal,
-      taxAmount: tax,
+      taxAmount: displayedTax,
       discountAmount: discountAmount + payItemDiscount,
       discountType: discount?.type || "fixed",
       totalAmount: total,
       paymentMethod: payments && payments.length > 0 ? "SPLIT" : method.trim(),
       payments: payments || null,
       memberId: selectedMember?.MemberId || null,
-      roundOff: roundOff,
+      roundOff: displayedRoundOff,
       cashierId: user?.userId,
       tableId: context?.tableId,
       serverId: context?.serverId,
@@ -476,7 +479,7 @@ export default function PaymentScreen() {
                   : {}
               ),
               items: JSON.stringify(finalItems || []),
-              roundOff: roundOff.toFixed(2),
+              roundOff: displayedRoundOff.toFixed(2),
               isSplit: splitItems ? "true" : "false",
               waiterName: context?.serverName ?? "",
             },
@@ -962,14 +965,14 @@ export default function PaymentScreen() {
 
                         <View style={styles.breakRow}>
                           <Text style={styles.breakLabel}>GST</Text>
-                          <Text style={styles.breakValue}>${tax.toFixed(2)}</Text>
+                          <Text style={styles.breakValue}>${displayedTax.toFixed(2)}</Text>
                         </View>
 
-                        {roundOff !== 0 && (
+                        {displayedRoundOff !== 0 && (
                           <View style={styles.breakRow}>
                             <Text style={[styles.breakLabel, { color: Theme.primary }]}>Rounding</Text>
                             <Text style={[styles.breakValue, { color: Theme.primary }]}>
-                              {roundOff > 0 ? "+" : ""}${roundOff.toFixed(2)}
+                              {displayedRoundOff > 0 ? "+" : ""}${displayedRoundOff.toFixed(2)}
                             </Text>
                           </View>
                         )}

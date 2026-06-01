@@ -388,8 +388,18 @@ class SunmiPrinterService {
       let finalTotal =
         saleData.total || saleData.totalAmount || currentSubtotal;
       const gstRate = companySettings.gstPercentage || 0;
+      const gstAmountRaw = gstRate > 0 ? currentSubtotal * (gstRate / 100) : 0;
+      const gstAmount = Math.round(gstAmountRaw * 100) / 100;
+      
+      if (finalTotal === 0) {
+        finalTotal = currentSubtotal + gstAmount;
+      }
+      
+      const printedRoundOff = saleData.roundOff && saleData.roundOff !== 0
+        ? parseFloat((finalTotal - (currentSubtotal + gstAmount)).toFixed(2))
+        : 0;
+
       if (gstRate > 0) {
-        const gstAmount = currentSubtotal * (gstRate / 100);
         const beforeGst = currentSubtotal;
         if (!hasAnyDiscount) {
           await this.twoCols(
@@ -405,9 +415,9 @@ class SunmiPrinterService {
       }
 
       // ============ ROUND OFF ============
-      if (saleData.roundOff && saleData.roundOff !== 0) {
-        const roLabel = saleData.roundOff > 0 ? "+Round Off:" : "Round Off:";
-        await this.twoCols(roLabel, `${symbol}${saleData.roundOff.toFixed(2)}`);
+      if (printedRoundOff && printedRoundOff !== 0) {
+        const roLabel = printedRoundOff > 0 ? "+Round Off:" : "Round Off:";
+        await this.twoCols(roLabel, `${symbol}${printedRoundOff.toFixed(2)}`);
         await this.divider("-");
       }
 
