@@ -57,7 +57,7 @@ function getLocalFallbackIntent(userMessage) {
   const isCasualChat = (msg.includes('macha') || msg.includes('bro') || msg.includes('da') || msg.includes('dude') ||
     msg.includes('how are you') || msg.includes('who are you') || msg.includes('thank you') || msg.includes('thanks') ||
     msg.includes('chat panna') || msg.includes('chat history') || msg.includes('help')) && 
-    !msg.includes('sale') && !msg.includes('report') && !msg.includes('item') && !msg.includes('payment') && !msg.includes('revenue') && !msg.includes('performance') && !msg.includes('discount');
+    !msg.includes('sale') && !msg.includes('report') && !msg.includes('item') && !msg.includes('payment') && !msg.includes('revenue') && !msg.includes('performance') && !msg.includes('discount') && !msg.includes('cancel');
 
   if (isGreeting || isCasualChat) {
     return { intent: 'general_query', params: { textResponse: null } };
@@ -118,7 +118,7 @@ async function extractIntent(userMessage) {
   const isCasualChat = (msg === 'macha' || msg === 'bro' || msg === 'da' || msg === 'dude' ||
     msg.includes('how are you') || msg.includes('who are you') || msg.includes('thank you') || msg.includes('thanks') ||
     msg.includes('chat panna') || msg.includes('chat history') || msg.includes('help')) && 
-    !msg.includes('sale') && !msg.includes('report') && !msg.includes('item') && !msg.includes('payment') && !msg.includes('revenue') && !msg.includes('performance') && !msg.includes('discount');
+    !msg.includes('sale') && !msg.includes('report') && !msg.includes('item') && !msg.includes('payment') && !msg.includes('revenue') && !msg.includes('performance') && !msg.includes('discount') && !msg.includes('cancel');
 
   if (isGreeting || isCasualChat) {
     const today = getFormattedDate(0);
