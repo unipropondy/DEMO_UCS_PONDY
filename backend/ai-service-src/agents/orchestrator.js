@@ -252,6 +252,18 @@ async function runConversationalChat(userQuestion, chatHistory = []) {
   }
 
   if (isInvalidKey) {
+    if (lowerQ.includes('how are you')) {
+      return "I'm doing awesome, Macha! 😎 Thanks for asking. Ready to crunch some numbers for your restaurant! Ask me about today's sales or waiter performance.";
+    }
+    if (lowerQ.includes('thank you') || lowerQ.includes('thanks') || lowerQ === 'nandri') {
+      return "Welcome, Macha! 🤝 Let me know if you need any other sales or performance reports.";
+    }
+    if (lowerQ.includes('who are you')) {
+      return "I am Macha AI, your smart POS restaurant advisor! 🍽️ I help you analyze sales metrics, popular dishes, staff productivity, and payment methods.";
+    }
+    if (lowerQ.includes('help')) {
+      return "Sure Macha! Here are the things you can ask me:\n• 'today's sales' or 'sales last week'\n• 'top selling items'\n• 'which server performs best'\n• 'payment methods breakdown'\n• 'unsold items'";
+    }
     return "Macha! 🖖 I'm currently running in local mode (no LLM key active). Ask me for reports like 'sales today', 'top selling items', or 'payment modes' to see some charts!";
   }
 
