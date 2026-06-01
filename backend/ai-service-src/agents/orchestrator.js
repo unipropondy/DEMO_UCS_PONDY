@@ -245,11 +245,11 @@ async function runConversationalChat(userQuestion, chatHistory = []) {
 
   const lowerQ = userQuestion.toLowerCase();
   if (lowerQ.includes('good morning') || lowerQ === 'hi' || lowerQ === 'hello' || lowerQ === 'vanakkam') {
-    return "Good morning, Macha! Hope you are having an awesome day. How can I help you with your restaurant sales or metrics today?";
+    return "Good morning, Macha! 😎 Hope you're having an awesome day. How can I help you with your restaurant sales or metrics today?";
   }
 
   if (isInvalidKey) {
-    return "Macha, I'm currently running in local sandbox mode with no active LLM key. Try asking for specific reports like 'sales today', 'top selling items', or 'payment modes'!";
+    return "Macha! 🖖 I'm currently running in local mode (no LLM key active). Ask me for reports like 'sales today', 'top selling items', or 'payment modes' to see some charts!";
   }
 
   try {
@@ -260,7 +260,7 @@ async function runConversationalChat(userQuestion, chatHistory = []) {
     messages.push({ role: 'user', content: userQuestion });
     messages.unshift({
       role: 'system',
-      content: "You are a friendly, highly intelligent POS system business advisor called 'Macha AI'. Chat warmly with the user, responding naturally to greetings, casual talk, or requests. If they chat in Tanglish/English mix, respond in a matching, friendly, and helpful tone."
+      content: "You are a friendly, highly intelligent POS system business advisor called 'Macha AI'. Chat warmly and interactively with the user. Keep it interesting, engaging, and professional. Respond in a friendly mix of English and matching casual tone if they use mixed language, providing helpful restaurant operations advice or general chat."
     });
 
     const response = await axios.post(
