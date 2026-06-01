@@ -605,7 +605,7 @@ export default function SummaryScreen() {
     return discountInfo.value;
   }, [discountInfo, subtotal]);
 
-  const gstAmount = useMemo(() => subtotal * gstRate, [subtotal, gstRate]);
+  const gstAmount = useMemo(() => (subtotal - discountAmount) * gstRate, [subtotal, discountAmount, gstRate]);
   const grandTotal = useMemo(() => subtotal - discountAmount + gstAmount, [subtotal, discountAmount, gstAmount]);
   const displaySubtotal = subtotal;
 

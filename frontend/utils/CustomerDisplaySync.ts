@@ -77,7 +77,7 @@ export const CustomerDisplaySync = {
         return discountInfo.value;
       })();
 
-      const gstAmount = subTotal * gstRate;
+      const gstAmount = (subTotal - orderDiscountAmount) * gstRate;
       const baseTotal = subTotal - orderDiscountAmount + gstAmount;
       const netTotal = Math.max(0, baseTotal + roundOff);
 

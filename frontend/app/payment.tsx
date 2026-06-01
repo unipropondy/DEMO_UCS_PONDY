@@ -368,7 +368,7 @@ export default function PaymentScreen() {
     return splitItems ? 0 : discount.value;
   }, [discount, subtotal, splitItems]);
 
-  const tax = subtotal * gstRate;
+  const tax = (subtotal - discountAmount) * gstRate;
   const baseTotal = subtotal - discountAmount + tax;
 
   useEffect(() => {
