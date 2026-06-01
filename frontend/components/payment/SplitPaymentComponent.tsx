@@ -146,13 +146,9 @@ export default function SplitPaymentComponent({
     }
   }, [targetTotal]);
 
-  // Get available payment methods for a specific row (excluding options selected in other rows)
+  // Get available payment methods for a specific row
   const getAvailableMethodsForRow = (rowId: string) => {
-    return availableMethods.filter(
-      (m) =>
-        rows.some((r) => r.id === rowId && r.payModeId === m.position) || // Keep currently selected
-        !rows.some((r) => r.id !== rowId && r.payModeId === m.position)   // Exclude selected in sibling rows
-    );
+    return availableMethods;
   };
 
   // Check validations programmatically
@@ -162,7 +158,10 @@ export default function SplitPaymentComponent({
       return `Total paid (${currencySymbol}${totalPaid.toFixed(2)}) must match target (${currencySymbol}${targetTotal.toFixed(2)})`;
     }
 
-    const seenModes = new Set<number>();
+    const totalMemberAmt = rows.reduce((sum, r) => {
+      const isMemberMode = r.payMode.toUpperCase().trim() === "MEMBER" || r.payMode.toUpperCase().trim() === "CREDIT";
+      return sum + (isMemberMode ? (parseFloat(r.amount) || 0) : 0);
+    }, 0);
 
     for (const r of rows) {
       const amt = parseFloat(r.amount);
@@ -172,10 +171,6 @@ export default function SplitPaymentComponent({
       if (!r.payMode) {
         return "Please select a payment mode in all rows.";
       }
-      if (seenModes.has(r.payModeId)) {
-        return `Duplicate payment mode selected: ${r.payMode}.`;
-      }
-      seenModes.add(r.payModeId);
 
       // Member credit validation
       const isMemberMode = r.payMode.toUpperCase().trim() === "MEMBER" || r.payMode.toUpperCase().trim() === "CREDIT";
@@ -184,8 +179,8 @@ export default function SplitPaymentComponent({
           return "Please select a member first to use Member Credit.";
         }
         const availLimit = (selectedMember.CreditLimit || 0) - (selectedMember.CurrentBalance || 0);
-        if (amt > availLimit) {
-          return `Amount exceeds member's available credit limit (${currencySymbol}${availLimit.toFixed(2)}).`;
+        if (totalMemberAmt > availLimit) {
+          return `Total member payment (${currencySymbol}${totalMemberAmt.toFixed(2)}) exceeds available credit limit (${currencySymbol}${availLimit.toFixed(2)}).`;
         }
       }
     }

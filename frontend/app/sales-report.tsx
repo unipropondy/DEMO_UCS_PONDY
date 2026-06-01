@@ -956,6 +956,16 @@ export default function SalesReport() {
     return orderPayments;
   }, [orderPayments, selectedOrder]);
 
+  const payModeText = useMemo(() => {
+    if (selectedOrder?.IsCancelled) return "CANCELLED";
+    if (displayedPayments && displayedPayments.length > 0) {
+      const names = displayedPayments.map(p => (p.PayModeName || 'CASH').trim().toUpperCase());
+      const uniqueNames = Array.from(new Set(names));
+      return uniqueNames.join(" + ");
+    }
+    return (selectedOrder?.PayMode || "CASH").toUpperCase();
+  }, [displayedPayments, selectedOrder]);
+
   const fetchOrderDetails = async (settlementId: string) => {
     try {
       setLoadingDetails(true);
@@ -2005,7 +2015,7 @@ export default function SalesReport() {
                             fontSize: 9,
                           }}
                         >
-                          {selectedOrder?.IsCancelled ? "CANCELLED" : (selectedOrder?.PayMode || "CASH")}
+                          {payModeText}
                         </Text>
                       </View>
                     </View>
