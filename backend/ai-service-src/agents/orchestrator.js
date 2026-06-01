@@ -243,8 +243,11 @@ async function runConversationalChat(userQuestion, chatHistory = []) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   const isInvalidKey = !apiKey || apiKey.includes('your_openrouter_api_key') || apiKey === '';
 
-  const lowerQ = userQuestion.toLowerCase();
-  if (lowerQ.includes('good morning') || lowerQ === 'hi' || lowerQ === 'hello' || lowerQ === 'vanakkam') {
+  const lowerQ = userQuestion.toLowerCase().trim();
+  if (
+    lowerQ.includes('good morning') || lowerQ.includes('good moring') || lowerQ.includes('good mng') || lowerQ === 'gm' ||
+    lowerQ === 'hi' || lowerQ === 'hello' || lowerQ === 'hlo' || lowerQ === 'hey' || lowerQ === 'vanakkam'
+  ) {
     return "Good morning, Macha! 😎 Hope you're having an awesome day. How can I help you with your restaurant sales or metrics today?";
   }
 
