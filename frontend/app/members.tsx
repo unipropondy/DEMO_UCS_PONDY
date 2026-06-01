@@ -613,6 +613,7 @@ export default function MembersScreen() {
                     targetTotal={parseFloat(paymentAmount) || 0}
                     paymentMethods={paymentMethods.map(pm => ({ payMode: pm.payMode, description: pm.description, position: pm.Position }))}
                     memberFlow={true}
+                    selectedMember={paymentMember}
                     processing={processingPayment}
                     currencySymbol="$"
                     onCancel={() => setPaymentStep("AMOUNT")}

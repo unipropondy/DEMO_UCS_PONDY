@@ -355,6 +355,68 @@ router.get("/detail/:id", async (req, res) => {
   }
 });
 
+router.get("/detail/:id/payments", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input("Id", sql.UniqueIdentifier, req.params.id)
+      .query(`
+        SELECT 
+          ptd.PaymentTransactionId,
+          ptd.ReferenceType,
+          ptd.ReferenceId,
+          ptd.PayModeId,
+          ptd.Amount,
+          ptd.ReferenceNo,
+          COALESCE(pm.Description, pm.PayMode) AS PayModeName
+        FROM PaymentTransactionDetails ptd
+        LEFT JOIN Paymode pm ON pm.Position = ptd.PayModeId
+        WHERE ptd.ReferenceId = @Id AND ptd.ReferenceType = 'BILL'
+      `);
+    
+    let payments = result.recordset || [];
+    if (payments.length === 0) {
+      // Fallback: Query SettlementTotalSales or SettlementHeader to get the single payment mode and total amount
+      const fallbackResult = await pool.request()
+        .input("Id", sql.UniqueIdentifier, req.params.id)
+        .query(`
+          SELECT 
+            sh.SettlementID AS ReferenceId,
+            sh.SysAmount AS Amount,
+            sts.PayMode
+          FROM SettlementHeader sh
+          LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
+          WHERE sh.SettlementID = @Id
+        `);
+      if (fallbackResult.recordset.length > 0) {
+        const row = fallbackResult.recordset[0];
+        // Resolve paymode name from Paymode table using legacy field
+        const paymodeNameResult = await pool.request()
+          .input("PayMode", sql.VarChar(50), row.PayMode || '')
+          .query(`
+            SELECT TOP 1 COALESCE(Description, PayMode) AS PayModeName
+            FROM Paymode
+            WHERE PayMode = @PayMode OR Description = @PayMode OR CAST(Position AS VARCHAR(10)) = @PayMode
+          `);
+        const payModeName = paymodeNameResult.recordset[0]?.PayModeName || row.PayMode || 'CASH';
+        payments = [{
+          PaymentTransactionId: null,
+          ReferenceType: 'BILL',
+          ReferenceId: row.ReferenceId,
+          PayModeId: null,
+          Amount: row.Amount,
+          ReferenceNo: null,
+          PayModeName: payModeName
+        }];
+      }
+    }
+    
+    res.json(payments);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 router.get("/category", async (req, res) => {
   try {
@@ -778,8 +840,9 @@ router.get("/daily/:date", async (req, res) => {
         ISNULL(SUM(CASE WHEN PayMode = 'CASH' THEN SysAmount ELSE 0 END), 0) as CashSales,
         ISNULL(SUM(CASE WHEN PayMode = 'NETS' THEN SysAmount ELSE 0 END), 0) as NETS_Sales,
         ISNULL(SUM(CASE WHEN PayMode = 'PAYNOW' THEN SysAmount ELSE 0 END), 0) as PayNow_Sales,
+        ISNULL(SUM(CASE WHEN PayMode = 'UPI' THEN SysAmount ELSE 0 END), 0) as UPI_Sales,
         ISNULL(SUM(CASE WHEN PayMode = 'CARD' THEN SysAmount ELSE 0 END), 0) as CardSales,
-        ISNULL(SUM(CASE WHEN PayMode = 'CREDIT' THEN SysAmount ELSE 0 END), 0) as MemberSales,
+        ISNULL(SUM(CASE WHEN PayMode = 'CREDIT' OR PayMode = 'MEMBER' THEN SysAmount ELSE 0 END), 0) as MemberSales,
         ISNULL(SUM(ReceiptCount), 0) as TotalItems
         FROM NormalizedSales
       `);

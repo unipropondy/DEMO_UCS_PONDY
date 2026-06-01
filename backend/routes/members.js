@@ -289,7 +289,7 @@ router.post("/pay", async (req, res) => {
     // 3. Process split payments using unified service
     await processSplitPayments({
       referenceType: "MEMBER",
-      referenceId: memberPaymentId,
+      referenceId: memberId,
       payments,
       transaction,
       cashierId: userId ? String(userId).trim() : null

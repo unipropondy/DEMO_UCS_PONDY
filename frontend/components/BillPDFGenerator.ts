@@ -761,20 +761,30 @@ private static escapeHtml(str: string): string {
                 <span class="payment-label" style="font-size: 14px;">PAYMENT STATUS: PENDING</span>
               </div>
             ` : `
-              <div class="payment-row">
-                <span>PAYMENT:</span>
-                <span>${saleData.paymentMethod || 'Cash'}</span>
-              </div>
-              ${saleData.cashPaid ? `
-              <div class="payment-row">
-                <span>PAID:</span>
-                <span>${currencySymbol}${saleData.cashPaid.toFixed(2)}</span>
-              </div>
-              <div class="payment-row">
-                <span>CHANGE:</span>
-                <span>${currencySymbol}${(saleData.change || 0).toFixed(2)}</span>
-              </div>
-              ` : ''}
+              ${saleData.payments && Array.isArray(saleData.payments) && saleData.payments.length > 0 ? `
+                <div style="font-weight: bold; border-top: 1px dashed #ccc; margin-top: 2mm; padding-top: 2mm; font-size: 10px; text-align: left; text-transform: uppercase; margin-bottom: 1.5mm;">PAYMENT DETAILS</div>
+                ${saleData.payments.map((p: any) => `
+                  <div class="payment-row" style="font-size: 10px; font-weight: 700; display: flex; justify-content: space-between;">
+                    <span>${String(p.payMode || p.payModeName || p.Remarks || 'Payment').toUpperCase()}</span>
+                    <span>${currencySymbol}${parseFloat(p.amount).toFixed(2)}</span>
+                  </div>
+                `).join('')}
+              ` : `
+                <div class="payment-row">
+                  <span>PAYMENT:</span>
+                  <span>${saleData.paymentMethod || 'Cash'}</span>
+                </div>
+                ${saleData.cashPaid ? `
+                <div class="payment-row">
+                  <span>PAID:</span>
+                  <span>${currencySymbol}${saleData.cashPaid.toFixed(2)}</span>
+                </div>
+                <div class="payment-row">
+                  <span>CHANGE:</span>
+                  <span>${currencySymbol}${(saleData.change || 0).toFixed(2)}</span>
+                </div>
+                ` : ''}
+              `}
             `}
           </div>
           

@@ -177,6 +177,36 @@ export default function PaymentScreen() {
   const [customValue, setCustomValue] = useState("");
   const [isTestModalVisible, setIsTestModalVisible] = useState(false);
 
+  const [pendingPayments, setPendingPayments] = useState<any[] | null>(null);
+  const [payNowQrAmount, setPayNowQrAmount] = useState(0);
+  const [upiQrAmount, setUpiQrAmount] = useState(0);
+
+  const calculatePayNowAmount = (paymentsList: any[]) => {
+    return paymentsList.reduce((sum, p) => {
+      const pm = paymentMethods.find(x => x.position === p.payModeId);
+      if (pm) {
+        const code = pm.payMode.toUpperCase().trim();
+        if (code.includes("PAYNOW") || code.includes("QR") || code.includes("PAY-NOW")) {
+          return sum + p.amount;
+        }
+      }
+      return sum;
+    }, 0);
+  };
+
+  const calculateUpiAmount = (paymentsList: any[]) => {
+    return paymentsList.reduce((sum, p) => {
+      const pm = paymentMethods.find(x => x.position === p.payModeId);
+      if (pm) {
+        const code = pm.payMode.toUpperCase().trim();
+        if (code.includes("UPI") || code.includes("GPAY") || code.includes("PHONE") || code.includes("PAYTM")) {
+          return sum + p.amount;
+        }
+      }
+      return sum;
+    }, 0);
+  };
+
   const finalItems = useMemo(() => {
     return splitItems || cart;
   }, [splitItems, cart]);
@@ -432,9 +462,10 @@ export default function PaymentScreen() {
             pathname: "/payment_success" as any,
             params: {
               total: total.toFixed(2),
-              paidNum: paidNum.toFixed(2),
-              change: change.toFixed(2),
-              method,
+              paidNum: (payments && payments.length > 0 ? total : paidNum).toFixed(2),
+              change: (payments && payments.length > 0 ? 0 : change).toFixed(2),
+              method: payments && payments.length > 0 ? "SPLIT" : method.trim(),
+              payments: payments ? JSON.stringify(payments) : "[]",
               orderId: result.billNo || result.orderId || displayOrderId || "",
               tableNo: context?.tableNo ?? "",
               section: context?.section ?? "",
@@ -892,28 +923,9 @@ export default function PaymentScreen() {
                       description: pm.description,
                       position: pm.position,
                     }))}
+                    selectedMember={selectedMember}
+                    onSelectMember={() => setShowMemberModal(true)}
                     onComplete={(finalPayments) => {
-                      // Check if member payment was used
-                      const memberPayments = finalPayments.filter(p => {
-                        const pm = paymentMethods.find(x => x.position === p.payModeId);
-                        return pm && (pm.payMode.toUpperCase().trim() === "MEMBER" || pm.payMode.toUpperCase().trim() === "CREDIT");
-                      });
-                      
-                      if (memberPayments.length > 0) {
-                        if (!selectedMember) {
-                          showToast({ type: "warning", message: "Member Required", subtitle: "Please select a member first" });
-                          setShowMemberModal(true);
-                          return;
-                        }
-                        
-                        const memberTotal = memberPayments.reduce((sum, p) => sum + p.amount, 0);
-                        const isLimitExceeded = (selectedMember.CurrentBalance || 0) + memberTotal > (selectedMember.CreditLimit || 0);
-                        if (isLimitExceeded) {
-                          showToast({ type: "error", message: "Credit Limit Exceeded", subtitle: "Cannot complete billing" });
-                          return;
-                        }
-                      }
-                      
                       executeFinalPayment(finalPayments);
                     }}
                     onCancel={() => router.back()}
@@ -1029,8 +1041,24 @@ export default function PaymentScreen() {
 
       {renderAdjustmentModal()}
       {renderTestDisplayModal()}
-      <UPIPaymentModal visible={isUPIVisible} onClose={() => setIsUPIVisible(false)} amount={total} onSuccess={() => executeFinalPayment()} />
-      <PayNowPaymentModal visible={isPayNowVisible} onClose={() => setIsPayNowVisible(false)} amount={total} onSuccess={() => executeFinalPayment()} />
+      <UPIPaymentModal 
+        visible={isUPIVisible} 
+        onClose={() => { setIsUPIVisible(false); setPendingPayments(null); }} 
+        amount={upiQrAmount} 
+        onSuccess={() => executeFinalPayment(pendingPayments || [])} 
+      />
+      <PayNowPaymentModal 
+        visible={isPayNowVisible} 
+        onClose={() => { setIsPayNowVisible(false); setPendingPayments(null); }} 
+        amount={payNowQrAmount} 
+        onSuccess={() => {
+          if (upiQrAmount > 0) {
+            setIsUPIVisible(true);
+          } else {
+            executeFinalPayment(pendingPayments || []);
+          }
+        }} 
+      />
 
       {/* MEMBER SEARCH MODAL */}
       <Modal visible={showMemberModal} transparent animationType="fade" onRequestClose={() => setShowMemberModal(false)}>
@@ -1157,7 +1185,6 @@ export default function PaymentScreen() {
                     disabled={!selectedMember || ((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0))}
                     onPress={() => {
                       setShowMemberModal(false);
-                      executeFinalPayment();
                     }}
                   >
                     <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Confirm Member Payment</Text>

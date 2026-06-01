@@ -42,6 +42,14 @@ export default function PaymentSuccess() {
   const itemsRaw = String(params.items ?? "[]");
   const roundOff = String(params.roundOff ?? "0");
   const waiterName = String(params.waiterName ?? "");
+  const paymentsRaw = String(params.payments ?? "[]");
+  const payments = React.useMemo(() => {
+    try {
+      return JSON.parse(paymentsRaw);
+    } catch (e) {
+      return [];
+    }
+  }, [paymentsRaw]);
 
   const [promptVisible, setPromptVisible] = React.useState(true);
 
@@ -98,6 +106,7 @@ export default function PaymentSuccess() {
         cashPaid: parseFloat(paid) || 0,
         change: parseFloat(change) || 0,
         items: items,
+        payments: payments,
         roundOff: parseFloat(roundOff) || 0,
         waiterName: waiterName,
         date: new Date().toISOString(),
@@ -136,10 +145,19 @@ export default function PaymentSuccess() {
           <View style={styles.divider} />
 
           <View style={styles.detailsContainer}>
-            <View style={styles.row}>
-              <Text style={styles.label}>Payment Method</Text>
-              <Text style={styles.value}>{method}</Text>
-            </View>
+            {payments && payments.length > 0 ? (
+              payments.map((p: any, idx: number) => (
+                <View key={idx} style={styles.row}>
+                  <Text style={styles.label}>{p.payMode ? p.payMode.toUpperCase() : "PAYMENT"}</Text>
+                  <Text style={styles.value}>{currencySymbol}{parseFloat(p.amount).toFixed(2)}</Text>
+                </View>
+              ))
+            ) : (
+              <View style={styles.row}>
+                <Text style={styles.label}>Payment Method</Text>
+                <Text style={styles.value}>{method}</Text>
+              </View>
+            )}
 
             <View style={styles.row}>
               <Text style={styles.label}>Total Amount</Text>

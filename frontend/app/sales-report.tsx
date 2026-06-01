@@ -153,6 +153,7 @@ export default function SalesReport() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [orderDetails, setOrderDetails] = useState<any[]>([]);
+  const [orderPayments, setOrderPayments] = useState<any[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [activePaymentModes, setActivePaymentModes] = useState<string[]>([
@@ -933,14 +934,39 @@ export default function SalesReport() {
     );
   };
 
+  const displayedPayments = useMemo(() => {
+    if (!orderPayments || orderPayments.length === 0) return [];
+    
+    // Calculate total of payments
+    const totalPayments = orderPayments.reduce((sum, p) => sum + Number(p.Amount || 0), 0);
+    const targetTotal = Number(selectedOrder?.SysAmount || 0);
+    
+    // If there is a discrepancy within 0.10, adjust the last row to prevent rounding discrepancies in display
+    const diff = targetTotal - totalPayments;
+    if (Math.abs(diff) > 0 && Math.abs(diff) < 0.10 && orderPayments.length > 0) {
+      const adjusted = [...orderPayments];
+      const lastIndex = adjusted.length - 1;
+      adjusted[lastIndex] = {
+        ...adjusted[lastIndex],
+        Amount: Number((Number(adjusted[lastIndex].Amount || 0) + diff).toFixed(2))
+      };
+      return adjusted;
+    }
+    
+    return orderPayments;
+  }, [orderPayments, selectedOrder]);
+
   const fetchOrderDetails = async (settlementId: string) => {
     try {
       setLoadingDetails(true);
-      const response = await fetch(
-        `${API_URL}/api/sales/detail/${settlementId}`,
-      );
-      if (response.ok) {
-        const data = await response.json();
+      setOrderPayments([]);
+      const [itemsRes, paymentsRes] = await Promise.all([
+        fetch(`${API_URL}/api/sales/detail/${settlementId}`),
+        fetch(`${API_URL}/api/sales/detail/${settlementId}/payments`),
+      ]);
+
+      if (itemsRes.ok) {
+        const data = await itemsRes.json();
         if (Array.isArray(data) && data.length > 0) {
           setOrderDetails(data);
         } else {
@@ -955,9 +981,17 @@ export default function SalesReport() {
           ]);
         }
       }
+
+      if (paymentsRes.ok) {
+        const pData = await paymentsRes.json();
+        if (Array.isArray(pData)) {
+          setOrderPayments(pData);
+        }
+      }
     } catch (e) {
       console.error("Detail fetch error:", e);
       setOrderDetails([]);
+      setOrderPayments([]);
     } finally {
       setLoadingDetails(false);
     }
@@ -965,6 +999,7 @@ export default function SalesReport() {
 
   const handleOrderPress = (order: any) => {
     setOrderDetails([]);
+    setOrderPayments([]);
     setSelectedOrder(order);
     fetchOrderDetails(order.SettlementID);
   };
@@ -1017,6 +1052,12 @@ export default function SalesReport() {
         discountType: selectedOrder.DiscountType || null,
         discountValue: discountValue,
         subTotal: Number(selectedOrder.SubTotal ?? 0),
+        payments: displayedPayments.map(p => ({
+          payMode: p.PayModeName,
+          payModeName: p.PayModeName,
+          amount: p.Amount,
+          referenceNo: p.ReferenceNo
+        }))
       };
 
       await UniversalPrinter.smartPrint(saleData, userId, {}, discountInfo, undefined, true);
@@ -2242,6 +2283,27 @@ export default function SalesReport() {
                     ))
                   )}
                 </ScrollView>
+
+                {/* Payment Details Breakdown */}
+                {displayedPayments.length > 0 && (
+                  <View style={{ marginTop: 12, marginBottom: 4, paddingHorizontal: 4 }}>
+                    <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textSecondary, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Payment Details
+                    </Text>
+                    {displayedPayments.map((pm, idx) => (
+                      <View key={idx} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 13, fontFamily: Fonts.semiBold, color: Theme.textPrimary }}>
+                          {pm.PayModeName || 'CASH'}
+                          {pm.ReferenceNo ? ` (${pm.ReferenceNo})` : ''}
+                        </Text>
+                        <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                          {formatCurrency(pm.Amount)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
                 <View style={styles.modalDivider} />
                 {/* Bill-level breakdown: Subtotal → Discount → Total */}
                 <View style={{ backgroundColor: Theme.primary + "05", padding: 12, borderRadius: 12, marginBottom: 16, gap: 6 }}>
