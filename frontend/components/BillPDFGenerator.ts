@@ -346,8 +346,8 @@ private static escapeHtml(str: string): string {
     const hasAnyDiscount = totalItemDiscount > 0 || hasOrderDiscount;
     const originalSubTotal = grossTotal;
 
-    const gstAmount = hasGST ? currentSubtotal * (gstRate / (100 + gstRate)) : 0;
-    const amountWithoutGST = hasGST ? currentSubtotal - gstAmount : currentSubtotal;
+    const gstAmount = hasGST ? currentSubtotal * (gstRate / 100) : 0;
+    const amountWithoutGST = currentSubtotal;
     
     const companyLogoUrl = company.companyLogo || '';
     const halalLogoUrl = company.halalLogo || '';
@@ -726,13 +726,13 @@ private static escapeHtml(str: string): string {
             </div>
             ` : ''}
             <div class="total-row" style="margin-top: 1.5mm; border-top: 1px dashed #ccc; padding-top: 1.5mm;">
-              <span>${hasGST ? 'Net Amount (before GST):' : 'Net Amount:'}</span>
-              <span>${currencySymbol}${hasGST ? amountWithoutGST.toFixed(2) : (finalTotal - (saleData.roundOff || 0)).toFixed(2)}</span>
+              <span>Net Amount:</span>
+              <span>${currencySymbol}${amountWithoutGST.toFixed(2)}</span>
             </div>
             ` : `
             <div class="total-row">
-              <span>${hasGST ? 'Sub Total (before GST):' : 'Sub Total:'}</span>
-              <span>${currencySymbol}${hasGST ? amountWithoutGST.toFixed(2) : (finalTotal - (saleData.roundOff || 0)).toFixed(2)}</span>
+              <span>Sub Total:</span>
+              <span>${currencySymbol}${amountWithoutGST.toFixed(2)}</span>
             </div>
             `}
             

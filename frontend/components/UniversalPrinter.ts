@@ -1119,8 +1119,7 @@ class UniversalPrinter {
 
     if (hasAnyDiscount) {
       text += "[L]------------------------------------------------\n";
-      const netLabel =
-        (company.gstPercentage || 0) > 0 ? "Net Amt (bef GST):" : "Net Amount:";
+      const netLabel = "Net Amount:";
       text += this.formatTwoCols48(netLabel, `${symbol}${currentSubtotal.toFixed(2)}`);
     }
 
@@ -1129,10 +1128,10 @@ class UniversalPrinter {
     const hasGST = (company.gstPercentage || 0) > 0;
     const gstRate = company.gstPercentage || 0;
     if (hasGST) {
-      const gstAmount = currentSubtotal * (gstRate / (100 + gstRate));
-      const beforeGst = currentSubtotal - gstAmount;
+      const gstAmount = currentSubtotal * (gstRate / 100);
+      const beforeGst = currentSubtotal;
       if (!hasAnyDiscount) {
-        text += this.formatTwoCols48("Sub Total (bef GST):", `${symbol}${beforeGst.toFixed(2)}`);
+        text += this.formatTwoCols48("Sub Total:", `${symbol}${beforeGst.toFixed(2)}`);
       }
       text += this.formatTwoCols48(`GST (${gstRate}%):`, `${symbol}${gstAmount.toFixed(2)}`);
       text += "[L]------------------------------------------------\n";

@@ -379,10 +379,7 @@ class SunmiPrinterService {
 
       if (hasAnyDiscount) {
         await this.divider("-");
-        const netLabel =
-          companySettings.gstPercentage > 0
-            ? "Net Amt (bef GST):"
-            : "Net Amount:";
+        const netLabel = "Net Amount:";
         await this.twoCols(netLabel, `${symbol}${currentSubtotal.toFixed(2)}`);
       }
       await this.divider("-");
@@ -390,20 +387,18 @@ class SunmiPrinterService {
       // ============ GST ============
       let finalTotal =
         saleData.total || saleData.totalAmount || currentSubtotal;
-      if (companySettings.gstPercentage > 0) {
-        const gstAmount =
-          currentSubtotal *
-          (companySettings.gstPercentage /
-            (100 + companySettings.gstPercentage));
-        const beforeGst = currentSubtotal - gstAmount;
+      const gstRate = companySettings.gstPercentage || 0;
+      if (gstRate > 0) {
+        const gstAmount = currentSubtotal * (gstRate / 100);
+        const beforeGst = currentSubtotal;
         if (!hasAnyDiscount) {
           await this.twoCols(
-            "Sub Total (bef GST):",
+            "Sub Total:",
             `${symbol}${beforeGst.toFixed(2)}`,
           );
         }
         await this.twoCols(
-          `GST (${companySettings.gstPercentage}%):`,
+          `GST (${gstRate}%):`,
           `${symbol}${gstAmount.toFixed(2)}`,
         );
         await this.divider("-");
