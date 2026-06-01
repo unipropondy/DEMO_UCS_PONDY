@@ -53,12 +53,13 @@ function getLocalFallbackIntent(userMessage) {
   }
 
   // Intent Detection for Chat & Greetings (Tanglish & English)
-  if (
-    msg === 'hi' || msg === 'hello' || msg === 'good morning' || msg === 'good afternoon' || msg === 'good evening' ||
-    msg.includes('macha') || msg.includes('bro') || msg.includes('da') || msg.includes('dude') ||
+  const isGreeting = msg === 'hi' || msg === 'hello' || msg === 'good morning' || msg === 'good afternoon' || msg === 'good evening' || msg === 'vanakkam';
+  const isCasualChat = (msg.includes('macha') || msg.includes('bro') || msg.includes('da') || msg.includes('dude') ||
     msg.includes('how are you') || msg.includes('who are you') || msg.includes('thank you') || msg.includes('thanks') ||
-    msg.includes('chat panna') || msg.includes('chat history') || msg.includes('help')
-  ) {
+    msg.includes('chat panna') || msg.includes('chat history') || msg.includes('help')) && 
+    !msg.includes('sale') && !msg.includes('report') && !msg.includes('item') && !msg.includes('payment') && !msg.includes('revenue') && !msg.includes('performance');
+
+  if (isGreeting || isCasualChat) {
     return { intent: 'general_query', params: { textResponse: null } };
   }
 
@@ -110,14 +111,16 @@ async function extractIntent(userMessage) {
   const msg = userMessage.toLowerCase().trim();
   
   // 1. Force match greetings, spelling variations, chat requests, and casual words locally
-  if (
-    msg === 'hi' || msg === 'hello' || msg === 'hlo' || msg === 'hey' || msg === 'vanakkam' ||
-    msg.includes('good morning') || msg.includes('good moring') || msg.includes('good mng') || msg.includes('gm') ||
-    msg.includes('good afternoon') || msg.includes('good evening') ||
-    msg.includes('macha') || msg.includes('bro') || msg.includes('da') || msg.includes('dude') ||
+  const isGreeting = msg === 'hi' || msg === 'hello' || msg === 'hlo' || msg === 'hey' || msg === 'vanakkam' ||
+    msg === 'good morning' || msg === 'good moring' || msg === 'good mng' || msg === 'gm' ||
+    msg === 'good afternoon' || msg === 'good evening';
+  
+  const isCasualChat = (msg === 'macha' || msg === 'bro' || msg === 'da' || msg === 'dude' ||
     msg.includes('how are you') || msg.includes('who are you') || msg.includes('thank you') || msg.includes('thanks') ||
-    msg.includes('chat panna') || msg.includes('chat history') || msg.includes('help')
-  ) {
+    msg.includes('chat panna') || msg.includes('chat history') || msg.includes('help')) && 
+    !msg.includes('sale') && !msg.includes('report') && !msg.includes('item') && !msg.includes('payment') && !msg.includes('revenue') && !msg.includes('performance');
+
+  if (isGreeting || isCasualChat) {
     const today = getFormattedDate(0);
     return { intent: 'general_query', params: { startDate: today, endDate: today, titlePeriod: "Today's" } };
   }
