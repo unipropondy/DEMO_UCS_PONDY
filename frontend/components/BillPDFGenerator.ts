@@ -13,6 +13,7 @@ interface CompanySettings {
   address: string;
   gstNo: string;
   gstPercentage: number;
+  serviceChargePercentage?: number;
   phone: string;
   email: string;
   cashierName: string;
