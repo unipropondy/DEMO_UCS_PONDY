@@ -179,6 +179,7 @@ router.get("/all", async (req, res) => {
         sh.SubTotal as SubTotal,
         ISNULL(sh.DiscountAmount, 0) as DiscountAmount,
         sh.DiscountType as DiscountType,
+        ISNULL(sh.ServiceCharge, 0) as ServiceCharge,
         ISNULL(sts.ReceiptCount, 0) as ReceiptCount,
         ISNULL(sh.VoidItemQty, 0) as VoidQty,
         ISNULL(sh.VoidItemAmount, 0) as VoidAmount,

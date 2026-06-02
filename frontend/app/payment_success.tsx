@@ -43,6 +43,7 @@ export default function PaymentSuccess() {
   const roundOff = String(params.roundOff ?? "0");
   const waiterName = String(params.waiterName ?? "");
   const paymentsRaw = String(params.payments ?? "[]");
+  const serviceCharge = String(params.serviceCharge ?? "0");
   const payments = React.useMemo(() => {
     try {
       return JSON.parse(paymentsRaw);
@@ -115,6 +116,7 @@ export default function PaymentSuccess() {
         discountType: discountInfo?.type ?? null,
         discountValue: discountInfo?.value ?? 0,
         subTotal: computedSubTotal,
+        serviceCharge: parseFloat(serviceCharge) || 0,
       };
 
       await UniversalPrinter.smartPrint(saleData, userId, {}, discountInfo);

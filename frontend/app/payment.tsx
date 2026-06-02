@@ -493,6 +493,7 @@ export default function PaymentScreen() {
               ),
               items: JSON.stringify(finalItems || []),
               roundOff: displayedRoundOff.toFixed(2),
+              serviceCharge: displayedServiceCharge.toFixed(2),
               isSplit: splitItems ? "true" : "false",
               waiterName: context?.serverName ?? "",
             },

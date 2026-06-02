@@ -204,7 +204,8 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
             HalalLogoUrl: settings.halalLogo || '',
             PrinterIP: settings.printerIp || '', // ✅ ADDED
             ShowCompanyLogo: settings.showCompanyLogo ? 1 : 0,  // ✅ Simplified
-            ShowHalalLogo: settings.showHalalLogo ? 1 : 0      // ✅ Simplified
+            ShowHalalLogo: settings.showHalalLogo ? 1 : 0,      // ✅ Simplified
+            ServiceChargePercentage: settings.serviceChargePercentage || 0
         };
         
         // ✅ Add timestamp to prevent caching

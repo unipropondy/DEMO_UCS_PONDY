@@ -532,6 +532,7 @@ export default function SummaryScreen() {
         waiterName: context?.serverName,
         date: new Date(),
         isCheckout: true,
+        serviceCharge: serviceChargeAmount,
       };
 
       if (enableCheckoutBill) {
