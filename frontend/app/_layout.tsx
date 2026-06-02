@@ -97,6 +97,7 @@ export default function RootLayout() {
           <Stack.Screen name="company-settings" />
           <Stack.Screen name="waiters" />
           <Stack.Screen name="members" />
+          <Stack.Screen name="receivables" />
           <Stack.Screen name="waiter-history" />
           <Stack.Screen name="locked-tables" />
           <Stack.Screen name="kitchen-status" />

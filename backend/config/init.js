@@ -53,6 +53,25 @@ async function initDB(pool) {
       END
     `);
 
+    // 2.1 CreditCustomerMaster (Dedicated Credit Accounts table separate from Members)
+    await runQuery("Create CreditCustomerMaster", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CreditCustomerMaster]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[CreditCustomerMaster](
+              [CustomerId] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT NEWID(),
+              [Name] [nvarchar](255) NOT NULL,
+              [Phone] [nvarchar](50) NULL,
+              [Email] [nvarchar](255) NULL,
+              [Address] [nvarchar](max) NULL,
+              [IsActive] [bit] DEFAULT 1,
+              [Balance] [decimal](18, 2) DEFAULT 0,
+              [CreditLimit] [decimal](18, 2) DEFAULT 0,
+              [CurrentBalance] [decimal](18, 2) DEFAULT 0,
+              [CreatedOn] [datetime] DEFAULT GETDATE()
+          )
+      END
+    `);
+
     // 3. SettlementHeader Columns
     await runQuery("SettlementHeader - IsCancelled", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'IsCancelled') ALTER TABLE [dbo].[SettlementHeader] ADD IsCancelled BIT DEFAULT 0");
     await runQuery("SettlementHeader - CancellationReason", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'CancellationReason') ALTER TABLE [dbo].[SettlementHeader] ADD CancellationReason NVARCHAR(255)");
@@ -232,12 +251,20 @@ async function initDB(pool) {
       END
     `);
 
-    // 12. Insert MEMBER Paymode if missing
+    // 12. Insert MEMBER & CREDIT Paymode if missing
     await runQuery("Insert MEMBER Paymode", `
       IF NOT EXISTS (SELECT 1 FROM [dbo].[Paymode] WHERE LTRIM(RTRIM(PayMode)) = 'MEMBER')
       BEGIN
           INSERT INTO [dbo].[Paymode] (Position, PayMode, Description, Active)
           VALUES (5, 'MEMBER', 'MEMBER', 1)
+      END
+    `);
+
+    await runQuery("Insert CREDIT Paymode", `
+      IF NOT EXISTS (SELECT 1 FROM [dbo].[Paymode] WHERE LTRIM(RTRIM(PayMode)) = 'CREDIT')
+      BEGIN
+          INSERT INTO [dbo].[Paymode] (Position, PayMode, Description, Active)
+          VALUES (6, 'CREDIT', 'CREDIT', 1)
       END
     `);
 
@@ -288,6 +315,75 @@ async function initDB(pool) {
               [CreatedDate] [datetime] NOT NULL DEFAULT GETDATE(),
               [CreatedBy] [uniqueidentifier] NULL
           )
+      END
+    `);
+
+    // 15. Create CustomerCreditTransactions table for credit and payment ledger history
+    // Upgrade Detector: Drop old table format if missing new 'BillAmount' column
+    await runQuery("Upgrade CustomerCreditTransactions Detector", `
+      IF OBJECT_ID('dbo.CustomerCreditTransactions', 'U') IS NOT NULL AND COL_LENGTH('dbo.CustomerCreditTransactions', 'BillAmount') IS NULL
+      BEGIN
+          DROP TABLE [dbo].[CustomerCreditTransactions]
+      END
+    `);
+
+    // Upgrade: Drop the FK constraint if it exists to allow referencing CreditCustomerMaster
+    await runQuery("Drop CustomerCreditTransactions FK Constraint", `
+      IF EXISTS (SELECT * FROM sys.foreign_keys WHERE object_id = OBJECT_ID(N'[dbo].[FK_CreditTrans_Member]') AND parent_object_id = OBJECT_ID(N'[dbo].[CustomerCreditTransactions]'))
+      BEGIN
+          ALTER TABLE [dbo].[CustomerCreditTransactions] DROP CONSTRAINT [FK_CreditTrans_Member]
+      END
+    `);
+
+    await runQuery("Create CustomerCreditTransactions", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CustomerCreditTransactions]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[CustomerCreditTransactions](
+              [TransactionId] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+              [MemberId] UNIQUEIDENTIFIER NOT NULL, -- Serves as the CustomerId for CreditCustomerMaster
+              [SettlementId] UNIQUEIDENTIFIER NULL,
+              [BillNo] NVARCHAR(50) NULL,
+              [TransactionType] NVARCHAR(20) NOT NULL, -- 'CREDIT_SALE', 'PAYMENT', 'ADJUSTMENT'
+              [BillAmount] DECIMAL(18, 2) DEFAULT 0,
+              [PaidAmount] DECIMAL(18, 2) DEFAULT 0,
+              [OutstandingAmount] DECIMAL(18, 2) DEFAULT 0,
+              [PaymentMethod] NVARCHAR(50) NULL,
+              [ReferenceNo] NVARCHAR(100) NULL,
+              [Status] NVARCHAR(20) DEFAULT 'OPEN', -- 'OPEN', 'PARTIAL', 'CLOSED'
+              [Remarks] NVARCHAR(500) NULL,
+              [CreatedBy] UNIQUEIDENTIFIER NULL,
+              [CreatedDate] DATETIME2 NOT NULL DEFAULT GETDATE(),
+              [UpdatedDate] DATETIME2 NULL
+          )
+      END
+    `);
+
+    await runQuery("Index - CustomerCreditTransactions MemberId", `
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_CreditTrans_MemberId' AND object_id = OBJECT_ID('CustomerCreditTransactions'))
+      BEGIN
+        CREATE NONCLUSTERED INDEX IX_CreditTrans_MemberId 
+        ON CustomerCreditTransactions(MemberId) 
+        INCLUDE (TransactionType, OutstandingAmount, BillNo, Status)
+      END
+    `);
+
+    await runQuery("Index - CustomerCreditTransactions Settlement", `
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_CreditTrans_Settlement' AND object_id = OBJECT_ID('CustomerCreditTransactions'))
+      BEGIN
+        CREATE NONCLUSTERED INDEX IX_CreditTrans_Settlement 
+        ON CustomerCreditTransactions(SettlementId) 
+        INCLUDE (TransactionType, OutstandingAmount, Status)
+      END
+    `);
+
+    // Backfill balance for existing customer credit balances as adjustments if no transactions exist yet
+    await runQuery("Backfill CustomerCreditTransactions", `
+      IF NOT EXISTS (SELECT TOP 1 1 FROM [dbo].[CustomerCreditTransactions])
+      BEGIN
+          INSERT INTO [dbo].[CustomerCreditTransactions] (MemberId, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedDate)
+          SELECT MemberId, 'ADJUSTMENT', CurrentBalance, 0, CurrentBalance, 'OPEN', 'Balance migration from legacy profile', GETDATE()
+          FROM MemberMaster
+          WHERE CurrentBalance > 0
       END
     `);
 

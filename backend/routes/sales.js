@@ -914,25 +914,47 @@ router.post("/save", async (req, res) => {
       const activeOrg = await getActiveOrganization();
       const businessUnitId = activeOrg.businessUnitId;
 
-      // 🆕 MEMBER PAYMENT VALIDATION
-      if (memberId && ((paymentMethod || "").toUpperCase() === "MEMBER" || (paymentMethod || "").toUpperCase() === "CREDIT")) {
-        const memberCheck = await transaction.request()
-          .input("MemberId", sql.UniqueIdentifier, memberId)
-          .query("SELECT CreditLimit, CurrentBalance, IsActive FROM MemberMaster WITH (UPDLOCK) WHERE MemberId = @MemberId");
-        
-        if (memberCheck.recordset.length === 0) {
-          throw new Error("Member not found");
-        }
-        
-        const member = memberCheck.recordset[0];
-        if (!member.IsActive) {
-          throw new Error("Member is inactive");
-        }
-        
-        const currentBalance = parseFloat(member.CurrentBalance) || 0;
-        const creditLimit = parseFloat(member.CreditLimit) || 0;
-        if (currentBalance + parseFloat(totalAmount) > creditLimit) {
-          throw new Error("Credit Limit Exceeded");
+      // 🆕 MEMBER / CREDIT VALIDATION
+      if (memberId) {
+        const payUpper = (paymentMethod || "").toUpperCase().trim();
+        if (payUpper === "CREDIT") {
+          const creditCheck = await transaction.request()
+            .input("CustomerId", sql.UniqueIdentifier, memberId)
+            .query("SELECT CreditLimit, CurrentBalance, IsActive FROM CreditCustomerMaster WITH (UPDLOCK) WHERE CustomerId = @CustomerId");
+          
+          if (creditCheck.recordset.length === 0) {
+            throw new Error("Credit Customer not found");
+          }
+          
+          const customer = creditCheck.recordset[0];
+          if (!customer.IsActive) {
+            throw new Error("Credit Customer is inactive");
+          }
+          
+          const currentBalance = parseFloat(customer.CurrentBalance) || 0;
+          const creditLimit = parseFloat(customer.CreditLimit) || 0;
+          if (currentBalance + parseFloat(totalAmount) > creditLimit) {
+            throw new Error("Credit Limit Exceeded");
+          }
+        } else if (payUpper === "MEMBER") {
+          const memberCheck = await transaction.request()
+            .input("MemberId", sql.UniqueIdentifier, memberId)
+            .query("SELECT CreditLimit, CurrentBalance, IsActive FROM MemberMaster WITH (UPDLOCK) WHERE MemberId = @MemberId");
+          
+          if (memberCheck.recordset.length === 0) {
+            throw new Error("Member not found");
+          }
+          
+          const member = memberCheck.recordset[0];
+          if (!member.IsActive) {
+            throw new Error("Member is inactive");
+          }
+          
+          const currentBalance = parseFloat(member.CurrentBalance) || 0;
+          const creditLimit = parseFloat(member.CreditLimit) || 0;
+          if (currentBalance + parseFloat(totalAmount) > creditLimit) {
+            throw new Error("Credit Limit Exceeded");
+          }
         }
       }
 
@@ -1277,13 +1299,19 @@ router.post("/save", async (req, res) => {
             const activePMs = pmRes.recordset;
 
             let memberPaidAmt = 0;
+            let creditPaidAmt = 0;
             for (const p of payments) {
               const pmInfo = activePMs.find(x => 
                 x.Position === Number(p.payModeId) || 
                 String(x.PayMode).trim().toUpperCase() === String(p.payModeId || p.payMode || "").trim().toUpperCase()
               );
-              if (pmInfo && (pmInfo.PayMode.toUpperCase().trim() === "MEMBER" || pmInfo.PayMode.toUpperCase().trim() === "CREDIT")) {
-                memberPaidAmt += parseFloat(p.amount) || 0;
+              if (pmInfo) {
+                const modeUpper = pmInfo.PayMode.toUpperCase().trim();
+                if (modeUpper === "MEMBER") {
+                  memberPaidAmt += parseFloat(p.amount) || 0;
+                } else if (modeUpper === "CREDIT") {
+                  creditPaidAmt += parseFloat(p.amount) || 0;
+                }
               }
             }
 
@@ -1292,7 +1320,26 @@ router.post("/save", async (req, res) => {
                 .input("MemberId", memberId)
                 .input("Amount", memberPaidAmt)
                 .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
-              console.log(`[SAVE SALE] Updated member balance for credit amount: ${memberPaidAmt}`);
+              console.log(`[SAVE SALE] Updated member balance in MemberMaster: ${memberPaidAmt}`);
+            }
+
+            if (creditPaidAmt > 0) {
+              await transaction.request()
+                .input("CustomerId", memberId)
+                .input("Amount", creditPaidAmt)
+                .query(`UPDATE CreditCustomerMaster SET CurrentBalance = CurrentBalance + @Amount WHERE CustomerId = @CustomerId`);
+              
+              await transaction.request()
+                .input("MemberId", memberId)
+                .input("SettlementId", settlementId)
+                .input("BillNo", finalBillNo)
+                .input("Amount", creditPaidAmt)
+                .input("CreatedBy", toGuidOrNull(cashierId))
+                .query(`
+                  INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy)
+                  VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Split credit purchase', @CreatedBy)
+                `);
+              console.log(`[SAVE SALE] Updated credit customer balance and wrote split credit ledger debit: ${creditPaidAmt}`);
             }
           }
         } catch (payErr) {
@@ -1349,11 +1396,32 @@ router.post("/save", async (req, res) => {
           throw payErr; // Throw to trigger transaction rollback
         }
 
-        if (memberId && ((paymentMethod || "").toUpperCase() === "CREDIT" || (paymentMethod || "").toUpperCase() === "MEMBER")) {
-          await transaction.request()
-            .input("MemberId", memberId)
-            .input("Amount", totalAmount || 0)
-            .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
+        if (memberId) {
+          const payUpper = (paymentMethod || "").toUpperCase().trim();
+          if (payUpper === "CREDIT") {
+            await transaction.request()
+              .input("CustomerId", memberId)
+              .input("Amount", totalAmount || 0)
+              .query(`UPDATE CreditCustomerMaster SET CurrentBalance = CurrentBalance + @Amount WHERE CustomerId = @CustomerId`);
+
+            await transaction.request()
+              .input("MemberId", memberId)
+              .input("SettlementId", settlementId)
+              .input("BillNo", finalBillNo)
+              .input("Amount", totalAmount || 0)
+              .input("CreatedBy", toGuidOrNull(cashierId))
+              .query(`
+                INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy)
+                VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Credit purchase', @CreatedBy)
+              `);
+            console.log(`[SAVE SALE] Updated credit customer balance and wrote single credit ledger debit: ${totalAmount}`);
+          } else if (payUpper === "MEMBER") {
+            await transaction.request()
+              .input("MemberId", memberId)
+              .input("Amount", totalAmount || 0)
+              .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
+            console.log(`[SAVE SALE] Updated member balance in MemberMaster: ${totalAmount}`);
+          }
         }
       }
 

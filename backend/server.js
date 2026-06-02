@@ -44,6 +44,7 @@ const settingsRoutes = require("./routes/settings");
 const companySettingsRoutes = require("./routes/companySettings");
 const uploadRoutes = require("./routes/upload");
 const exportRoutes = require("./routes/export");
+const creditCustomerRoutes = require("./routes/creditCustomers");
 
 const http = require("http");
 const { Server } = require("socket.io");
@@ -122,11 +123,11 @@ setInterval(async () => {
           ELSE 0 
         END AS isOvertime,
         CASE 
-          WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= ISNULL((SELECT TOP 1 HoldOvertimeMinutes FROM CompanySettings), 30) THEN 1 
+          WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= ISNULL((SELECT TOP 1 HoldOvertimeMinutes FROM CompanySettings WITH (NOLOCK)), 30) THEN 1 
           ELSE 0 
         END AS isHoldOvertime,
         CONVERT(VARCHAR, ModifiedOn, 126) as ModifiedOn
-      FROM TableMaster
+      FROM TableMaster WITH (NOLOCK)
     `);
 
     const currentTables = result.recordset || [];
@@ -208,6 +209,7 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/company-settings", companySettingsRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/export", exportRoutes);
+app.use("/api/credit-customers", creditCustomerRoutes);
 
 // AI Chat Integration
 const aiRouter = require("./ai-service-src/routes/ai.routes");

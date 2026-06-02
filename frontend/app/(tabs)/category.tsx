@@ -1293,6 +1293,30 @@ export default function Category() {
                 </TouchableOpacity>
               )}
 
+              {canAccessMembers() && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setIsMenuVisible(false);
+                    router.push("/receivables");
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.menuIconContainer,
+                      { backgroundColor: Theme.primary + "10" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="wallet-outline"
+                      size={18}
+                      color={Theme.primary}
+                    />
+                  </View>
+                  <Text style={styles.menuItemText}>Receivables</Text>
+                </TouchableOpacity>
+              )}
+
               {canAccessSalesReport() && (
                 <TouchableOpacity
                   style={styles.menuItem}

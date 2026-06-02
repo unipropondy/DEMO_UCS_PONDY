@@ -41,7 +41,7 @@ interface SplitPaymentComponentProps {
   memberFlow?: boolean;
   currencySymbol?: string;
   selectedMember?: any;
-  onSelectMember?: () => void;
+  onSelectMember?: (payMode?: string) => void;
 }
 
 const isQRMode = (modeName: string): boolean => {
@@ -244,7 +244,7 @@ export default function SplitPaymentComponent({
               // If they selected Member and no member is set, trigger lookup
               const isMember = method.payMode.toUpperCase().trim() === "MEMBER" || method.payMode.toUpperCase().trim() === "CREDIT";
               if (isMember && !selectedMember && onSelectMember) {
-                onSelectMember();
+                onSelectMember(method.payMode);
               }
             }
           }
@@ -405,7 +405,7 @@ export default function SplitPaymentComponent({
                       </Text>
                     </View>
                   ) : (
-                    <TouchableOpacity onPress={onSelectMember} style={styles.memberSelectLink}>
+                    <TouchableOpacity onPress={() => onSelectMember && onSelectMember(row.payMode)} style={styles.memberSelectLink}>
                       <Ionicons name="people" size={14} color={Theme.primary} />
                       <Text style={styles.memberSelectLinkText}>Tap to select customer</Text>
                     </TouchableOpacity>

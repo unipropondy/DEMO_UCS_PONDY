@@ -83,6 +83,7 @@ const PAYMODE_ICON_MAP: Record<string, string> = {
   UPI:        "mobile-alt",
   GPAY:       "google-pay",
   MEMBER:     "user-tag",
+  CREDIT:     "user-tag",
 };
 
 function getPaymodeIcon(payMode: string): string {
@@ -138,15 +139,70 @@ export default function PaymentScreen() {
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [searchingMembers, setSearchingMembers] = useState(false);
 
+  // Quick Add State variables
+  const [isQuickAddMode, setIsQuickAddMode] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newCreditLimit, setNewCreditLimit] = useState("1000");
+  const [addingMember, setAddingMember] = useState(false);
+
+  const handleQuickAddMember = async () => {
+    if (!newName.trim() || !newPhone.trim()) {
+      showToast({ type: "warning", message: "Required Fields", subtitle: "Please enter Name and Phone" });
+      return;
+    }
+    setAddingMember(true);
+    const isCredit = method.trim().toUpperCase() === "CREDIT";
+    const endpoint = isCredit ? `${API_URL}/api/credit-customers/add` : `${API_URL}/api/members/add`;
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newName.trim(),
+          phone: newPhone.trim(),
+          creditLimit: parseFloat(newCreditLimit) || 1000,
+          currentBalance: 0,
+          balance: 0,
+          isActive: 1,
+          userId: user?.userId
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.member) {
+        setSelectedMember(data.member);
+        setIsQuickAddMode(false);
+        setNewName("");
+        setNewPhone("");
+        setNewCreditLimit("1000");
+        setMemberQuery(data.member.Name);
+        showToast({ 
+          type: "success", 
+          message: "Success", 
+          subtitle: isCredit ? "New credit customer added and selected!" : "New member added and selected!" 
+        });
+      } else {
+        showToast({ type: "error", message: "Failed", subtitle: data.error || "Could not add customer" });
+      }
+    } catch (err) {
+      console.error("Quick add error:", err);
+      showToast({ type: "error", message: "Error", subtitle: "Could not connect to server" });
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
   const searchMembers = async (q: string) => {
     setSearchingMembers(true);
+    const isCredit = method.trim().toUpperCase() === "CREDIT";
+    const endpoint = isCredit ? `${API_URL}/api/credit-customers/search?query=${encodeURIComponent(q)}` : `${API_URL}/api/members/search?query=${encodeURIComponent(q)}`;
     try {
-      const res = await fetch(`${API_URL}/api/members/search?query=${encodeURIComponent(q)}`);
+      const res = await fetch(endpoint);
       const data = await res.json();
       setMembers(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Search members error:", err);
-      showToast({ type: "error", message: "Search Failed", subtitle: "Could not search members" });
+      showToast({ type: "error", message: "Search Failed", subtitle: "Could not search accounts" });
     } finally {
       setSearchingMembers(false);
     }
@@ -160,6 +216,15 @@ export default function PaymentScreen() {
       return () => clearTimeout(timer);
     }
   }, [memberQuery, showMemberModal]);
+
+  useEffect(() => {
+    if (!showMemberModal) {
+      setIsQuickAddMode(false);
+      setNewName("");
+      setNewPhone("");
+      setNewCreditLimit("1000");
+    }
+  }, [showMemberModal]);
 
   const splitItems = useCartStore((s: any) => s.activeSplitItems);
 
@@ -424,8 +489,21 @@ export default function PaymentScreen() {
       
       const isLimitExceeded = (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0);
       if (isLimitExceeded) {
-        showToast({ type: "error", message: "Credit Limit Exceeded", subtitle: "Cannot complete billing" });
-        return;
+        const isAdminOrManager = user?.role === "ADMIN" || user?.role === "MANAGER";
+        if (isAdminOrManager) {
+          Alert.alert(
+            "Credit Limit Exceeded",
+            `Customer outstanding will be ${currencySymbol}${((selectedMember.CurrentBalance || 0) + total).toFixed(2)} which exceeds limit of ${currencySymbol}${(selectedMember.CreditLimit || 0).toFixed(2)}. Authorize this credit sale?`,
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Authorize & Complete", onPress: () => executeFinalPayment() }
+            ]
+          );
+          return;
+        } else {
+          showToast({ type: "error", message: "Credit Limit Exceeded", subtitle: "Manager approval required to override" });
+          return;
+        }
       }
     }
 
@@ -958,7 +1036,10 @@ export default function PaymentScreen() {
                         position: pm.position,
                       }))}
                       selectedMember={selectedMember}
-                      onSelectMember={() => setShowMemberModal(true)}
+                      onSelectMember={(mode) => {
+                        if (mode) setMethod(mode);
+                        setShowMemberModal(true);
+                      }}
                       onComplete={(finalPayments) => {
                         executeFinalPayment(finalPayments);
                       }}
@@ -1010,6 +1091,85 @@ export default function PaymentScreen() {
                               </Text>
                             </TouchableOpacity>
                           ))}
+                        </View>
+                      )}
+
+                      {(method.trim().toUpperCase() === "MEMBER" || method.trim().toUpperCase() === "CREDIT") && (
+                        <View style={styles.creditMemberSection}>
+                          <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>
+                              {method.trim().toUpperCase() === "CREDIT" ? "Credit Customer Account" : "Member Account"}
+                            </Text>
+                          </View>
+                          
+                          {selectedMember ? (
+                            <View style={styles.selectedCreditCard}>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                  <View style={styles.creditIconBadge}>
+                                    <FontAwesome5 name="user-tag" size={14} color="#fff" />
+                                  </View>
+                                  <View>
+                                    <Text style={styles.creditCardName}>{selectedMember.Name}</Text>
+                                    <Text style={styles.creditCardPhone}>{selectedMember.Phone}</Text>
+                                  </View>
+                                </View>
+                                <TouchableOpacity 
+                                  style={styles.changeCreditBtn} 
+                                  onPress={() => setShowMemberModal(true)}
+                                >
+                                  <Text style={styles.changeCreditBtnText}>Change</Text>
+                                </TouchableOpacity>
+                              </View>
+                              
+                              <View style={styles.creditCardStatsRow}>
+                                <View style={styles.creditStatCol}>
+                                  <Text style={styles.creditStatLabel}>Available Credit</Text>
+                                  <Text style={[
+                                    styles.creditStatValue, 
+                                    { color: (selectedMember.CreditLimit || 0) - (selectedMember.CurrentBalance || 0) < total ? Theme.danger : Theme.success }
+                                  ]}>
+                                    {currencySymbol}{((selectedMember.CreditLimit || 0) - (selectedMember.CurrentBalance || 0)).toFixed(2)}
+                                  </Text>
+                                </View>
+                                <View style={styles.creditStatCol}>
+                                  <Text style={styles.creditStatLabel}>Credit Limit</Text>
+                                  <Text style={styles.creditStatValue}>
+                                    {currencySymbol}{(selectedMember.CreditLimit || 0).toFixed(2)}
+                                  </Text>
+                                </View>
+                                <View style={styles.creditStatCol}>
+                                  <Text style={styles.creditStatLabel}>Current Balance</Text>
+                                  <Text style={styles.creditStatValue}>
+                                    {currencySymbol}{(selectedMember.CurrentBalance || 0).toFixed(2)}
+                                  </Text>
+                                </View>
+                              </View>
+
+                              {((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0)) && (
+                                <View style={styles.limitExceededBanner}>
+                                  <Ionicons name="alert-circle" size={16} color={Theme.danger} />
+                                  <Text style={styles.limitExceededText}>
+                                    Transaction exceeds Credit Limit by {currencySymbol}{((selectedMember.CurrentBalance || 0) + total - (selectedMember.CreditLimit || 0)).toFixed(2)}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          ) : (
+                            <TouchableOpacity 
+                              style={styles.selectCreditPrompt}
+                              onPress={() => setShowMemberModal(true)}
+                              activeOpacity={0.7}
+                            >
+                              <View style={styles.selectCreditPromptInner}>
+                                <Ionicons name="search-outline" size={24} color={Theme.primary} />
+                                <Text style={styles.selectCreditPromptTitle}>No Customer Selected</Text>
+                                <Text style={styles.selectCreditPromptSub}>
+                                  Tap here to search existing or quick-add a new credit customer
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                          )}
                         </View>
                       )}
 
@@ -1230,132 +1390,231 @@ export default function PaymentScreen() {
             <TouchableWithoutFeedback>
               <View style={styles.memberModalContent}>
                 <View style={styles.adjustModalHeader}>
-                  <Text style={styles.adjustModalTitle}>Select Member</Text>
+                  <Text style={styles.adjustModalTitle}>
+                    {isQuickAddMode 
+                      ? (method.trim().toUpperCase() === "CREDIT" ? "Quick Add Credit Account" : "Quick Add Member")
+                      : (method.trim().toUpperCase() === "CREDIT" ? "Select Credit Customer" : "Select Member")
+                    }
+                  </Text>
                   <TouchableOpacity onPress={() => setShowMemberModal(false)}>
                     <Ionicons name="close" size={24} color={Theme.textPrimary} />
                   </TouchableOpacity>
                 </View>
 
-                {/* Search Bar */}
-                <View style={styles.searchBarBox}>
-                  <Ionicons name="search" size={20} color={Theme.textSecondary} style={{ marginRight: 8 }} />
-                  <TextInput
-                    style={{
-                      flex: 1,
-                      fontSize: 16,
-                      fontFamily: Fonts.medium,
-                      color: Theme.textPrimary,
-                      height: '100%',
-                      borderWidth: 0,
-                      marginLeft: 8,
-                      ...Platform.select({ web: { outlineStyle: "none" } as any })
-                    }}
-                    placeholder="Search by Name or Phone..."
-                    placeholderTextColor={Theme.textMuted || "#999"}
-                    value={memberQuery}
-                    onChangeText={setMemberQuery}
-                    autoFocus
-                  />
-                  {searchingMembers && <ActivityIndicator size="small" color={Theme.primary} />}
-                </View>
+                {isQuickAddMode ? (
+                  /* QUICK ADD FORM */
+                  <View style={styles.quickAddForm}>
+                    <View style={styles.formField}>
+                      <Text style={styles.formLabel}>Customer Name *</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="Enter full name"
+                        placeholderTextColor={Theme.textMuted || "#999"}
+                        value={newName}
+                        onChangeText={setNewName}
+                        {...Platform.select({ web: { outlineStyle: "none" } as any })}
+                      />
+                    </View>
+                    <View style={styles.formField}>
+                      <Text style={styles.formLabel}>Phone Number *</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="Enter phone number"
+                        placeholderTextColor={Theme.textMuted || "#999"}
+                        value={newPhone}
+                        onChangeText={setNewPhone}
+                        keyboardType="phone-pad"
+                        {...Platform.select({ web: { outlineStyle: "none" } as any })}
+                      />
+                    </View>
+                    <View style={styles.formField}>
+                      <Text style={styles.formLabel}>Default Credit Limit ({currencySymbol})</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="e.g. 1000"
+                        placeholderTextColor={Theme.textMuted || "#999"}
+                        value={newCreditLimit}
+                        onChangeText={setNewCreditLimit}
+                        keyboardType="numeric"
+                        {...Platform.select({ web: { outlineStyle: "none" } as any })}
+                      />
+                    </View>
 
-                {/* Members List */}
-                <View style={{ maxHeight: 220, marginVertical: 8 }}>
-                  <FlatList
-                    data={members}
-                    keyExtractor={(item) => item.MemberId}
-                    ListEmptyComponent={() => (
-                      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
-                        <Text style={{ fontSize: 14, fontFamily: Fonts.medium, color: Theme.textSecondary }}>No members found</Text>
-                      </View>
-                    )}
-                    renderItem={({ item }) => {
-                      const isSelected = selectedMember?.MemberId === item.MemberId;
-                      const remainingCredit = (item.CreditLimit || 0) - (item.CurrentBalance || 0);
-                      const isLimitExceeded = (item.CurrentBalance || 0) + total > (item.CreditLimit || 0);
-                      return (
-                        <TouchableOpacity
-                          style={[
-                            styles.memberListItem,
-                            isSelected && styles.selectedMemberItem,
-                            !item.IsActive && { opacity: 0.5 }
-                          ]}
-                          disabled={!item.IsActive}
-                          onPress={() => {
-                            if (!item.IsActive) {
-                              showToast({ type: "warning", message: "Inactive Member", subtitle: "Cannot select inactive member" });
-                              return;
-                            }
-                            setSelectedMember(item);
-                          }}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <Text style={[styles.memberNameText, isSelected && { color: Theme.primary }]}>{item.Name}</Text>
-                              {!item.IsActive && <View style={styles.inactiveBadge}><Text style={styles.inactiveBadgeText}>INACTIVE</Text></View>}
-                            </View>
-                            <Text style={styles.memberPhoneText}>{item.Phone}</Text>
-                            <Text style={{ fontSize: 11, fontFamily: Fonts.medium, color: Theme.textMuted, marginTop: 4 }}>
-                              Limit: {currencySymbol}{(item.CreditLimit || 0).toFixed(2)} | Balance: {currencySymbol}{(item.CurrentBalance || 0).toFixed(2)}
-                            </Text>
-                          </View>
-                          <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: isLimitExceeded ? Theme.danger : Theme.success }}>
-                              Rem: {currencySymbol}{remainingCredit.toFixed(2)}
-                            </Text>
-                            {isLimitExceeded && (
-                              <Text style={{ fontSize: 10, fontFamily: Fonts.medium, color: Theme.danger, marginTop: 2 }}>
-                                Limit Exceeded
-                              </Text>
-                            )}
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    }}
-                  />
-                </View>
-
-                {/* Selected Member Details & Confirmation */}
-                {selectedMember && (
-                  <View style={styles.selectedMemberDetailCard}>
-                    <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary }}>SELECTED MEMBER</Text>
-                    <View style={{ marginTop: 6, gap: 4 }}>
-                      <Text style={{ fontSize: 14, fontFamily: Fonts.bold, color: Theme.primary }}>{selectedMember.Name} ({selectedMember.Phone})</Text>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                        <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Bill Amount:</Text>
-                        <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>{currencySymbol}{total.toFixed(2)}</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Remaining Credit:</Text>
-                        <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
-                          {currencySymbol}{(selectedMember.CreditLimit - selectedMember.CurrentBalance).toFixed(2)}
-                        </Text>
-                      </View>
+                    <View style={styles.adjustModalActions}>
+                      <TouchableOpacity 
+                        style={styles.cancelBtn} 
+                        onPress={() => setIsQuickAddMode(false)}
+                      >
+                        <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Back to Search</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.confirmBtn, addingMember && { opacity: 0.7 }]}
+                        disabled={addingMember}
+                        onPress={handleQuickAddMember}
+                      >
+                        {addingMember ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Save & Select</Text>
+                        )}
+                      </TouchableOpacity>
                     </View>
                   </View>
-                )}
+                ) : (
+                  /* SEARCH & LIST WORKFLOW */
+                  <>
+                    {/* Quick Add Toggle Button */}
+                    <TouchableOpacity 
+                      style={styles.quickAddToggleBtn} 
+                      onPress={() => {
+                        setIsQuickAddMode(true);
+                        if (memberQuery && isNaN(Number(memberQuery))) {
+                          setNewName(memberQuery);
+                        } else if (memberQuery) {
+                          setNewPhone(memberQuery);
+                        }
+                      }}
+                    >
+                      <Ionicons name="person-add" size={16} color={Theme.primary} />
+                      <Text style={styles.quickAddToggleText}>+ Quick Add New Customer</Text>
+                    </TouchableOpacity>
 
-                {/* Modal Actions */}
-                <View style={styles.adjustModalActions}>
-                  <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowMemberModal(false)}>
-                    <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.confirmBtn,
-                      (!selectedMember || ((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0))) && { backgroundColor: Theme.border, opacity: 0.7 }
-                    ]}
-                    disabled={!selectedMember || ((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0))}
-                    onPress={() => {
-                      setShowMemberModal(false);
-                      if (!isSplitActive) {
-                        executeFinalPayment();
-                      }
-                    }}
-                  >
-                    <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Confirm Member Payment</Text>
-                  </TouchableOpacity>
-                </View>
+                    {/* Search Bar */}
+                    <View style={styles.searchBarBox}>
+                      <Ionicons name="search" size={20} color={Theme.textSecondary} style={{ marginRight: 8 }} />
+                      <TextInput
+                        style={{
+                          flex: 1,
+                          fontSize: 16,
+                          fontFamily: Fonts.medium,
+                          color: Theme.textPrimary,
+                          height: '100%',
+                          borderWidth: 0,
+                          marginLeft: 8,
+                          ...Platform.select({ web: { outlineStyle: "none" } as any })
+                        }}
+                        placeholder="Search by Name or Phone..."
+                        placeholderTextColor={Theme.textMuted || "#999"}
+                        value={memberQuery}
+                        onChangeText={setMemberQuery}
+                        autoFocus
+                      />
+                      {searchingMembers && <ActivityIndicator size="small" color={Theme.primary} />}
+                    </View>
+
+                    {/* Members List */}
+                    <View style={{ maxHeight: 220, marginVertical: 8 }}>
+                      <FlatList
+                        data={members}
+                        keyExtractor={(item) => item.MemberId}
+                        ListEmptyComponent={() => (
+                          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                            <Text style={{ fontSize: 14, fontFamily: Fonts.medium, color: Theme.textSecondary }}>No members found</Text>
+                          </View>
+                        )}
+                        renderItem={({ item }) => {
+                          const isSelected = selectedMember?.MemberId === item.MemberId;
+                          const remainingCredit = (item.CreditLimit || 0) - (item.CurrentBalance || 0);
+                          const isLimitExceeded = (item.CurrentBalance || 0) + total > (item.CreditLimit || 0);
+                          return (
+                            <TouchableOpacity
+                              style={[
+                                styles.memberListItem,
+                                isSelected && styles.selectedMemberItem,
+                                !item.IsActive && { opacity: 0.5 }
+                              ]}
+                              disabled={!item.IsActive}
+                              onPress={() => {
+                                if (!item.IsActive) {
+                                  showToast({ type: "warning", message: "Inactive Member", subtitle: "Cannot select inactive member" });
+                                  return;
+                                }
+                                setSelectedMember(item);
+                              }}
+                            >
+                              <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                  <Text style={[styles.memberNameText, isSelected && { color: Theme.primary }]}>{item.Name}</Text>
+                                  {!item.IsActive && <View style={styles.inactiveBadge}><Text style={styles.inactiveBadgeText}>INACTIVE</Text></View>}
+                                </View>
+                                <Text style={styles.memberPhoneText}>{item.Phone}</Text>
+                                <Text style={{ fontSize: 11, fontFamily: Fonts.medium, color: Theme.textMuted, marginTop: 4 }}>
+                                  Limit: {currencySymbol}{(item.CreditLimit || 0).toFixed(2)} | Balance: {currencySymbol}{(item.CurrentBalance || 0).toFixed(2)}
+                                </Text>
+                              </View>
+                              <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: isLimitExceeded ? Theme.danger : Theme.success }}>
+                                  Rem: {currencySymbol}{remainingCredit.toFixed(2)}
+                                </Text>
+                                {isLimitExceeded && (
+                                  <Text style={{ fontSize: 10, fontFamily: Fonts.medium, color: Theme.danger, marginTop: 2 }}>
+                                    Limit Exceeded
+                                  </Text>
+                                )}
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        }}
+                      />
+                    </View>
+
+                    {/* Selected Member Details & Confirmation */}
+                    {selectedMember && (
+                      <View style={styles.selectedMemberDetailCard}>
+                        <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary }}>SELECTED ACCOUNT</Text>
+                        <View style={{ marginTop: 6, gap: 4 }}>
+                          <Text style={{ fontSize: 14, fontFamily: Fonts.bold, color: Theme.primary }}>{selectedMember.Name} ({selectedMember.Phone})</Text>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                            <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Bill Amount:</Text>
+                            <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>{currencySymbol}{total.toFixed(2)}</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Remaining Credit:</Text>
+                            <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                              {currencySymbol}{(selectedMember.CreditLimit - selectedMember.CurrentBalance).toFixed(2)}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Modal Actions */}
+                    <View style={styles.adjustModalActions}>
+                      <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowMemberModal(false)}>
+                        <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.confirmBtn,
+                          (!selectedMember || (((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0)) && !(user?.role === "ADMIN" || user?.role === "MANAGER"))) && { backgroundColor: Theme.border, opacity: 0.7 }
+                        ]}
+                        disabled={!selectedMember || (((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0)) && !(user?.role === "ADMIN" || user?.role === "MANAGER"))}
+                        onPress={() => {
+                          setShowMemberModal(false);
+                          if (!isSplitActive) {
+                            const isLimitExceeded = (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0);
+                            if (isLimitExceeded) {
+                              Alert.alert(
+                                "Credit Limit Exceeded",
+                                `Outstanding will be ${currencySymbol}${((selectedMember.CurrentBalance || 0) + total).toFixed(2)} exceeding limit of ${currencySymbol}${(selectedMember.CreditLimit || 0).toFixed(2)}. Authorize credit purchase?`,
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  { text: "Authorize & Confirm", onPress: () => executeFinalPayment() }
+                                ]
+                              );
+                            } else {
+                              executeFinalPayment();
+                            }
+                          }
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>
+                          {selectedMember && (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0) ? "Authorize & Confirm" : "Confirm Credit Payment"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -1701,5 +1960,158 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 10,
     marginTop: 16,
+  },
+  // Credit / Member Section Styles
+  creditMemberSection: {
+    marginTop: 5,
+    marginBottom: 10,
+  },
+  selectedCreditCard: {
+    backgroundColor: Theme.bgMuted,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    ...Theme.shadowSm,
+  },
+  creditIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Theme.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  creditCardName: {
+    fontSize: 15,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+  },
+  creditCardPhone: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    color: Theme.textSecondary,
+    marginTop: 1,
+  },
+  changeCreditBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
+    backgroundColor: Theme.primaryLight,
+  },
+  changeCreditBtnText: {
+    fontSize: 11,
+    fontFamily: Fonts.bold,
+    color: Theme.primary,
+  },
+  creditCardStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Theme.border + '30',
+  },
+  creditStatCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  creditStatLabel: {
+    fontSize: 9,
+    fontFamily: Fonts.black,
+    color: Theme.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  creditStatValue: {
+    fontSize: 13,
+    fontFamily: Fonts.extraBold,
+    color: Theme.textPrimary,
+  },
+  limitExceededBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Theme.danger + '10',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 12,
+    borderWidth: 0.5,
+    borderColor: Theme.danger + '20',
+  },
+  limitExceededText: {
+    fontSize: 11,
+    fontFamily: Fonts.bold,
+    color: Theme.danger,
+    flex: 1,
+  },
+  selectCreditPrompt: {
+    backgroundColor: Theme.bgCard,
+    borderWidth: 1.5,
+    borderColor: Theme.primaryBorder,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectCreditPromptInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  selectCreditPromptTitle: {
+    fontSize: 14,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+  },
+  selectCreditPromptSub: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    color: Theme.textSecondary,
+    textAlign: 'center',
+  },
+  quickAddToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    backgroundColor: Theme.primaryLight,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
+    borderRadius: 12,
+    marginVertical: 8,
+  },
+  quickAddToggleText: {
+    fontSize: 13,
+    fontFamily: Fonts.bold,
+    color: Theme.primary,
+  },
+  quickAddForm: {
+    gap: 12,
+    marginVertical: 10,
+  },
+  formField: {
+    gap: 4,
+  },
+  formLabel: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: Theme.textSecondary,
+  },
+  formInput: {
+    height: 46,
+    backgroundColor: Theme.bgInput || '#f8f9fa',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontFamily: Fonts.medium,
+    color: Theme.textPrimary,
   },
 });
