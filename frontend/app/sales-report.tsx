@@ -2235,16 +2235,27 @@ export default function SalesReport() {
                             item.modifiers.filter((m: any) => {
                               const name = (m.ModifierName || m.modifierName || m.name || "").trim();
                               return name.length > 0;
-                            }).map((m: any, mIdx: number) => {
-                              const amt = Number(m.Amount || m.amount || 0);
-                              const displayName = (m.ModifierName || m.name || "").replace(/^INSTR:\s*/i, "").trim();
-                              return (
-                                <Text key={mIdx} style={{ fontSize: 11, color: Theme.textSecondary, marginLeft: 8, marginTop: 2 }}>
-                                  • {displayName}
-                                  {amt > 0 ? ` (+$${amt.toFixed(2)})` : ""}
-                                </Text>
-                              );
-                            })}
+                            }).length > 0 && (
+                              <View style={styles.modifierPillsContainer}>
+                                {item.modifiers
+                                  .filter((m: any) => {
+                                    const name = (m.ModifierName || m.modifierName || m.name || "").trim();
+                                    return name.length > 0;
+                                  })
+                                  .map((m: any, mIdx: number) => {
+                                    const amt = Number(m.Amount || m.amount || 0);
+                                    const displayName = (m.ModifierName || m.name || "").replace(/^INSTR:\s*/i, "").trim();
+                                    return (
+                                      <View key={mIdx} style={styles.modifierPill}>
+                                        <Text style={styles.modifierPillText}>
+                                          + {displayName}
+                                          {amt > 0 ? ` ($${amt.toFixed(2)})` : ""}
+                                        </Text>
+                                      </View>
+                                    );
+                                  })}
+                              </View>
+                            )}
                           {/* Unit price row — strikethrough if item has discount */}
                           {item.DiscountAmount > 0 ? (
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -4171,5 +4182,25 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontSize: 11,
     fontFamily: Fonts.bold,
+  },
+  modifierPillsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+    marginLeft: 8,
+  },
+  modifierPill: {
+    backgroundColor: '#fafafa',
+    borderColor: '#e4e4e7',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  modifierPillText: {
+    fontSize: 10,
+    color: '#52525b',
+    fontFamily: Fonts.semiBold,
   },
 });
