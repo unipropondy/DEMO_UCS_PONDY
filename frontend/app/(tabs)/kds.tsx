@@ -204,6 +204,8 @@ const OrderCard = React.memo(function OrderCard({ item, cardHeight, pulseAnim, g
                     {i.modifiers?.filter((mod: any) => {
                       const id = mod.ModifierId || mod.modifierId || mod.ModifierID || mod.modifierID;
                       const name = (mod.ModifierName || "").trim().toUpperCase();
+                      const price = Number(mod.Price || mod.price || mod.Amount || mod.amount || 0);
+                      if (price > 0) return true;
                       return id !== "00000000-0000-0000-0000-000000000001" && !name.startsWith("INSTR:");
                     }).map((mod: any, idx: number) => (
                       <Text key={idx} style={styles.modifierText}>• {mod.ModifierName}</Text>
@@ -469,6 +471,8 @@ export default function KDSScreen() {
                         {i.modifiers?.filter((m: any) => {
                           const id = m.ModifierId || m.modifierId || m.ModifierID || m.modifierID;
                           const name = (m.ModifierName || "").trim().toUpperCase();
+                          const price = Number(m.Price || m.price || m.Amount || m.amount || 0);
+                          if (price > 0) return true;
                           return id !== "00000000-0000-0000-0000-000000000001" && !name.startsWith("INSTR:");
                         }).map((m: any, idx: number) => (
                           <Text key={idx} style={styles.modalModifierText}>• {m.ModifierName}</Text>

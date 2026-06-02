@@ -2233,14 +2233,14 @@ export default function SalesReport() {
                           {item.modifiers &&
                             Array.isArray(item.modifiers) &&
                             item.modifiers.filter((m: any) => {
-                              const id = m.ModifierId || m.modifierId || m.ModifierID || m.modifierID;
-                              const name = (m.ModifierName || m.modifierName || "").trim().toUpperCase();
-                              return id !== "00000000-0000-0000-0000-000000000001" && !name.startsWith("INSTR:");
+                              const name = (m.ModifierName || m.modifierName || m.name || "").trim();
+                              return name.length > 0;
                             }).map((m: any, mIdx: number) => {
                               const amt = Number(m.Amount || m.amount || 0);
+                              const displayName = (m.ModifierName || m.name || "").replace(/^INSTR:\s*/i, "").trim();
                               return (
                                 <Text key={mIdx} style={{ fontSize: 11, color: Theme.textSecondary, marginLeft: 8, marginTop: 2 }}>
-                                  • {m.ModifierName || m.name}
+                                  • {displayName}
                                   {amt > 0 ? ` (+$${amt.toFixed(2)})` : ""}
                                 </Text>
                               );

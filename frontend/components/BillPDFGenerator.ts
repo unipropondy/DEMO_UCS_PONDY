@@ -379,10 +379,6 @@ private static escapeHtml(str: string): string {
           const qtyNum = item.qty || item.quantity || 1;
           const modifiersHTML = (item.modifiers && Array.isArray(item.modifiers))
             ? item.modifiers.filter((m: any) => {
-                const id = m.ModifierId || m.modifierId || m.ModifierID || m.modifierID;
-                const mName = (m.ModifierName || m.name || "").trim();
-                const isInstruction = id === "00000000-0000-0000-0000-000000000001" || mName.toUpperCase().startsWith("INSTR:");
-                if (isInstruction) return false;
                 const mAmt = parseFloat(String(m.Amount ?? m.Price ?? m.amount ?? m.price ?? 0)) || 0;
                 return mAmt > 0;
               }).map((m: any) => {

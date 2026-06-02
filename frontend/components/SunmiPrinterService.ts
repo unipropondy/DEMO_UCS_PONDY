@@ -318,14 +318,10 @@ class SunmiPrinterService {
         // Print modifiers if they have a positive amount/price
         if (item.modifiers && Array.isArray(item.modifiers)) {
           for (const m of item.modifiers) {
-            const id = m.ModifierId || m.modifierId || m.ModifierID || m.modifierID;
             const mName = (m.ModifierName || m.name || "").trim();
-            const isInstruction = id === "00000000-0000-0000-0000-000000000001" || mName.toUpperCase().startsWith("INSTR:");
-            if (!isInstruction) {
-              const mAmt = parseFloat(String(m.Amount ?? m.Price ?? m.amount ?? m.price ?? 0)) || 0;
-              if (mAmt > 0) {
-                await this.twoCols(`   + ${mName}`, `${symbol}${(mAmt * qtyNum).toFixed(2)}`);
-              }
+            const mAmt = parseFloat(String(m.Amount ?? m.Price ?? m.amount ?? m.price ?? 0)) || 0;
+            if (mAmt > 0) {
+              await this.twoCols(`   + ${mName}`, `${symbol}${(mAmt * qtyNum).toFixed(2)}`);
             }
           }
         }
