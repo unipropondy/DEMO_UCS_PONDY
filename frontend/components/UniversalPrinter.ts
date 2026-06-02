@@ -91,6 +91,36 @@ class UniversalPrinter {
     }
   }
 
+  private static async isIpReachable(ip: string, port: number = 80, timeoutMs: number = 600): Promise<boolean> {
+    if (!ip || ip.trim() === "") return false;
+    const cleanIp = ip.trim();
+    const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(cleanIp);
+    if (!isIp) return false;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      await fetch(`http://${cleanIp}:${port}`, {
+        method: "GET",
+        signal: controller.signal,
+        mode: "no-cors",
+        headers: { "Cache-Control": "no-cache" }
+      });
+      clearTimeout(timer);
+      console.log(`🔌 [isIpReachable] Connected/Alive: ${cleanIp}`);
+      return true;
+    } catch (err: any) {
+      clearTimeout(timer);
+      if (err.name === "AbortError") {
+        console.log(`🔌 [isIpReachable] Offline/Timeout on ${cleanIp}`);
+        return false;
+      }
+      console.log(`🔌 [isIpReachable] Host responded (alive): ${cleanIp}`);
+      return true;
+    }
+  }
+
   // ==================== SALES REPORT ====================
   static async printSalesReport(
     reportData: any,
@@ -331,10 +361,17 @@ class UniversalPrinter {
         const targetIp = printerIpOverride || company.printerIp;
 
         // ✅ 1. Try Hardware Printer (WiFi or Bluetooth)
-        if (targetIp && targetIp.trim().length > 0) {
+        let isReachable = false;
+        const isIp = targetIp && /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(targetIp.trim());
+        if (isIp) {
+          isReachable = await this.isIpReachable(targetIp);
+        } else if (targetIp && targetIp.trim().length > 0) {
+          isReachable = true;
+        }
+
+        if (isReachable) {
           try {
             const text = this.formatKOTThermalText(orderData, type);
-            const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(targetIp);
 
             if (isIp) {
               console.log(`🌐 KOT WiFi print to: ${targetIp}`);
@@ -786,7 +823,12 @@ class UniversalPrinter {
         }
 
         // ✅ 1. Try WiFi Printer with 3s Timeout
+        let isReachable = false;
         if (targetIp && targetIp.trim().length > 0) {
+          isReachable = await this.isIpReachable(targetIp);
+        }
+
+        if (isReachable) {
           console.log(
             `🌐 Trying WiFi (${isTakeaway ? "TakeAway" : "Cashier"}): ${targetIp}`,
           );

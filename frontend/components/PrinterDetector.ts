@@ -16,6 +16,18 @@ export class PrinterDetector {
   static async detectPrinter(): Promise<'sunmi' | 'pdf'> {
     if (Platform.OS !== 'android') return 'pdf';
     
+    // Quick brand check to avoid blocking native service binding attempts on non-Sunmi hardware
+    const brand = (Platform.constants as any).Brand || '';
+    const manufacturer = (Platform.constants as any).Manufacturer || '';
+    const isSunmiBrand = 
+      brand.toLowerCase().includes('sunmi') || 
+      manufacturer.toLowerCase().includes('sunmi');
+      
+    if (!isSunmiBrand) {
+      console.log('ℹ️ Non-Sunmi hardware detected, skipping Sunmi printer detection');
+      return 'pdf';
+    }
+    
     try {
       // ✅ Check for Sunmi printer by trying to initialize
       const sunmiReady = await this.checkSunmiPrinter();
