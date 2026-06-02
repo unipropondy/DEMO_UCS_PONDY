@@ -648,12 +648,21 @@ export default function Category() {
   // Individual TableItemComponents now subscribe to their own status.
 
   const currentTables = useMemo(() => {
-    return allTables.filter((table: TableItem) => {
+    const filtered = allTables.filter((table: TableItem) => {
       if (activeTab === "TAKEAWAY") return table.DiningSection === 4;
       else if (activeTab === "SECTION_1") return table.DiningSection === 1;
       else if (activeTab === "SECTION_2") return table.DiningSection === 2;
       else if (activeTab === "SECTION_3") return table.DiningSection === 3;
       return false;
+    });
+
+    return [...filtered].sort((a, b) => {
+      const aLocked = a.Status === 5;
+      const bLocked = b.Status === 5;
+      if (aLocked && !bLocked) return -1;
+      if (!aLocked && bLocked) return 1;
+
+      return a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" });
     });
   }, [allTables, activeTab]);
 

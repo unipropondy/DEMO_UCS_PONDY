@@ -1044,13 +1044,15 @@ router.post("/cancel", async (req, res) => {
           .input("price", sql.Decimal(18, 2), item.PricePerUnit)
           .input("catId", sql.UniqueIdentifier, item.CategoryId)
           .input("catName", sql.NVarChar(255), item.CategoryName)
-          .input("groupName", sql.NVarChar(255), item.DishGroupName).query(`
+          .input("groupName", sql.NVarChar(255), item.DishGroupName)
+          .input("OrderDetailId", sql.UniqueIdentifier, toGuidOrNull(item.OrderDetailId))
+          .query(`
             INSERT INTO SettlementItemDetail (
               SettlementID, DishId, DishName, Qty, Price, Status, OrderDateTime,
-              CategoryId, CategoryName, SubCategoryName
+              CategoryId, CategoryName, SubCategoryName, OrderDetailId
             ) VALUES (
               @sid, @dishId, @dishName, @qty, @price, 'VOIDED', GETDATE(),
-              @catId, @catName, @groupName
+              @catId, @catName, @groupName, @OrderDetailId
             )
           `);
       }

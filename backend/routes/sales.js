@@ -328,22 +328,32 @@ router.get("/detail/:id", async (req, res) => {
         const modifiersResult = await pool.request()
           .input("OrderId", sql.UniqueIdentifier, orderId)
           .query(`
-            SELECT DishId, ModifierName, Amount 
+            SELECT OrderDetailId, DishId, ModifierId, ModifierName, Amount 
             FROM Restaurantmodifierdetail 
             WHERE OrderId = @OrderId
-            UNION ALL
-            SELECT DishId, ModifierName, Amount 
+            UNION
+            SELECT OrderDetailId, DishId, ModifierId, ModifierName, Amount 
             FROM RestaurantmodifierdetailCur 
             WHERE OrderId = @OrderId
           `);
           
         const modifiers = modifiersResult.recordset || [];
         
-        // Group modifiers by DishId and attach to item details
+        // Group modifiers by OrderDetailId (falling back to DishId for legacy compatibility)
         items.forEach(item => {
           const itemMods = modifiers
-            .filter(m => m.DishId && item.DishId && String(m.DishId).toLowerCase() === String(item.DishId).toLowerCase())
-            .map(m => ({ name: m.ModifierName, ModifierName: m.ModifierName, Amount: m.Amount }));
+            .filter(m => {
+              if (item.OrderDetailId && m.OrderDetailId) {
+                return String(m.OrderDetailId).toLowerCase() === String(item.OrderDetailId).toLowerCase();
+              }
+              return m.DishId && item.DishId && String(m.DishId).toLowerCase() === String(item.DishId).toLowerCase();
+            })
+            .map(m => ({ 
+              name: m.ModifierName, 
+              ModifierName: m.ModifierName, 
+              Amount: m.Amount,
+              ModifierId: m.ModifierId
+            }));
           item.modifiers = itemMods;
         });
       }
@@ -1193,9 +1203,11 @@ router.post("/save", async (req, res) => {
             .input("Salt", sql.NVarChar(50), item.salt || "")
             .input("Oil", sql.NVarChar(50), item.oil || "")
             .input("Sugar", sql.NVarChar(50), item.sugar || "")
-            .input("OrderDateTime", sql.DateTime, new Date()).query(`
-              INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar)
-              VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @Qty, @Price, @OrderDateTime, @CategoryName, @SubCategoryName, @ItemDiscountAmount, @ItemDiscountType, @Status, @Spicy, @Salt, @Oil, @Sugar)
+            .input("OrderDateTime", sql.DateTime, new Date())
+            .input("OrderDetailId", sql.UniqueIdentifier, toGuidOrNull(item.lineItemId))
+            .query(`
+              INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar, OrderDetailId)
+              VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @Qty, @Price, @OrderDateTime, @CategoryName, @SubCategoryName, @ItemDiscountAmount, @ItemDiscountType, @Status, @Spicy, @Salt, @Oil, @Sugar, @OrderDetailId)
             `);
         }
       }
@@ -1206,7 +1218,7 @@ router.post("/save", async (req, res) => {
           const dbVoids = await transaction.request()
             .input("orderNo", sql.NVarChar(100), displayOrderId)
             .query(`
-              SELECT d.DishId, d.DishName, d.Quantity, d.PricePerUnit, dish.DishGroupId, dg.CategoryId, cm.CategoryName, dg.DishGroupName
+              SELECT d.OrderDetailId, d.DishId, d.DishName, d.Quantity, d.PricePerUnit, dish.DishGroupId, dg.CategoryId, cm.CategoryName, dg.DishGroupName
               FROM RestaurantOrderDetailCur d
               JOIN RestaurantOrderCur h ON d.OrderId = h.OrderId
               LEFT JOIN DishMaster dish ON d.DishId = dish.DishId
@@ -1225,13 +1237,14 @@ router.post("/save", async (req, res) => {
               .input("catId", sql.UniqueIdentifier, v.CategoryId)
               .input("catName", sql.NVarChar(255), v.CategoryName)
               .input("groupName", sql.NVarChar(255), v.DishGroupName)
+              .input("OrderDetailId", sql.UniqueIdentifier, toGuidOrNull(v.OrderDetailId))
               .query(`
                 INSERT INTO SettlementItemDetail (
                   SettlementID, DishId, DishName, Qty, Price, Status, OrderDateTime,
-                  CategoryId, CategoryName, SubCategoryName
+                  CategoryId, CategoryName, SubCategoryName, OrderDetailId
                 ) VALUES (
                   @sid, @dishId, @dishName, @qty, @price, 'VOIDED', GETDATE(),
-                  @catId, @catName, @groupName
+                  @catId, @catName, @groupName, @OrderDetailId
                 )
               `);
           }

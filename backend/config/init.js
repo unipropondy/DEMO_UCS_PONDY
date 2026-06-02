@@ -73,6 +73,7 @@ async function initDB(pool) {
     await runQuery("SettlementItemDetail - Salt", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementItemDetail]') AND name = 'Salt') ALTER TABLE [dbo].[SettlementItemDetail] ADD Salt NVARCHAR(50) NULL");
     await runQuery("SettlementItemDetail - Oil", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementItemDetail]') AND name = 'Oil') ALTER TABLE [dbo].[SettlementItemDetail] ADD Oil NVARCHAR(50) NULL");
     await runQuery("SettlementItemDetail - Sugar", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementItemDetail]') AND name = 'Sugar') ALTER TABLE [dbo].[SettlementItemDetail] ADD Sugar NVARCHAR(50) NULL");
+    await runQuery("SettlementItemDetail - OrderDetailId", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementItemDetail]') AND name = 'OrderDetailId') ALTER TABLE [dbo].[SettlementItemDetail] ADD OrderDetailId UNIQUEIDENTIFIER NULL");
 
     // 5. CancelRemarksMaster
     await runQuery("Create CancelRemarksMaster", `
