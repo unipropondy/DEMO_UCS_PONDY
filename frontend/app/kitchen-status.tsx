@@ -94,8 +94,9 @@ export default function KitchenStatusScreen() {
             </View>
           )}
           {item.modifiers?.filter((m: any) => {
+            const id = m.ModifierId || m.modifierId || m.ModifierID || m.modifierID;
             const name = (m.ModifierName || m.modifierName || "").trim().toUpperCase();
-            return !name.startsWith("INSTR:");
+            return id !== "00000000-0000-0000-0000-000000000001" && !name.startsWith("INSTR:");
           }).map((m: any, idx: number) => (
             <Text key={idx} style={styles.modifierText}>• {m.ModifierName || m.modifierName}</Text>
           ))}

@@ -202,8 +202,9 @@ const OrderCard = React.memo(function OrderCard({ item, cardHeight, pulseAnim, g
                     </View>
 
                     {i.modifiers?.filter((mod: any) => {
+                      const id = mod.ModifierId || mod.modifierId || mod.ModifierID || mod.modifierID;
                       const name = (mod.ModifierName || "").trim().toUpperCase();
-                      return !name.startsWith("INSTR:");
+                      return id !== "00000000-0000-0000-0000-000000000001" && !name.startsWith("INSTR:");
                     }).map((mod: any, idx: number) => (
                       <Text key={idx} style={styles.modifierText}>• {mod.ModifierName}</Text>
                     ))}
@@ -466,8 +467,9 @@ export default function KDSScreen() {
                           )}
                         </View>
                         {i.modifiers?.filter((m: any) => {
+                          const id = m.ModifierId || m.modifierId || m.ModifierID || m.modifierID;
                           const name = (m.ModifierName || "").trim().toUpperCase();
-                          return !name.startsWith("INSTR:");
+                          return id !== "00000000-0000-0000-0000-000000000001" && !name.startsWith("INSTR:");
                         }).map((m: any, idx: number) => (
                           <Text key={idx} style={styles.modalModifierText}>• {m.ModifierName}</Text>
                         ))}

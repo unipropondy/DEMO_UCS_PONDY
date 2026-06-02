@@ -419,7 +419,7 @@ async function syncToProfessionalTables(
     if (noteInfo.value)
       modItems.push({
         ModifierId: "00000000-0000-0000-0000-000000000001",
-        ModifierName: "INSTR: " + noteInfo.value,
+        ModifierName: noteInfo.value,
         Price: 0,
         qty: item.qty || 1,
       });

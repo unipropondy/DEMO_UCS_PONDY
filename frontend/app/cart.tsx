@@ -120,8 +120,9 @@ const CartItemCard = React.memo(
                   <View style={styles.customizationPill}>
                     <Text style={styles.customText} numberOfLines={1}>
                       • {item.modifiers?.filter((m: any) => {
+                        const id = m.ModifierId || m.modifierId || m.ModifierID || m.modifierID;
                         const name = (m.ModifierName || m.modifierName || "").trim().toUpperCase();
-                        return !name.startsWith("INSTR:");
+                        return id !== "00000000-0000-0000-0000-000000000001" && !name.startsWith("INSTR:");
                       }).map((m: any) => m.ModifierName || m.modifierName).join(", ") || (item.note || item.notes)}
                     </Text>
                   </View>
