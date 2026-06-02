@@ -60,11 +60,7 @@
     "extra": {
       "router": {
         "origin": false
-      },
-      "eas": {
-        "projectId": "00adc2a7-c43c-4b34-9ed9-913ec73f0f75"
       }
-    },
-    "owner": "lokesh9976"
+    }
   }
 }
