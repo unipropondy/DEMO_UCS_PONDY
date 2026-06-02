@@ -129,6 +129,7 @@ export default function PaymentScreen() {
   const [cashInput, setCashInput] = useState("");
   const [processing, setProcessing] = useState(false);
   const [time, setTime] = useState(new Date());
+  const [isSplitActive, setIsSplitActive] = useState(false);
 
   // Member flow state
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -301,6 +302,9 @@ export default function PaymentScreen() {
       if (filtered.length > 0) {
         setMethod(filtered[0].payMode);
         fetchPaymentDetail(filtered[0].payMode, filtered[0]);
+        if (isCashMethod(filtered[0].payMode)) {
+          setCashInput(total.toFixed(2));
+        }
       }
     } catch {
       setPaymentMethods([{ payMode: "CAS", description: "CASH", icon: "money-bill-wave", commission: 0, serviceCharge: 0, isEntertainment: false, isVoucher: false, position: 1 }]);
@@ -336,6 +340,8 @@ export default function PaymentScreen() {
     if (!isCashMethod(m.payMode)) {
       setRoundOff(0);
       setRoundType(null);
+    } else {
+      setCashInput(total.toFixed(2));
     }
     fetchPaymentDetail(m.payMode, m);
   };
@@ -873,6 +879,22 @@ export default function PaymentScreen() {
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TouchableOpacity 
+              style={[
+                styles.backBtn, 
+                { borderColor: Theme.primaryBorder },
+                isSplitActive && { backgroundColor: Theme.primary, borderColor: Theme.primary }
+              ]} 
+              onPress={() => setIsSplitActive(!isSplitActive)}
+              activeOpacity={0.7}
+            >
+              <Ionicons 
+                name="git-compare-outline" 
+                size={20} 
+                color={isSplitActive ? "#fff" : Theme.primary} 
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
               style={[styles.backBtn, { borderColor: Theme.primaryBorder }]} 
               onPress={openCustomerDisplay}
               activeOpacity={0.7}
@@ -919,22 +941,140 @@ export default function PaymentScreen() {
                       )}
                     </View>
                   )}
-                  <SplitPaymentComponent
-                    targetTotal={total}
-                    paymentMethods={paymentMethods.map((pm) => ({
-                      payMode: pm.payMode,
-                      description: pm.description,
-                      position: pm.position,
-                    }))}
-                    selectedMember={selectedMember}
-                    onSelectMember={() => setShowMemberModal(true)}
-                    onComplete={(finalPayments) => {
-                      executeFinalPayment(finalPayments);
-                    }}
-                    onCancel={() => router.back()}
-                    processing={processing}
-                    currencySymbol={currencySymbol}
-                  />
+                  {isSplitActive ? (
+                    <SplitPaymentComponent
+                      targetTotal={total}
+                      paymentMethods={paymentMethods.map((pm) => ({
+                        payMode: pm.payMode,
+                        description: pm.description,
+                        position: pm.position,
+                      }))}
+                      selectedMember={selectedMember}
+                      onSelectMember={() => setShowMemberModal(true)}
+                      onComplete={(finalPayments) => {
+                        executeFinalPayment(finalPayments);
+                      }}
+                      onCancel={() => setIsSplitActive(false)}
+                      processing={processing}
+                      currencySymbol={currencySymbol}
+                    />
+                  ) : (
+                    <>
+                      <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Select Payment Method</Text>
+                      </View>
+                      {loadingMethods ? (
+                        <View style={{ height: 100, alignItems: 'center', justifyContent: 'center' }}>
+                          <ActivityIndicator size="large" color={Theme.primary} />
+                          <Text style={{ marginTop: 8, fontSize: 13, fontFamily: Fonts.medium, color: Theme.textSecondary }}>
+                            Loading methods...
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.methodsGrid}>
+                          {paymentMethods.map((m) => (
+                            <TouchableOpacity 
+                              key={m.payMode} 
+                              style={[
+                                styles.methodCard, 
+                                method === m.payMode && styles.activeMethodCard, 
+                                isMobile && { width: '30%', height: 75 }
+                              ]} 
+                              onPress={() => handleSelectMethod(m)}
+                            >
+                              <View style={[
+                                styles.methodIconBox, 
+                                method === m.payMode && styles.activeIconBox, 
+                                isMobile && { width: 30, height: 30 }
+                              ]}>
+                                <FontAwesome5 
+                                  name={m.icon} 
+                                  size={isMobile ? 16 : 20} 
+                                  color={method === m.payMode ? "#fff" : Theme.primary} 
+                                />
+                              </View>
+                              <Text style={[
+                                styles.methodLabel, 
+                                method === m.payMode && styles.activeMethodLabel, 
+                                isMobile && { fontSize: 10 }
+                              ]}>
+                                {m.description}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {isCashMethod(method) && (
+                        <View style={styles.cashSection}>
+                          <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Cash Received</Text>
+                          </View>
+                          <View style={styles.cashInputBox}>
+                            <Text style={styles.currencyPrefix}>{currencySymbol}</Text>
+                            <TextInput 
+                              style={styles.cashInput} 
+                              value={cashInput} 
+                              onChangeText={setCashInput} 
+                              keyboardType="numeric" 
+                              placeholder="0.00" 
+                              {...Platform.select({ web: { outlineStyle: "none" } as any })}
+                            />
+                          </View>
+                          <View style={styles.quickCashContainer}>
+                            {quickCash.map((v) => {
+                              const isSelected = parseFloat(cashInput) === v;
+                              return (
+                                <TouchableOpacity 
+                                  key={v} 
+                                  style={[styles.quickCashBtn, isSelected && styles.activeQuickCashBtn]} 
+                                  onPress={() => setCashInput(v.toString())}
+                                >
+                                  <Text style={[styles.quickCashText, isSelected && styles.activeQuickCashText]}>
+                                    {currencySymbol}{v}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                            {(() => {
+                              const isExact = Math.abs(parseFloat(cashInput) - total) < 0.01;
+                              return (
+                                <TouchableOpacity 
+                                  style={[styles.quickCashBtn, isExact && styles.activeQuickCashBtn]} 
+                                  onPress={() => setCashInput(total.toFixed(2))}
+                                >
+                                  <Text style={[styles.quickCashText, isExact && styles.activeQuickCashText]}>Exact</Text>
+                                </TouchableOpacity>
+                              );
+                            })()}
+                          </View>
+                          {paidNum > 0 && (
+                            <View style={styles.changeBox}>
+                              <Text style={styles.changeLabel}>Change to Return</Text>
+                              <Text style={styles.changeValue}>{currencySymbol}{change.toFixed(2)}</Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+
+                      <View style={{ marginTop: 15 }}>
+                        <TouchableOpacity 
+                          style={[styles.completeBtn, processing && { opacity: 0.7 }]} 
+                          onPress={confirmPayment} 
+                          disabled={processing}
+                        >
+                          {processing ? (
+                            <ActivityIndicator color="#fff" />
+                          ) : (
+                            <>
+                              <Ionicons name="checkmark-circle" size={24} color="#fff" />
+                              <Text style={styles.completeBtnText}>Complete Settlement</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
                 </View>
 
                 {showOrderPanel && (
@@ -1047,18 +1187,18 @@ export default function PaymentScreen() {
       <UPIPaymentModal 
         visible={isUPIVisible} 
         onClose={() => { setIsUPIVisible(false); setPendingPayments(null); }} 
-        amount={upiQrAmount} 
-        onSuccess={() => executeFinalPayment(pendingPayments || [])} 
+        amount={isSplitActive ? upiQrAmount : total} 
+        onSuccess={() => executeFinalPayment(isSplitActive ? (pendingPayments || []) : undefined)} 
       />
       <PayNowPaymentModal 
         visible={isPayNowVisible} 
         onClose={() => { setIsPayNowVisible(false); setPendingPayments(null); }} 
-        amount={payNowQrAmount} 
+        amount={isSplitActive ? payNowQrAmount : total} 
         onSuccess={() => {
-          if (upiQrAmount > 0) {
+          if (isSplitActive && upiQrAmount > 0) {
             setIsUPIVisible(true);
           } else {
-            executeFinalPayment(pendingPayments || []);
+            executeFinalPayment(isSplitActive ? (pendingPayments || []) : undefined);
           }
         }} 
       />
@@ -1188,6 +1328,9 @@ export default function PaymentScreen() {
                     disabled={!selectedMember || ((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0))}
                     onPress={() => {
                       setShowMemberModal(false);
+                      if (!isSplitActive) {
+                        executeFinalPayment();
+                      }
                     }}
                   >
                     <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Confirm Member Payment</Text>
@@ -1240,6 +1383,23 @@ const styles = StyleSheet.create({
   changeValue: { fontSize: 26, fontFamily: Fonts.black, color: Theme.primary },
   completeBtn: { height: 50, backgroundColor: Theme.primary, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, ...Theme.shadowLg },
   completeBtnText: { fontSize: 16, fontFamily: Fonts.black, color: '#fff' },
+  splitToggleBtn: {
+    height: 50,
+    backgroundColor: 'transparent',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: Theme.primary,
+    borderStyle: 'dashed',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
+  splitToggleBtnText: {
+    fontSize: 16,
+    fontFamily: Fonts.black,
+    color: Theme.primary,
+  },
   rightPane: { flex: 0.7, gap: 15 },
   summaryCard: { padding: 18, backgroundColor: Theme.bgCard, borderRadius: 20, borderWidth: 1, borderColor: Theme.border, ...Theme.shadowSm },
   summaryHeader: { marginBottom: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },

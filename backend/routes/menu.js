@@ -43,10 +43,19 @@ router.get("/dishgroups/:CategoryId", async (req, res) => {
     const result = await pool
       .request()
       .input("CategoryId", req.params.CategoryId).query(`
-        SELECT a.DishGroupId, a.DishGroupName
-        FROM DishGroupMaster a
-        JOIN CategoryMaster b ON a.CategoryId = b.CategoryId
-        WHERE a.CategoryId = @CategoryId AND a.IsActive = 1
+        SELECT DISTINCT
+              a.DishGroupId,
+              a.DishGroupName
+          FROM DishGroupMaster a
+          LEFT JOIN DishGroupKitchentype dkt
+              ON a.DishGroupId = dkt.DishGroupId
+          LEFT JOIN CategoryMaster cm
+              ON cm.CategoryId = @CategoryId
+          WHERE a.IsActive = 1
+          AND (
+                a.CategoryId = @CategoryId
+                OR dkt.KitchenTypeName = cm.CategoryName
+          )
       `);
     res.json(result.recordset);
   } catch (err) {
@@ -93,24 +102,52 @@ router.get("/dishes/group/:DishGroupId", async (req, res) => {
     const result = await pool
       .request()
       .input("DishGroupId", req.params.DishGroupId).query(`
-      SELECT 
-        d.DishId, d.Name, d.DishGroupId, d.currentcost AS Price,
-        d.DishCode, d.Description,
-        d.Imageid AS Image, CASE WHEN d.Imageid IS NOT NULL THEN 1 ELSE 0 END AS HasImage,
-        ISNULL(d.IsOpenItem, 0) AS IsOpenItem,
-        ISNULL(ckt.KitchenTypeCode, '2') as KitchenTypeCode,
-        ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') as KitchenTypeName,
-        pm.PrinterPath AS PrinterIP
-      FROM DishMaster d
-      LEFT JOIN DishGroupMaster dgm ON d.DishGroupId = dgm.DishGroupId
-      LEFT JOIN CategoryMaster cat ON dgm.CategoryId = cat.CategoryId
-      LEFT JOIN CategoryKitchenType ckt ON dgm.CategoryId = ckt.CategoryId
-      LEFT JOIN (
-        SELECT *, ROW_NUMBER() OVER(PARTITION BY KitchenTypeValue ORDER BY PrinterId) as rn 
-        FROM PrintMaster WHERE IsActive = 1 AND PrinterType = 2
-      ) pm ON CAST(ckt.KitchenTypeCode AS INT) = pm.KitchenTypeValue AND pm.rn = 1
-      WHERE d.IsActive = 1 
-      AND d.DishGroupId = @DishGroupId ORDER BY d.Name ASC
+      SELECT DISTINCT
+              d.DishId,
+              d.Name,
+              d.DishGroupId,
+              d.currentcost AS Price,
+              d.DishCode,
+              d.Description,
+              d.Imageid AS Image,
+              CASE WHEN d.Imageid IS NOT NULL THEN 1 ELSE 0 END AS HasImage,
+              ISNULL(ckt.KitchenTypeCode, '2') AS KitchenTypeCode,
+              ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') AS KitchenTypeName,
+              pm.PrinterPath AS PrinterIP
+          FROM DishMaster d
+ 
+          LEFT JOIN DishGroupMaster dgm
+              ON d.DishGroupId = dgm.DishGroupId
+ 
+          LEFT JOIN CategoryMaster cat
+              ON dgm.CategoryId = cat.CategoryId
+ 
+          LEFT JOIN CategoryKitchenType ckt
+              ON dgm.CategoryId = ckt.CategoryId
+ 
+          LEFT JOIN DishGroupMapping dmap
+              ON d.DishId = dmap.DishId
+ 
+          LEFT JOIN (
+              SELECT *,
+                    ROW_NUMBER() OVER(
+                        PARTITION BY KitchenTypeValue
+                        ORDER BY PrinterId
+                    ) AS rn
+              FROM PrintMaster
+              WHERE IsActive = 1
+                AND PrinterType = 2
+          ) pm
+          ON CAST(ckt.KitchenTypeCode AS INT) = pm.KitchenTypeValue
+          AND pm.rn = 1
+ 
+          WHERE d.IsActive = 1
+          AND (
+                d.DishGroupId = @DishGroupId
+                OR dmap.DishGroupId = @DishGroupId
+              )
+ 
+          ORDER BY d.Name ASC
       `);
     res.json(result.recordset);
   } catch (err) {
