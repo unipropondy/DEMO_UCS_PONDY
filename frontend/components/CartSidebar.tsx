@@ -991,12 +991,13 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
       fetch(`${API_URL}/api/tables/${orderContext.tableId}`)
         .then((res) => res.json())
         .then((data) => {
-          if (data.success && data.table?.CurrentOrderId) {
+          const oid = data.table?.currentOrderId || data.table?.CurrentOrderId;
+          if (data.success && oid) {
             useCartStore
               .getState()
               .setTableOrderId(
                 orderContext.tableId!,
-                data.table.CurrentOrderId,
+                oid,
               );
           }
         })

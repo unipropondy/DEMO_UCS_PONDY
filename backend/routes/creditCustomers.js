@@ -332,7 +332,11 @@ router.post("/pay", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("[CREDIT CUSTOMER PAYMENT ERROR]", err);
-    await transaction.rollback();
+    try {
+      await transaction.rollback();
+    } catch (rErr) {
+      console.error("⚠️ Credit customer pay rollback failed:", rErr.message);
+    }
     res.status(500).json({ error: err.message });
   }
 });

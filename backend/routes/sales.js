@@ -1755,7 +1755,13 @@ router.post("/save", async (req, res) => {
       
       res.json({ success: true, settlementId, billNo: displayOrderId, orderId: displayOrderId });
     } catch (err) {
-      if (transaction) await transaction.rollback();
+      if (transaction) {
+        try {
+          await transaction.rollback();
+        } catch (rollBackErr) {
+          console.error("⚠️ Sales rollback failed:", rollBackErr.message);
+        }
+      }
       throw err;
     }
   } catch (err) {

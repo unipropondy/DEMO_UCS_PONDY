@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
+const { getHoldOvertimeMinutes } = require("../utils/settingsCache");
 
 // In-memory table locks
 const tableLocks = new Map();
@@ -64,6 +65,7 @@ router.get("/all", async (req, res) => {
       TAKEAWAY: "4",
     };
 
+    const holdMinutes = await getHoldOvertimeMinutes();
     let query = `
       SELECT TableId AS id, CAST(TableNumber AS VARCHAR(50)) AS label,
       CAST(DiningSection AS VARCHAR(10)) AS DiningSection, LockedByName as lockedByName,
@@ -74,14 +76,14 @@ router.get("/all", async (req, res) => {
         ELSE 0 
       END AS isOvertime,
       CASE 
-        WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= ISNULL((SELECT TOP 1 HoldOvertimeMinutes FROM CompanySettings), 30) THEN 1 
+        WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= @holdMinutes THEN 1 
         ELSE 0 
       END AS isHoldOvertime,
       CONVERT(VARCHAR, ModifiedOn, 126) as ModifiedOn
       FROM TableMaster
     `;
 
-    const request = pool.request();
+    const request = pool.request().input("holdMinutes", sql.Int, holdMinutes);
     if (section && SECTION_MAP[section] !== undefined) {
       request.input("DiningSection", SECTION_MAP[section]);
       query += ` WHERE CAST(DiningSection AS VARCHAR(10)) = @DiningSection`;
@@ -213,11 +215,13 @@ router.put("/status", async (req, res) => {
     if (!tableId) return res.status(400).json({ error: "tableId is required" });
     if (status === undefined) return res.status(400).json({ error: "status is required" });
 
+    const holdMinutes = await getHoldOvertimeMinutes();
     const cleanTableId = tableId.replace(/^\{|\}$/g, "").trim();
     const request = pool.request();
     request.input("tableId", sql.VarChar(50), cleanTableId);
     request.input("status", sql.Int, Number(status));
     request.input("ModifiedBy", sql.UniqueIdentifier, userId || null);
+    request.input("holdMinutes", sql.Int, holdMinutes);
 
     const updateResult = await request.query(`
       UPDATE TableMaster 
@@ -246,7 +250,7 @@ router.put("/status", async (req, res) => {
           ELSE 0 
         END AS isOvertime,
         CASE 
-          WHEN INSERTED.Status = 3 AND INSERTED.ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, INSERTED.ModifiedOn, GETDATE()) >= ISNULL((SELECT TOP 1 HoldOvertimeMinutes FROM CompanySettings), 30) THEN 1 
+          WHEN INSERTED.Status = 3 AND INSERTED.ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, INSERTED.ModifiedOn, GETDATE()) >= @holdMinutes THEN 1 
           ELSE 0 
         END AS isHoldOvertime
       WHERE TableId = @tableId
@@ -335,9 +339,11 @@ router.put("/:tableId/status", async (req, res) => {
     // 🔥 Emit socket event for real-time sync across devices
     const io = req.app.get("io");
     if (io) {
+      const holdMinutes = await getHoldOvertimeMinutes();
       // Get latest state for accurate broadcast
       const tableRes = await pool.request()
         .input("tableId", sql.VarChar(50), cleanTableId)
+        .input("holdMinutes", sql.Int, holdMinutes)
         .query(`
           SELECT TableNumber, DiningSection, TotalAmount, CONVERT(VARCHAR, StartTime, 126) AS StartTime,
           CONVERT(VARCHAR, ModifiedOn, 126) AS ModifiedOn,
@@ -347,7 +353,7 @@ router.put("/:tableId/status", async (req, res) => {
             ELSE 0 
           END AS isOvertime,
           CASE 
-            WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= ISNULL((SELECT TOP 1 HoldOvertimeMinutes FROM CompanySettings), 30) THEN 1 
+            WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= @holdMinutes THEN 1 
             ELSE 0 
           END AS isHoldOvertime
           FROM TableMaster WHERE TableId = @tableId

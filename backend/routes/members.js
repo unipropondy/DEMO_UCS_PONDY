@@ -111,7 +111,13 @@ router.post("/delete", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("[MEMBERS DELETE ERROR]", err);
-    if (transaction) await transaction.rollback();
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rErr) {
+        console.error("⚠️ Member delete rollback failed:", rErr.message);
+      }
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -411,7 +417,11 @@ router.post("/pay", async (req, res) => {
     res.json({ success: true, memberPaymentId });
   } catch (err) {
     console.error("[MEMBER PAYMENT ERROR]", err);
-    await transaction.rollback();
+    try {
+      await transaction.rollback();
+    } catch (rErr) {
+      console.error("⚠️ Member pay rollback failed:", rErr.message);
+    }
     res.status(500).json({ error: err.message });
   }
 });

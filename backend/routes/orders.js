@@ -4,6 +4,7 @@ const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
 const { getActiveOrganization } = require("../utils/organizationHelper");
+const { getHoldOvertimeMinutes } = require("../utils/settingsCache");
 const DEFAULT_GUID = "00000000-0000-0000-0000-000000000000";
 
 const NOTE_KEYS = ["note", "Note", "notes", "Notes", "remarks", "Remarks"];
@@ -76,14 +77,20 @@ async function getOrGenerateOrderId(req, tableId) {
         .request()
         .input("RestId", sql.UniqueIdentifier, String(currentBizId))
         .input("Today", sql.Date, todayStr).query(`
-          BEGIN TRANSACTION;
-          IF NOT EXISTS (SELECT 1 FROM OrderSequences WHERE RestaurantId = @RestId AND SequenceDate = @Today)
-          BEGIN
-              INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
-          END
-          UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
-          WHERE RestaurantId = @RestId AND SequenceDate = @Today;
-          COMMIT TRANSACTION;
+          BEGIN TRY
+            BEGIN TRANSACTION;
+            IF NOT EXISTS (SELECT 1 FROM OrderSequences WITH (UPDLOCK, HOLDLOCK) WHERE RestaurantId = @RestId AND SequenceDate = @Today)
+            BEGIN
+                INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
+            END
+            UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
+            WHERE RestaurantId = @RestId AND SequenceDate = @Today;
+            COMMIT TRANSACTION;
+          END TRY
+          BEGIN CATCH
+            IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+            THROW;
+          END CATCH
         `);
 
       dailySequence = seqResult.recordset[0]?.LastNumber || 1;
@@ -163,14 +170,20 @@ async function getOrGenerateOrderId(req, tableId) {
       .request()
       .input("RestId", sql.UniqueIdentifier, String(currentBizId))
       .input("Today", sql.Date, todayStr).query(`
-        BEGIN TRANSACTION;
-        IF NOT EXISTS (SELECT 1 FROM OrderSequences WHERE RestaurantId = @RestId AND SequenceDate = @Today)
-        BEGIN
-            INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
-        END
-        UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
-        WHERE RestaurantId = @RestId AND SequenceDate = @Today;
-        COMMIT TRANSACTION;
+        BEGIN TRY
+          BEGIN TRANSACTION;
+          IF NOT EXISTS (SELECT 1 FROM OrderSequences WITH (UPDLOCK, HOLDLOCK) WHERE RestaurantId = @RestId AND SequenceDate = @Today)
+          BEGIN
+              INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
+          END
+          UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
+          WHERE RestaurantId = @RestId AND SequenceDate = @Today;
+          COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+          IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+          THROW;
+        END CATCH
       `);
 
     dailySequence = seqResult.recordset[0]?.LastNumber || 1;
@@ -493,7 +506,10 @@ async function syncTableStatus(req, tableId) {
   const cleanId = String(tableId)
     .replace(/^\{|\}$/g, "")
     .trim();
-  const res = await pool.request().input("tid", sql.VarChar(50), cleanId)
+  const holdMinutes = await getHoldOvertimeMinutes();
+  const res = await pool.request()
+    .input("tid", sql.VarChar(50), cleanId)
+    .input("holdMinutes", sql.Int, holdMinutes)
     .query(`
     DECLARE @ActualOrderId UNIQUEIDENTIFIER, @ActualOrderNo NVARCHAR(50), @TableNo VARCHAR(20), @count INT, @total DECIMAL(18,2);
     
@@ -549,7 +565,7 @@ async function syncTableStatus(req, tableId) {
         ELSE 0 
       END AS isOvertime,
       CASE 
-        WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= ISNULL((SELECT TOP 1 HoldOvertimeMinutes FROM CompanySettings), 30) THEN 1 
+        WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= @holdMinutes THEN 1 
         ELSE 0 
       END AS isHoldOvertime,
       CONVERT(VARCHAR, ModifiedOn, 126) as ModifiedOn
@@ -708,7 +724,11 @@ router.post("/save-cart", async (req, res) => {
         syncTableStatus(req, cleanId).catch(() => {});
       }
     } catch (e) {
-      if (transaction._isStarted) await transaction.rollback();
+      try {
+        await transaction.rollback();
+      } catch (rollbackErr) {
+        console.error("⚠️ SaveCart rollback failed (might be already aborted):", rollbackErr.message);
+      }
       console.error("❌ SaveCart SQL Error:", e.message);
       res.status(500).json({ error: "DB_ERROR: " + e.message });
     }
@@ -842,7 +862,11 @@ router.post("/send", async (req, res) => {
       // 5. Refresh totals and notify instantly
       syncTableStatus(req, cleanId).catch(() => {});
     } catch (e) {
-      await transaction.rollback();
+      try {
+        await transaction.rollback();
+      } catch (rollbackErr) {
+        console.error("⚠️ SendOrder rollback failed:", rollbackErr.message);
+      }
       console.error("❌ SendOrder SQL Error:", e.message);
       res.status(500).json({ error: "SEND_ERROR: " + e.message });
     }
@@ -1119,7 +1143,11 @@ router.post("/cancel", async (req, res) => {
 
       res.json({ success: true });
     } catch (e) {
-      await transaction.rollback();
+      try {
+        await transaction.rollback();
+      } catch (rollbackErr) {
+        console.error("⚠️ Cancel order rollback failed:", rollbackErr.message);
+      }
       console.error("❌ Cancel Error:", e.message);
       res.status(500).json({ error: e.message });
     }
@@ -1289,7 +1317,11 @@ router.post("/remove-item", async (req, res) => {
       });
       res.json({ success: true });
     } catch (e) {
-      await transaction.rollback();
+      try {
+        await transaction.rollback();
+      } catch (rollbackErr) {
+        console.error("⚠️ Item delete rollback failed:", rollbackErr.message);
+      }
       throw e;
     }
   } catch (err) {
@@ -1734,7 +1766,11 @@ router.post("/merge", async (req, res) => {
       console.error(
         `[MERGE TRANSACTION ERROR] rolling back... Error: ${err.message}`,
       );
-      if (transaction._isStarted) await transaction.rollback();
+      try {
+        await transaction.rollback();
+      } catch (rollbackErr) {
+        console.error("⚠️ Merge rollback failed:", rollbackErr.message);
+      }
       throw err;
     }
   } catch (err) {

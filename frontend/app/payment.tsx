@@ -286,8 +286,9 @@ export default function PaymentScreen() {
         try {
           const res = await fetch(`${API_URL}/api/tables/${context.tableId}`);
           const data = await res.json();
-          if (data.success && data.table?.CurrentOrderId) {
-             useCartStore.getState().setTableOrderId(context.tableId, data.table.CurrentOrderId);
+          const oid = data.table?.currentOrderId || data.table?.CurrentOrderId;
+          if (data.success && oid) {
+             useCartStore.getState().setTableOrderId(context.tableId, oid);
           }
         } catch (err) {
           console.error("Failed to sync official Order ID:", err);

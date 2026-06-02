@@ -4,6 +4,7 @@ const cors = require("cors");
 const fs = require("fs");
 const crypto = require("crypto");
 const path = require("path");
+const sql = require("mssql");
 
 const envPath = path.resolve(__dirname, ".env");
 
@@ -29,6 +30,7 @@ require("dotenv").config({ path: envPath });
 const { poolPromise } = require("./config/db");
 const { initDB } = require("./config/init");
 const dbCheck = require("./middleware/dbCheck");
+const { getHoldOvertimeMinutes } = require("./utils/settingsCache");
 
 // Import Routes
 const authRoutes = require("./routes/auth");
@@ -107,7 +109,11 @@ setInterval(async () => {
     const pool = await poolPromise;
     if (!pool || !pool.connected) return;
 
-    const result = await pool.request().query(`
+    const holdMinutes = await getHoldOvertimeMinutes();
+
+    const result = await pool.request()
+      .input("holdMinutes", sql.Int, holdMinutes)
+      .query(`
       SELECT 
         TableId AS id, 
         CAST(TableNumber AS VARCHAR(50)) AS label,
@@ -123,7 +129,7 @@ setInterval(async () => {
           ELSE 0 
         END AS isOvertime,
         CASE 
-          WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= ISNULL((SELECT TOP 1 HoldOvertimeMinutes FROM CompanySettings WITH (NOLOCK)), 30) THEN 1 
+          WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= @holdMinutes THEN 1 
           ELSE 0 
         END AS isHoldOvertime,
         CONVERT(VARCHAR, ModifiedOn, 126) as ModifiedOn
@@ -311,7 +317,7 @@ setInterval(async () => {
         FROM TableMaster 
         WHERE Status = 0
       )
-      AND DATEDIFF(MINUTE, CreatedOn, GETDATE()) > 5; -- 5 min buffer to prevent race conditions
+      AND CreatedOn < DATEADD(MINUTE, -5, GETDATE()); -- Optimized to allow index usage
     `);
     
     if (result.recordset || result.rowsAffected[0] > 0) {

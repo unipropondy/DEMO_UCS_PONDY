@@ -175,10 +175,10 @@ async function initDB(pool) {
     // 9. Ensure Discount Columns in Professional Tables
     await runQuery("RestaurantOrderDetailCur - DiscountAmount", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderDetailCur]') AND name = 'DiscountAmount') ALTER TABLE [dbo].[RestaurantOrderDetailCur] ADD DiscountAmount DECIMAL(18, 2) DEFAULT 0");
     await runQuery("RestaurantOrderDetailCur - DiscountType", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderDetailCur]') AND name = 'DiscountType') ALTER TABLE [dbo].[RestaurantOrderDetailCur] ADD DiscountType NVARCHAR(50)");
-    
+
     await runQuery("RestaurantOrderDetail - DiscountAmount", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderDetail]') AND name = 'DiscountAmount') ALTER TABLE [dbo].[RestaurantOrderDetail] ADD DiscountAmount DECIMAL(18, 2) DEFAULT 0");
     await runQuery("RestaurantOrderDetail - DiscountType", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderDetail]') AND name = 'DiscountType') ALTER TABLE [dbo].[RestaurantOrderDetail] ADD DiscountType NVARCHAR(50)");
-    
+
     await runQuery("SettlementHeader - DiscountAmount", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'DiscountAmount') ALTER TABLE [dbo].[SettlementHeader] ADD DiscountAmount DECIMAL(18, 2) DEFAULT 0");
     await runQuery("SettlementHeader - DiscountType", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'DiscountType') ALTER TABLE [dbo].[SettlementHeader] ADD DiscountType NVARCHAR(50)");
 
@@ -188,6 +188,7 @@ async function initDB(pool) {
     await runQuery("Index - SettlementItemDetail ID", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SettlementItemDetail_SID') CREATE INDEX IX_SettlementItemDetail_SID ON [dbo].[SettlementItemDetail] (SettlementID)");
     await runQuery("Index - RestaurantOrderCur Tableno", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_RestaurantOrderCur_Tableno') CREATE INDEX IX_RestaurantOrderCur_Tableno ON [dbo].[RestaurantOrderCur] (Tableno)");
     await runQuery("Index - RestaurantOrderCur OrderNo", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_RestaurantOrderCur_OrderNo') CREATE INDEX IX_RestaurantOrderCur_OrderNo ON [dbo].[RestaurantOrderCur] (OrderNumber)");
+    await runQuery("Index - RestaurantOrderCur ClosedCreated", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_RestaurantOrderCur_ClosedCreated') CREATE INDEX IX_RestaurantOrderCur_ClosedCreated ON [dbo].[RestaurantOrderCur] (isOrderClosed, CreatedOn)");
     await runQuery("Index - RestaurantOrderDetailCur OrderId", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_RestaurantOrderDetailCur_OrderId') CREATE INDEX IX_RestaurantOrderDetailCur_OrderId ON [dbo].[RestaurantOrderDetailCur] (OrderId)");
     await runQuery("Index - TableMaster SortCode", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_TableMaster_SortCode') CREATE INDEX IX_TableMaster_SortCode ON [dbo].[TableMaster] (SortCode)");
     await runQuery("Index - TableMaster TableNumber", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_TableMaster_TableNumber') CREATE INDEX IX_TableMaster_TableNumber ON [dbo].[TableMaster] (TableNumber)");

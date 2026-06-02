@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
+const { invalidateCache } = require("../utils/settingsCache");
+
 
 // 🔹 GET Settings
 router.get("/:id", async (req, res) => {
@@ -97,6 +99,7 @@ router.post("/:id", async (req, res) => {
         .query("UPDATE PrintMaster SET PrinterPath = @ip, PrinterIP = @ip WHERE PrinterType = 1");
     }
 
+    invalidateCache();
     res.json({ success: true, message: "Settings saved successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -109,6 +112,7 @@ router.delete("/:id", async (req, res) => {
     const pool = await poolPromise;
     await pool.request()
       .query("DELETE FROM CompanySettings WHERE Id = '1'");
+    invalidateCache();
     res.json({ success: true, message: "Settings deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });

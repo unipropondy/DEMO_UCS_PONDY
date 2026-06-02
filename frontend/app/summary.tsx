@@ -133,10 +133,11 @@ export default function SummaryScreen() {
       fetch(`${API_URL}/api/tables/${context.tableId}`)
         .then((res) => res.json())
         .then((data) => {
-          if (data.success && data.table?.CurrentOrderId) {
+          const oid = data.table?.currentOrderId || data.table?.CurrentOrderId;
+          if (data.success && oid) {
             useCartStore
               .getState()
-              .setTableOrderId(context.tableId!, data.table.CurrentOrderId);
+              .setTableOrderId(context.tableId!, oid);
           }
         })
         .catch((err) => console.error("Summary ID sync error:", err));
