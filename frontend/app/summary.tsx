@@ -105,6 +105,7 @@ export default function SummaryScreen() {
   const settings = useCompanySettingsStore((state) => state.settings);
   const currencySymbol = settings.currencySymbol || "$";
   const gstRate = (settings.gstPercentage || 0) / 100;
+  const scRate = (settings.serviceChargePercentage || 0) / 100;
 
   const enableKOT = useGeneralSettingsStore((s: any) => s.settings.enableKOT);
   const enableCheckoutBill = useGeneralSettingsStore((s: any) => s.settings.enableCheckoutBill);
@@ -605,8 +606,11 @@ export default function SummaryScreen() {
     return discountInfo.value;
   }, [discountInfo, subtotal]);
 
-  const gstAmount = useMemo(() => (subtotal - discountAmount) * gstRate, [subtotal, discountAmount, gstRate]);
-  const grandTotal = useMemo(() => subtotal - discountAmount + gstAmount, [subtotal, discountAmount, gstAmount]);
+  const netAfterDiscount = useMemo(() => subtotal - discountAmount, [subtotal, discountAmount]);
+  const serviceChargeAmount = useMemo(() => netAfterDiscount * scRate, [netAfterDiscount, scRate]);
+  const taxableAmount = useMemo(() => netAfterDiscount + serviceChargeAmount, [netAfterDiscount, serviceChargeAmount]);
+  const gstAmount = useMemo(() => taxableAmount * gstRate, [taxableAmount, gstRate]);
+  const grandTotal = useMemo(() => taxableAmount + gstAmount, [taxableAmount, gstAmount]);
   const displaySubtotal = subtotal;
 
   if (!context) return null;
@@ -1072,6 +1076,34 @@ export default function SummaryScreen() {
                     >
                       -{currencySymbol}
                       {discountAmount.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+
+                {scRate > 0 && (
+                  <View
+                    style={[
+                      styles.summaryRow,
+                      ((isLandscape && !isTablet) ||
+                        (isPhone && !isLandscape)) && { marginBottom: 6 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.summaryLabel,
+                        isPhone && !isLandscape && { fontSize: 13 },
+                      ]}
+                    >
+                      Service Charge ({settings.serviceChargePercentage}%)
+                    </Text>
+                    <Text
+                      style={[
+                        styles.summaryValue,
+                        isPhone && !isLandscape && { fontSize: 13 },
+                      ]}
+                    >
+                      {currencySymbol}
+                      {serviceChargeAmount.toFixed(2)}
                     </Text>
                   </View>
                 )}

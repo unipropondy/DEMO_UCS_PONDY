@@ -135,6 +135,7 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
                 address: settings.Address || '',
                 gstNo: settings.GSTNo || '',
                 gstPercentage: gstPercentage,
+                serviceChargePercentage: parseFloat(settings.ServiceChargePercentage) || 0,
                 phone: settings.Phone || '',
                 email: settings.Email || '',
                 cashierName: settings.CashierName || '',
@@ -346,16 +347,23 @@ private static escapeHtml(str: string): string {
     const hasAnyDiscount = totalItemDiscount > 0 || hasOrderDiscount;
     const originalSubTotal = grossTotal;
 
-    const gstAmountRaw = hasGST ? currentSubtotal * (gstRate / 100) : 0;
+    // Service Charge & GST: SC on net-after-discount, GST on (net + SC)
+    const scPercentage = company.serviceChargePercentage || 0;
+    // For reprints, prefer the stored serviceCharge dollar amount; else calculate fresh
+    const savedServiceCharge = saleData.serviceCharge != null ? parseFloat(String(saleData.serviceCharge)) : null;
+    const serviceChargeAmount = savedServiceCharge !== null ? savedServiceCharge : (currentSubtotal * (scPercentage / 100));
+    const taxableAmount = currentSubtotal + serviceChargeAmount;
+    const hasSC = serviceChargeAmount > 0;
+    const gstAmountRaw = hasGST ? taxableAmount * (gstRate / 100) : 0;
     const gstAmount = Math.round(gstAmountRaw * 100) / 100;
     const amountWithoutGST = currentSubtotal;
     
     if (finalTotal === 0) {
-      finalTotal = amountWithoutGST + gstAmount;
+      finalTotal = taxableAmount + gstAmount;
     }
     
     const printedRoundOff = saleData.roundOff && saleData.roundOff !== 0
-      ? parseFloat((finalTotal - (amountWithoutGST + gstAmount)).toFixed(2))
+      ? parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2))
       : 0;
     
     const companyLogoUrl = company.companyLogo || '';
@@ -760,6 +768,12 @@ private static escapeHtml(str: string): string {
             </div>
             `}
             
+            ${hasSC ? `
+            <div class="total-row">
+              <span>Service Charge (${scPercentage}%):</span>
+              <span>${currencySymbol}${serviceChargeAmount.toFixed(2)}</span>
+            </div>
+            ` : ''}
             ${hasGST ? `
             <div class="total-row">
               <span>GST (${gstRate}%):</span>

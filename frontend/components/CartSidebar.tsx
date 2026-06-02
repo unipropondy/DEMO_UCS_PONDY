@@ -887,6 +887,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
   const settings = useCompanySettingsStore((state) => state.settings);
   const currencySymbol = settings.currencySymbol || "$";
   const gstRate = (settings.gstPercentage || 0) / 100;
+  const scRate = (settings.serviceChargePercentage || 0) / 100;
 
   const activeOrders = useActiveOrdersStore((state) => state.activeOrders);
   const appendOrder = useActiveOrdersStore((state) => state.appendOrder);
@@ -1060,8 +1061,10 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
   }, [displayItems]);
 
   const subtotal = grossTotal - totalDiscount;
-  const taxAmount = subtotal * gstRate;
-  const payableAmount = subtotal + taxAmount;
+  const serviceChargeAmt = subtotal * scRate;
+  const taxableAmt = subtotal + serviceChargeAmt;
+  const taxAmount = taxableAmt * gstRate;
+  const payableAmount = taxableAmt + taxAmount;
 
   const handleClearCart = () => {
     if (cart.length === 0) return;
@@ -1582,6 +1585,17 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                   <Text style={[styles.summaryValue, { color: Theme.danger }]}>
                     -{currencySymbol}
                     {totalDiscount.toFixed(2)}
+                  </Text>
+                </View>
+              )}
+              {serviceChargeAmt > 0 && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>
+                    Service Charge ({settings.serviceChargePercentage}%)
+                  </Text>
+                  <Text style={styles.summaryValue}>
+                    {currencySymbol}
+                    {serviceChargeAmt.toFixed(2)}
                   </Text>
                 </View>
               )}

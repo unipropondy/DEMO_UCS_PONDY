@@ -57,6 +57,7 @@ router.post("/:id", async (req, res) => {
       .input("TaxMode", sql.NVarChar, s.TaxMode || 'exclusive')
       .input("WaiterRequired", sql.Bit, s.WaiterRequired !== undefined && s.WaiterRequired !== null ? s.WaiterRequired : 0)
       .input("HoldOvertimeMinutes", sql.Int, s.HoldOvertimeMinutes !== undefined && s.HoldOvertimeMinutes !== null ? s.HoldOvertimeMinutes : 30)
+      .input("ServiceChargePercentage", sql.Decimal(18, 2), s.ServiceChargePercentage !== undefined && s.ServiceChargePercentage !== null ? s.ServiceChargePercentage : 0)
       .query(`
         IF EXISTS (SELECT 1 FROM CompanySettings WHERE Id = '1')
         BEGIN
@@ -78,13 +79,14 @@ router.post("/:id", async (req, res) => {
             TaxMode = @TaxMode,
             WaiterRequired = @WaiterRequired,
             HoldOvertimeMinutes = @HoldOvertimeMinutes,
+            ServiceChargePercentage = @ServiceChargePercentage,
             UpdatedOn = GETDATE()
           WHERE Id = '1'
         END
         ELSE
         BEGIN
-          INSERT INTO CompanySettings (Id, CompanyName, Address, GSTNo, GSTPercentage, Phone, Email, CashierName, Currency, CurrencySymbol, CompanyLogoUrl, HalalLogoUrl, PrinterIP, ShowCompanyLogo, ShowHalalLogo, TaxMode, WaiterRequired, HoldOvertimeMinutes, UpdatedOn)
-          VALUES ('1', @CompanyName, @Address, @GSTNo, @GSTPercentage, @Phone, @Email, @CashierName, @Currency, @CurrencySymbol, @CompanyLogoUrl, @HalalLogoUrl, @PrinterIP, @ShowCompanyLogo, @ShowHalalLogo, @TaxMode, @WaiterRequired, @HoldOvertimeMinutes, GETDATE())
+          INSERT INTO CompanySettings (Id, CompanyName, Address, GSTNo, GSTPercentage, Phone, Email, CashierName, Currency, CurrencySymbol, CompanyLogoUrl, HalalLogoUrl, PrinterIP, ShowCompanyLogo, ShowHalalLogo, TaxMode, WaiterRequired, HoldOvertimeMinutes, ServiceChargePercentage, UpdatedOn)
+          VALUES ('1', @CompanyName, @Address, @GSTNo, @GSTPercentage, @Phone, @Email, @CashierName, @Currency, @CurrencySymbol, @CompanyLogoUrl, @HalalLogoUrl, @PrinterIP, @ShowCompanyLogo, @ShowHalalLogo, @TaxMode, @WaiterRequired, @HoldOvertimeMinutes, @ServiceChargePercentage, GETDATE())
         END
       `);
 

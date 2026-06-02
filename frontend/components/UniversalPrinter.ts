@@ -1137,22 +1137,32 @@ class UniversalPrinter {
     let finalTotal = saleData.total || saleData.totalAmount || currentSubtotal;
     const hasGST = (company.gstPercentage || 0) > 0;
     const gstRate = company.gstPercentage || 0;
-    const gstAmountRaw = hasGST ? currentSubtotal * (gstRate / 100) : 0;
+    const scPercentage = company.serviceChargePercentage || 0;
+    // For reprints, use stored SC amount; otherwise calculate fresh
+    const savedSC = saleData.serviceCharge != null ? parseFloat(String(saleData.serviceCharge)) : null;
+    const serviceChargeAmount = savedSC !== null ? savedSC : (currentSubtotal * (scPercentage / 100));
+    const hasSC = serviceChargeAmount > 0;
+    const taxableAmount = currentSubtotal + serviceChargeAmount;
+    const gstAmountRaw = hasGST ? taxableAmount * (gstRate / 100) : 0;
     const gstAmount = Math.round(gstAmountRaw * 100) / 100;
     
     if (finalTotal === 0) {
-      finalTotal = currentSubtotal + gstAmount;
+      finalTotal = taxableAmount + gstAmount;
     }
     
     const printedRoundOff = saleData.roundOff && saleData.roundOff !== 0
-      ? parseFloat((finalTotal - (currentSubtotal + gstAmount)).toFixed(2))
+      ? parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2))
       : 0;
 
+    if (!hasAnyDiscount) {
+      text += this.formatTwoCols48("Sub Total:", `${symbol}${currentSubtotal.toFixed(2)}`);
+    }
+
+    if (hasSC) {
+      text += this.formatTwoCols48(`Service Charge (${scPercentage}%):`, `${symbol}${serviceChargeAmount.toFixed(2)}`);
+    }
+
     if (hasGST) {
-      const beforeGst = currentSubtotal;
-      if (!hasAnyDiscount) {
-        text += this.formatTwoCols48("Sub Total:", `${symbol}${beforeGst.toFixed(2)}`);
-      }
       text += this.formatTwoCols48(`GST (${gstRate}%):`, `${symbol}${gstAmount.toFixed(2)}`);
       text += "[L]------------------------------------------------\n";
     }

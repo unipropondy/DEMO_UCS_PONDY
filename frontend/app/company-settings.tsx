@@ -524,13 +524,25 @@ export default function CompanySettingsScreen() {
                   placeholderTextColor={Theme.textMuted}
                 />
               </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                 <Text style={styles.inputLabel}>GST (%)</Text>
                 <TextInput 
                   style={styles.input}
                   value={String(settings.gstPercentage ?? 0)}
                   onChangeText={(val) => { updateSettings({ gstPercentage: parseFloat(val) || 0 }); }}
                   placeholder="9.0"
+                  placeholderTextColor={Theme.textMuted}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={[styles.inputGroup, { flex: 1 }]}>
+                <Text style={styles.inputLabel}>Service Charge (%)</Text>
+                <TextInput 
+                  style={styles.input}
+                  value={String(settings.serviceChargePercentage ?? 0)}
+                  onChangeText={(val) => { updateSettings({ serviceChargePercentage: parseFloat(val) || 0 }); }}
+                  placeholder="10.0"
                   placeholderTextColor={Theme.textMuted}
                   keyboardType="numeric"
                 />

@@ -172,6 +172,7 @@ export default function PaymentScreen() {
   const settingsStore = useCompanySettingsStore((state) => state.settings);
   const currencySymbol = settingsStore.currencySymbol || "$";
   const gstRate = (settingsStore.gstPercentage || 0) / 100;
+  const scRate = (settingsStore.serviceChargePercentage || 0) / 100;
   const [roundOff, setRoundOff] = useState(0);
   const [roundType, setRoundType] = useState<"whole" | "five" | "ten" | "custom" | null>(null);
   const [isAdjustmentModalVisible, setIsAdjustmentModalVisible] = useState(false);
@@ -374,8 +375,12 @@ export default function PaymentScreen() {
     return splitItems ? 0 : discount.value;
   }, [discount, subtotal, splitItems]);
 
-  const tax = (subtotal - discountAmount) * gstRate;
-  const baseTotal = subtotal - discountAmount + tax;
+  // Service Charge & GST: SC on net, GST on (net + SC)
+  const netAfterDiscount = subtotal - discountAmount;
+  const serviceChargeAmt = netAfterDiscount * scRate;
+  const taxableAmount = netAfterDiscount + serviceChargeAmt;
+  const tax = taxableAmount * gstRate;
+  const baseTotal = taxableAmount + tax;
 
   useEffect(() => {
     if (!isCashMethod(method)) {
@@ -390,8 +395,9 @@ export default function PaymentScreen() {
 
   const total = Math.max(0, baseTotal + roundOff);
   const displayedTax = Math.round(tax * 100) / 100;
-  const netAmountForDisplay = subtotal - discountAmount;
-  const displayedRoundOff = parseFloat((total - (netAmountForDisplay + displayedTax)).toFixed(2));
+  const displayedServiceCharge = Math.round(serviceChargeAmt * 100) / 100;
+  const netAmountForDisplay = netAfterDiscount;
+  const displayedRoundOff = parseFloat((total - (netAmountForDisplay + displayedServiceCharge + displayedTax)).toFixed(2));
   const paidNum = isCashMethod(method) ? (parseFloat(cashInput) || 0) : total;
   const change = Math.max(0, paidNum - total);
   const quickCash = [20, 50, 100, 200, 500, 1000];
@@ -438,6 +444,7 @@ export default function PaymentScreen() {
       items: finalItems.map((item: any) => ({ lineItemId: item.lineItemId, dishId: item.id, name: item.name, qty: item.qty, price: item.price, status: item.status, discountAmount: item.discountAmount ?? item.discount ?? null, discountType: item.discountType ?? null })),
       subTotal: subtotal,
       taxAmount: displayedTax,
+      serviceCharge: displayedServiceCharge,
       discountAmount: discountAmount + payItemDiscount,
       discountType: discount?.type || "fixed",
       totalAmount: total,
@@ -1103,9 +1110,15 @@ export default function PaymentScreen() {
                           </View>
                         )}
 
+                        {displayedServiceCharge > 0 && (
+                          <View style={styles.breakRow}>
+                            <Text style={styles.breakLabel}>Service Charge ({settingsStore.serviceChargePercentage || 0}%)</Text>
+                            <Text style={styles.breakValue}>{currencySymbol}{displayedServiceCharge.toFixed(2)}</Text>
+                          </View>
+                        )}
                         <View style={styles.breakRow}>
-                          <Text style={styles.breakLabel}>GST</Text>
-                          <Text style={styles.breakValue}>${displayedTax.toFixed(2)}</Text>
+                          <Text style={styles.breakLabel}>GST ({settingsStore.gstPercentage || 0}%)</Text>
+                          <Text style={styles.breakValue}>{currencySymbol}{displayedTax.toFixed(2)}</Text>
                         </View>
 
                         {displayedRoundOff !== 0 && (

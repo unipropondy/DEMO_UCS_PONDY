@@ -22,6 +22,7 @@ export interface CompanySettings {
   taxMode: "exclusive" | "inclusive";
   waiterRequired: boolean;
   holdOvertimeMinutes: number;
+  serviceChargePercentage: number;
 }
 
 interface CompanySettingsState {
@@ -49,6 +50,7 @@ const DEFAULT_SETTINGS: CompanySettings = {
   taxMode: "exclusive",
   waiterRequired: true,
   holdOvertimeMinutes: 30,
+  serviceChargePercentage: 0,
 };
 
 export const useCompanySettingsStore = create<CompanySettingsState>()(
@@ -85,6 +87,7 @@ export const useCompanySettingsStore = create<CompanySettingsState>()(
                 taxMode: s.TaxMode || "exclusive",
                 waiterRequired: s.WaiterRequired !== undefined ? !!s.WaiterRequired : true,
                 holdOvertimeMinutes: parseInt(s.HoldOvertimeMinutes) || 30,
+                serviceChargePercentage: parseFloat(s.ServiceChargePercentage) || 0,
               },
             });
             console.log("✅ [CompanySettingsStore] Settings loaded");
@@ -123,6 +126,7 @@ export const useCompanySettingsStore = create<CompanySettingsState>()(
             TaxMode: updated.taxMode,
             WaiterRequired: updated.waiterRequired,
             HoldOvertimeMinutes: updated.holdOvertimeMinutes,
+            ServiceChargePercentage: updated.serviceChargePercentage,
           };
 
           const response = await API.post(`/company-settings/1`, payload);

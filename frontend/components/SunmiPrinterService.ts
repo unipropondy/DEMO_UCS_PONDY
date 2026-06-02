@@ -393,29 +393,38 @@ class SunmiPrinterService {
       }
       await this.divider("-");
 
-      // ============ GST ============
+      // ============ SERVICE CHARGE & GST ============
       let finalTotal =
         saleData.total || saleData.totalAmount || currentSubtotal;
       const gstRate = companySettings.gstPercentage || 0;
-      const gstAmountRaw = gstRate > 0 ? currentSubtotal * (gstRate / 100) : 0;
+      const scPercentage = companySettings.serviceChargePercentage || 0;
+      const savedSC = saleData.serviceCharge != null ? parseFloat(String(saleData.serviceCharge)) : null;
+      const serviceChargeAmount = savedSC !== null ? savedSC : (currentSubtotal * (scPercentage / 100));
+      const hasSC = serviceChargeAmount > 0;
+      const taxableAmount = currentSubtotal + serviceChargeAmount;
+      const gstAmountRaw = gstRate > 0 ? taxableAmount * (gstRate / 100) : 0;
       const gstAmount = Math.round(gstAmountRaw * 100) / 100;
       
       if (finalTotal === 0) {
-        finalTotal = currentSubtotal + gstAmount;
+        finalTotal = taxableAmount + gstAmount;
       }
       
       const printedRoundOff = saleData.roundOff && saleData.roundOff !== 0
-        ? parseFloat((finalTotal - (currentSubtotal + gstAmount)).toFixed(2))
+        ? parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2))
         : 0;
 
+      if (!hasAnyDiscount) {
+        await this.twoCols("Sub Total:", `${symbol}${currentSubtotal.toFixed(2)}`);
+      }
+
+      if (hasSC) {
+        await this.twoCols(
+          `Service Charge (${scPercentage}%):`,
+          `${symbol}${serviceChargeAmount.toFixed(2)}`,
+        );
+      }
+
       if (gstRate > 0) {
-        const beforeGst = currentSubtotal;
-        if (!hasAnyDiscount) {
-          await this.twoCols(
-            "Sub Total:",
-            `${symbol}${beforeGst.toFixed(2)}`,
-          );
-        }
         await this.twoCols(
           `GST (${gstRate}%):`,
           `${symbol}${gstAmount.toFixed(2)}`,
