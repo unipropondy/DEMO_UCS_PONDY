@@ -524,8 +524,7 @@ export default function CompanySettingsScreen() {
                   placeholderTextColor={Theme.textMuted}
                 />
               </View>
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
+              <View style={[styles.inputGroup, { flex: 1 }]}>
                 <Text style={styles.inputLabel}>GST (%)</Text>
                 <TextInput 
                   style={styles.input}
@@ -536,7 +535,10 @@ export default function CompanySettingsScreen() {
                   keyboardType="numeric"
                 />
               </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
+            </View>
+
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                 <Text style={styles.inputLabel}>Service Charge (%)</Text>
                 <TextInput 
                   style={styles.input}
@@ -547,6 +549,7 @@ export default function CompanySettingsScreen() {
                   keyboardType="numeric"
                 />
               </View>
+              <View style={[styles.inputGroup, { flex: 1 }]} />
             </View>
 
             <View style={styles.row}>
