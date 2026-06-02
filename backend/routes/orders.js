@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
+const { runInTransaction } = require("../utils/transactionHelper");
 const { getActiveOrganization } = require("../utils/organizationHelper");
 const { getHoldOvertimeMinutes } = require("../utils/settingsCache");
 const DEFAULT_GUID = "00000000-0000-0000-0000-000000000000";
@@ -675,9 +676,7 @@ router.post("/save-cart", async (req, res) => {
       currentOrderId = null;
     }
 
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
-    try {
+    await runInTransaction(async (transaction) => {
       // 🚀 ALWAYS SYNC: Even if items is empty, we need to run syncToProfessionalTables
       // to ensure any existing items in the DB are voided/cleaned up.
       await syncToProfessionalTables(
@@ -706,31 +705,21 @@ router.post("/save-cart", async (req, res) => {
                                ELSE StartTime END
           WHERE TableId = @tid
         `);
+    }, { name: "SaveCart" });
 
-      await transaction.commit();
+    res.json({ success: true, orderId: currentOrderId });
 
-      res.json({ success: true, orderId: currentOrderId });
+    // 🔥 LIVE SYNC: Notify all other devices that this table's cart has changed
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("cart_updated", {
+        tableId: cleanId.toLowerCase(),
+        orderId: currentOrderId,
+      });
+    }
 
-      // 🔥 LIVE SYNC: Notify all other devices that this table's cart has changed
-      const io = req.app.get("io");
-      if (io) {
-        io.emit("cart_updated", {
-          tableId: cleanId.toLowerCase(),
-          orderId: currentOrderId,
-        });
-      }
-
-      if (!skipTableStatusSync) {
-        syncTableStatus(req, cleanId).catch(() => {});
-      }
-    } catch (e) {
-      try {
-        await transaction.rollback();
-      } catch (rollbackErr) {
-        console.error("⚠️ SaveCart rollback failed (might be already aborted):", rollbackErr.message);
-      }
-      console.error("❌ SaveCart SQL Error:", e.message);
-      res.status(500).json({ error: "DB_ERROR: " + e.message });
+    if (!skipTableStatusSync) {
+      syncTableStatus(req, cleanId).catch(() => {});
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -745,11 +734,12 @@ router.post("/send", async (req, res) => {
       .replace(/^\{|\}$/g, "")
       .trim();
 
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
-    try {
+    let finalOrderId;
+    let sentItems;
+
+    await runInTransaction(async (transaction) => {
       // 1. 🚀 GENERATE PROFESSIONAL ID NOW (At the moment of sending)
-      const finalOrderId = await getOrGenerateOrderId(req, cleanId);
+      finalOrderId = await getOrGenerateOrderId(req, cleanId);
 
       // 2. FORCE SENT STATUS — use items from client, or fall back to DB items
       let clientItems = items || [];
@@ -786,7 +776,7 @@ router.post("/send", async (req, res) => {
               AND d.StatusCode <> 0`);
         clientItems = dbItems.recordset;
       }
-      const sentItems = clientItems.map((item) => ({
+      sentItems = clientItems.map((item) => ({
         ...item,
         status:
           item.status === "VOIDED" || item.StatusCode === 0 ? "VOIDED" : "SENT",
@@ -813,63 +803,53 @@ router.post("/send", async (req, res) => {
               ModifiedOn = GETDATE()
           WHERE TableId = @tid
         `);
+    }, { name: "SendOrder" });
 
-      await transaction.commit();
+    res.json({ success: true, orderId: finalOrderId });
 
-      res.json({ success: true, orderId: finalOrderId });
+    // 🔥 REAL-TIME BROADCAST: Notify KDS and all other Waiter devices
+    const io = req.app.get("io");
+    if (io) {
+      const tableQuery = await pool
+        .request()
+        .input("tid", sql.VarChar(50), cleanId)
+        .query(
+          "SELECT TableNumber, DiningSection FROM TableMaster WHERE TableId = @tid",
+        );
+      const tableRow = tableQuery.recordset[0];
+      const tableNo = tableRow?.TableNumber
+        ? String(tableRow.TableNumber).trim()
+        : "";
+      const sectionMap = {
+        1: "SECTION_1",
+        2: "SECTION_2",
+        3: "SECTION_3",
+        4: "TAKEAWAY",
+      };
+      const section = tableRow
+        ? sectionMap[String(tableRow.DiningSection)] || "SECTION_1"
+        : "SECTION_1";
 
-      // 🔥 REAL-TIME BROADCAST: Notify KDS and all other Waiter devices
-      const io = req.app.get("io");
-      if (io) {
-        const tableQuery = await pool
-          .request()
-          .input("tid", sql.VarChar(50), cleanId)
-          .query(
-            "SELECT TableNumber, DiningSection FROM TableMaster WHERE TableId = @tid",
-          );
-        const tableRow = tableQuery.recordset[0];
-        const tableNo = tableRow?.TableNumber
-          ? String(tableRow.TableNumber).trim()
-          : "";
-        const sectionMap = {
-          1: "SECTION_1",
-          2: "SECTION_2",
-          3: "SECTION_3",
-          4: "TAKEAWAY",
-        };
-        const section = tableRow
-          ? sectionMap[String(tableRow.DiningSection)] || "SECTION_1"
-          : "SECTION_1";
-
-        io.emit("new_order", {
-          orderId: finalOrderId,
-          context: {
-            orderType: "DINE_IN",
-            tableId: cleanId,
-            tableNo: tableNo,
-            section: section,
-          },
-          items: sentItems,
-          createdAt: Date.now(),
-        });
-        io.emit("cart_updated", {
-          tableId: cleanId.toLowerCase(),
-          orderId: finalOrderId,
-        });
-        io.emit("kot_printed", { tableId: cleanId, orderId: finalOrderId });
-      }
-
-      // 5. Refresh totals and notify instantly
-      syncTableStatus(req, cleanId).catch(() => {});
-    } catch (e) {
-      try {
-        await transaction.rollback();
-      } catch (rollbackErr) {
-        console.error("⚠️ SendOrder rollback failed:", rollbackErr.message);
-      }
-      console.error("❌ SendOrder SQL Error:", e.message);
-      res.status(500).json({ error: "SEND_ERROR: " + e.message });
+      io.emit("new_order", {
+        orderId: finalOrderId,
+        context: {
+          orderType: "DINE_IN",
+          tableId: cleanId,
+          tableNo: tableNo,
+          section: section,
+        },
+        items: sentItems,
+        createdAt: Date.now(),
+      });
+      io.emit("cart_updated", {
+        tableId: cleanId.toLowerCase(),
+        orderId: finalOrderId,
+      });
+      io.emit("kot_printed", { tableId: cleanId, orderId: finalOrderId });
     }
+
+    // 5. Refresh totals and notify instantly
+    syncTableStatus(req, cleanId).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -889,75 +869,70 @@ router.get("/cart/:tableId", async (req, res) => {
     const pool = await poolPromise;
     const cleanId = tableId.replace(/^\{|\}$/g, "").trim();
 
-    // Get table info (TableNumber + CurrentOrderId)
-    const tableInfo = await pool
+    // Get table info (TableNumber + CurrentOrderId) and fetch cart items in a single roundtrip using multiple recordsets
+    const result = await pool
       .request()
       .input("tid", sql.VarChar(50), cleanId)
-      .query(
-        "SELECT TableNumber, CurrentOrderId FROM TableMaster WHERE TableId = @tid",
-      );
+      .query(`
+        DECLARE @TableNo VARCHAR(20), @CurrentOID NVARCHAR(50);
+        SELECT @TableNo = TableNumber, @CurrentOID = CurrentOrderId FROM TableMaster WHERE TableId = @tid;
 
-    const tableRow = tableInfo.recordset[0];
-    const tableNumber = tableRow?.TableNumber;
+        -- Recordset 1: Table Info
+        SELECT @TableNo AS TableNumber, @CurrentOID AS CurrentOrderId;
+
+        -- Recordset 2: Cart Items
+        IF @TableNo IS NOT NULL
+        BEGIN
+          SELECT 
+            d.OrderDetailId as lineItemId, d.DishId as id, d.Quantity as qty, 
+            d.PricePerUnit as price, 
+            ISNULL(dish.Name, d.DishName) as name, 
+            d.ModifiersJSON, d.Remarks as note, d.isTakeAway as isTakeaway,
+            ISNULL(d.DiscountAmount, 0) as discount,
+            ISNULL(d.DiscountType, NULL) as discountType,
+            d.CreatedOn as DateCreated,
+            CASE d.StatusCode 
+              WHEN 1 THEN 'NEW' WHEN 2 THEN 'SENT' WHEN 3 THEN 'READY' 
+              WHEN 4 THEN 'SERVED' WHEN 5 THEN 'HOLD' WHEN 0 THEN 'VOIDED' 
+              ELSE 'SENT' 
+            END as status,
+            ISNULL(ckt.KitchenTypeCode, '2') as KitchenTypeCode, 
+            ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') as KitchenTypeName,
+            pm.PrinterPath as PrinterIP,
+            ISNULL(dish.IsOpenItem, 0) as IsOpenItem
+          FROM RestaurantOrderDetailCur d 
+          JOIN RestaurantOrderCur h ON d.OrderId = h.OrderId 
+          LEFT JOIN DishMaster dish ON d.DishId = dish.DishId
+          LEFT JOIN DishGroupMaster dgm ON dish.DishGroupId = dgm.DishGroupId
+          LEFT JOIN CategoryMaster cat ON dgm.CategoryId = cat.CategoryId
+          LEFT JOIN CategoryKitchenType ckt ON dgm.CategoryId = ckt.CategoryId
+          LEFT JOIN (
+            SELECT *, ROW_NUMBER() OVER(PARTITION BY KitchenTypeValue ORDER BY PrinterId) as rn 
+            FROM PrintMaster WHERE IsActive = 1 AND PrinterType = 2
+          ) pm ON CAST(ckt.KitchenTypeCode AS VARCHAR(50)) = CAST(pm.KitchenTypeValue AS VARCHAR(50)) AND pm.rn = 1
+          WHERE 
+            h.isOrderClosed = 0
+            AND d.StatusCode <> 0 -- 🚀 SHIELD: Never fetch voided items back into the active cart
+            AND (
+              h.OrderNumber = @CurrentOID
+              OR (
+                (@CurrentOID IS NULL OR @CurrentOID = 'PENDING' OR @CurrentOID = 'NEW')
+                AND h.OrderId = (SELECT TOP 1 OrderId FROM RestaurantOrderCur WHERE Tableno = @TableNo AND isOrderClosed = 0 ORDER BY CreatedOn DESC)
+              )
+            )
+          ORDER BY d.CreatedOn ASC;
+        END
+      `);
+
+    const tableRow = result.recordsets[0][0];
     const currentOrderId = tableRow?.CurrentOrderId;
 
-    // Fetch items: prioritize by CurrentOrderId, fall back to open order by TableNumber
-    // 💡 LIVE SYNC: Allow TEMP- IDs so other devices can see the draft cart items!
     const isRealOrderId =
       currentOrderId &&
       currentOrderId !== "PENDING" &&
       currentOrderId !== "NEW";
 
-    const result = await pool
-      .request()
-      .input("tid", sql.VarChar(50), cleanId)
-      .input("tableNo", sql.VarChar(20), String(tableNumber || ""))
-      .input(
-        "orderNo",
-        sql.NVarChar(50),
-        isRealOrderId ? currentOrderId : "__NONE__",
-      ).query(`
-        SELECT 
-          d.OrderDetailId as lineItemId, d.DishId as id, d.Quantity as qty, 
-          d.PricePerUnit as price, 
-          ISNULL(dish.Name, d.DishName) as name, 
-          d.ModifiersJSON, d.Remarks as note, d.isTakeAway as isTakeaway,
-          ISNULL(d.DiscountAmount, 0) as discount,
-          ISNULL(d.DiscountType, NULL) as discountType,
-          d.CreatedOn as DateCreated,
-          CASE d.StatusCode 
-            WHEN 1 THEN 'NEW' WHEN 2 THEN 'SENT' WHEN 3 THEN 'READY' 
-            WHEN 4 THEN 'SERVED' WHEN 5 THEN 'HOLD' WHEN 0 THEN 'VOIDED' 
-            ELSE 'SENT' 
-          END as status,
-          ISNULL(ckt.KitchenTypeCode, '2') as KitchenTypeCode, 
-          ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') as KitchenTypeName,
-          pm.PrinterPath as PrinterIP,
-          ISNULL(dish.IsOpenItem, 0) as IsOpenItem
-        FROM RestaurantOrderDetailCur d 
-        JOIN RestaurantOrderCur h ON d.OrderId = h.OrderId 
-        LEFT JOIN DishMaster dish ON d.DishId = dish.DishId
-        LEFT JOIN DishGroupMaster dgm ON dish.DishGroupId = dgm.DishGroupId
-        LEFT JOIN CategoryMaster cat ON dgm.CategoryId = cat.CategoryId
-        LEFT JOIN CategoryKitchenType ckt ON dgm.CategoryId = ckt.CategoryId
-        LEFT JOIN (
-          SELECT *, ROW_NUMBER() OVER(PARTITION BY KitchenTypeValue ORDER BY PrinterId) as rn 
-          FROM PrintMaster WHERE IsActive = 1 AND PrinterType = 2
-        ) pm ON CAST(ckt.KitchenTypeCode AS VARCHAR(50)) = CAST(pm.KitchenTypeValue AS VARCHAR(50)) AND pm.rn = 1
-        WHERE 
-          h.isOrderClosed = 0
-          AND d.StatusCode <> 0 -- 🚀 SHIELD: Never fetch voided items back into the active cart
-          AND (
-            h.OrderNumber = @orderNo
-            OR (
-              @orderNo = '__NONE__' AND 
-              h.OrderId = (SELECT TOP 1 OrderId FROM RestaurantOrderCur WHERE Tableno = @tableNo AND isOrderClosed = 0 ORDER BY CreatedOn DESC)
-            )
-          )
-        ORDER BY d.CreatedOn ASC
-      `);
-
-    const items = result.recordset.map((i) => ({
+    const items = (result.recordsets[1] || []).map((i) => ({
       ...i,
       modifiers: i.ModifiersJSON
         ? (() => {
@@ -1020,9 +995,7 @@ router.post("/cancel", async (req, res) => {
     );
     const voidQty = items.reduce((sum, item) => sum + (item.Quantity || 0), 0);
 
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
-    try {
+    await runInTransaction(async (transaction) => {
       const settlementId = crypto.randomUUID();
 
       // 2. Insert into SettlementHeader (Cancelled Status)
@@ -1133,24 +1106,14 @@ router.post("/cancel", async (req, res) => {
         .query(
           "UPDATE TableMaster SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid",
         );
+    }, { name: "CancelOrder" });
 
-      await transaction.commit();
+    await syncTableStatus(req, cleanTid);
+    req.app
+      .get("io")
+      ?.emit("order_closed", { tableId: cleanTid, orderId: orderId });
 
-      await syncTableStatus(req, cleanTid);
-      req.app
-        .get("io")
-        ?.emit("order_closed", { tableId: cleanTid, orderId: orderId });
-
-      res.json({ success: true });
-    } catch (e) {
-      try {
-        await transaction.rollback();
-      } catch (rollbackErr) {
-        console.error("⚠️ Cancel order rollback failed:", rollbackErr.message);
-      }
-      console.error("❌ Cancel Error:", e.message);
-      res.status(500).json({ error: e.message });
-    }
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1280,9 +1243,7 @@ router.post("/remove-item", async (req, res) => {
       `[TRACE] [${now}] [REMOVE-ITEM] Table: ${tableId} | ItemID: ${itemId} | Version: ${version || "NONE"}`,
     );
 
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
-    try {
+    await runInTransaction(async (transaction) => {
       // 🚀 SMART REMOVAL: Delete if NEW, Void if SENT
       await transaction
         .request()
@@ -1307,23 +1268,15 @@ router.post("/remove-item", async (req, res) => {
             WHERE OrderDetailId = @itemId;
           END
         `);
-      await transaction.commit();
+    }, { name: "RemoveItem" });
 
-      // 🚀 Refresh total immediately
-      syncTableStatus(req, tableId).catch(() => {});
+    // 🚀 Refresh total immediately
+    syncTableStatus(req, tableId).catch(() => {});
 
-      req.app.get("io")?.emit("cart_updated", {
-        tableId: String(tableId || "").toLowerCase(),
-      });
-      res.json({ success: true });
-    } catch (e) {
-      try {
-        await transaction.rollback();
-      } catch (rollbackErr) {
-        console.error("⚠️ Item delete rollback failed:", rollbackErr.message);
-      }
-      throw e;
-    }
+    req.app.get("io")?.emit("cart_updated", {
+      tableId: String(tableId || "").toLowerCase(),
+    });
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1517,10 +1470,10 @@ router.post("/merge", async (req, res) => {
       END
     `);
 
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
+    let targetOrderId;
+    let targetCombinedTotal = 0;
 
-    try {
+    await runInTransaction(async (transaction) => {
       console.log(
         `[MERGE START] Initiating merge for targetTableId: ${cleanTargetId}`,
       );
@@ -1539,7 +1492,7 @@ router.post("/merge", async (req, res) => {
       }
 
       const targetTableNo = targetCheck.recordset[0].TableNumber;
-      const targetOrderId = targetCheck.recordset[0].CurrentOrderId;
+      targetOrderId = targetCheck.recordset[0].CurrentOrderId;
       console.log(
         `[MERGE STEP 1 SUCCESS] Target Table: ${targetTableNo}, Active OrderNo: ${targetOrderId}`,
       );
@@ -1569,8 +1522,6 @@ router.post("/merge", async (req, res) => {
       console.log(
         `[MERGE STEP 2 SUCCESS] Target Order GUID: ${targetOrderGuid}`,
       );
-
-      const io = req.app.get("io");
 
       for (const sourceTableId of sourceTableIds) {
         const cleanSourceId = String(sourceTableId)
@@ -1698,6 +1649,7 @@ router.post("/merge", async (req, res) => {
 
         // E. Emit source socket events immediately
         console.log(`[MERGE LOOP] Broadcasting source table update events...`);
+        const io = req.app.get("io");
         if (io) {
           io.emit("table_status_updated", {
             tableId: cleanSourceId.toLowerCase(),
@@ -1723,7 +1675,7 @@ router.post("/merge", async (req, res) => {
         .query(
           "SELECT SUM(TotalDetailLineAmount) as Total FROM RestaurantOrderDetailCur WHERE OrderId = @parentOid AND StatusCode <> 0",
         );
-      const targetCombinedTotal = combinedTotalRes.recordset[0].Total || 0;
+      targetCombinedTotal = combinedTotalRes.recordset[0].Total || 0;
       console.log(
         `[MERGE STEP 3 SUCCESS] Combined Total: ${targetCombinedTotal}`,
       );
@@ -1741,38 +1693,23 @@ router.post("/merge", async (req, res) => {
           UPDATE TableMaster SET TotalAmount = @total WHERE TableId = @tid;
           UPDATE RestaurantOrderCur SET TotalAmount = @total, TotalLineItemAmount = @total WHERE OrderId = @parentOid;
         `);
+    }, { name: "MergeTables" });
 
-      console.log(`[MERGE STEP 5] Committing SQL transaction...`);
-      await transaction.commit();
-      console.log(
-        `[MERGE STEP 5 SUCCESS] SQL transaction committed successfully.`,
-      );
-
-      // 4. Emit target socket events
-      if (io) {
-        io.emit("table_status_updated", {
-          tableId: cleanTargetId.toLowerCase(),
-          status: 1,
-          totalAmount: targetCombinedTotal,
-        });
-        io.emit("cart_updated", {
-          tableId: cleanTargetId.toLowerCase(),
-          orderId: targetOrderId,
-        });
-      }
-
-      res.json({ success: true, totalAmount: targetCombinedTotal });
-    } catch (err) {
-      console.error(
-        `[MERGE TRANSACTION ERROR] rolling back... Error: ${err.message}`,
-      );
-      try {
-        await transaction.rollback();
-      } catch (rollbackErr) {
-        console.error("⚠️ Merge rollback failed:", rollbackErr.message);
-      }
-      throw err;
+    // 4. Emit target socket events
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("table_status_updated", {
+        tableId: cleanTargetId.toLowerCase(),
+        status: 1,
+        totalAmount: targetCombinedTotal,
+      });
+      io.emit("cart_updated", {
+        tableId: cleanTargetId.toLowerCase(),
+        orderId: targetOrderId,
+      });
     }
+
+    res.json({ success: true, totalAmount: targetCombinedTotal });
   } catch (err) {
     console.error("❌ Merge Error:", err.message);
     res.status(500).json({ error: err.message });

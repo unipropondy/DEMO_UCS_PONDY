@@ -15,14 +15,15 @@ const dbConfig = {
     enableArithAbort: true,
     connectTimeout: 180000, 
     requestTimeout: 180000,
-    appName: "POS_System"
+    appName: "POS_System",
+    keepAlive: true // Enable TCP keepAlive
   },
   connectionTimeout: 180000,
   requestTimeout: 180000,
   pool: {
     max: 100,
     min: 0,
-    idleTimeoutMillis: 30000
+    idleTimeoutMillis: 15000 // Lowered to 15s to recycle idle connections faster
   }
 };
 
@@ -40,6 +41,10 @@ const poolPromise = new sql.ConnectionPool(dbConfig)
   .connect()
   .then((pool) => {
     console.log("✅ Connected to MSSQL Successfully");
+    // Register pool error listener to handle network/socket drops gracefully
+    pool.on("error", (err) => {
+      console.error("⚠️ [Database Pool Error] General pool connection error:", err.message);
+    });
     poolInstance = pool;
     return pool;
   })

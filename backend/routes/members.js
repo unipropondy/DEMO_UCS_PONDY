@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
+const { runInTransaction } = require("../utils/transactionHelper");
 const { processSplitPayments } = require("../services/payment.service");
 
 const toGuidOrNull = (value) => {
@@ -91,33 +92,22 @@ router.post("/update", async (req, res) => {
 });
 
 router.post("/delete", async (req, res) => {
-  let transaction;
   try {
-    const pool = await poolPromise;
     const { memberId } = req.body;
     if (!memberId) return res.status(400).json({ error: "Missing memberId" });
 
-    transaction = new sql.Transaction(pool);
-    await transaction.begin();
+    await runInTransaction(async (transaction) => {
+      const request = new sql.Request(transaction);
+      request.input("Id", sql.UniqueIdentifier, memberId);
 
-    const request = new sql.Request(transaction);
-    request.input("Id", sql.UniqueIdentifier, memberId);
+      await request.query("IF OBJECT_ID('MemberTimeLog', 'U') IS NOT NULL DELETE FROM MemberTimeLog WHERE MemberId = @Id");
+      await request.query("IF COL_LENGTH('SettlementHeader', 'MemberId') IS NOT NULL UPDATE SettlementHeader SET MemberId = NULL WHERE MemberId = @Id;");
+      await request.query("DELETE FROM MemberMaster WHERE MemberId = @Id");
+    }, { name: "DeleteMember" });
 
-    await request.query("IF OBJECT_ID('MemberTimeLog', 'U') IS NOT NULL DELETE FROM MemberTimeLog WHERE MemberId = @Id");
-    await request.query("IF COL_LENGTH('SettlementHeader', 'MemberId') IS NOT NULL UPDATE SettlementHeader SET MemberId = NULL WHERE MemberId = @Id;");
-    await request.query("DELETE FROM MemberMaster WHERE MemberId = @Id");
-
-    await transaction.commit();
     res.json({ success: true });
   } catch (err) {
     console.error("[MEMBERS DELETE ERROR]", err);
-    if (transaction) {
-      try {
-        await transaction.rollback();
-      } catch (rErr) {
-        console.error("⚠️ Member delete rollback failed:", rErr.message);
-      }
-    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -256,8 +246,9 @@ router.get("/usage/:memberId", async (req, res) => {
 });
 
 router.post("/pay", async (req, res) => {
-  const pool = await poolPromise;
-  const { memberId, amount, payments, userId } = req.body;
+  try {
+    const pool = await poolPromise;
+    const { memberId, amount, payments, userId } = req.body;
 
   if (!memberId) {
     return res.status(400).json({ error: "memberId is required" });
@@ -291,10 +282,9 @@ router.post("/pay", async (req, res) => {
     return res.status(400).json({ error: `Sum of payments (${sum.toFixed(2)}) must equal total amount (${numericAmt.toFixed(2)})` });
   }
 
-  const transaction = new sql.Transaction(pool);
-  await transaction.begin();
+  let memberPaymentId;
 
-  try {
+  await runInTransaction(async (transaction) => {
     // 1. Verify member exists and is active
     const memberCheck = await transaction.request()
       .input("MemberId", sql.UniqueIdentifier, memberId)
@@ -311,7 +301,7 @@ router.post("/pay", async (req, res) => {
 
     // 2. Generate a new MemberPaymentId
     const payIdRes = await transaction.request().query("SELECT NEWID() as id");
-    const memberPaymentId = payIdRes.recordset[0].id;
+    memberPaymentId = payIdRes.recordset[0].id;
 
     // 3. Process split payments using unified service
     await processSplitPayments({
@@ -412,16 +402,11 @@ router.post("/pay", async (req, res) => {
       .input("MemberId", sql.UniqueIdentifier, memberId)
       .input("Amount", sql.Decimal(18, 2), numericAmt)
       .query("UPDATE MemberMaster SET CurrentBalance = CurrentBalance - @Amount WHERE MemberId = @MemberId");
+  }, { name: "MemberPayment" });
 
-    await transaction.commit();
-    res.json({ success: true, memberPaymentId });
+  res.json({ success: true, memberPaymentId });
   } catch (err) {
     console.error("[MEMBER PAYMENT ERROR]", err);
-    try {
-      await transaction.rollback();
-    } catch (rErr) {
-      console.error("⚠️ Member pay rollback failed:", rErr.message);
-    }
     res.status(500).json({ error: err.message });
   }
 });

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
+const { runInTransaction } = require("../utils/transactionHelper");
 const { processSplitPayments } = require("../services/payment.service");
 
 const toGuidOrNull = (value) => {
@@ -176,8 +177,9 @@ router.get("/validate/:memberId", async (req, res) => {
 });
 
 router.post("/pay", async (req, res) => {
-  const pool = await poolPromise;
-  const { memberId, amount, payments, userId } = req.body;
+  try {
+    const pool = await poolPromise;
+    const { memberId, amount, payments, userId } = req.body;
 
   if (!memberId) {
     return res.status(400).json({ error: "memberId (CustomerId) is required" });
@@ -211,10 +213,7 @@ router.post("/pay", async (req, res) => {
     return res.status(400).json({ error: `Sum of payments (${sum.toFixed(2)}) must equal total amount (${numericAmt.toFixed(2)})` });
   }
 
-  const transaction = new sql.Transaction(pool);
-  await transaction.begin();
-
-  try {
+  await runInTransaction(async (transaction) => {
     // 1. Verify customer exists and is active
     const customerCheck = await transaction.request()
       .input("CustomerId", sql.UniqueIdentifier, memberId)
@@ -327,18 +326,13 @@ router.post("/pay", async (req, res) => {
       .input("CustomerId", sql.UniqueIdentifier, memberId)
       .input("Amount", sql.Decimal(18, 2), numericAmt)
       .query("UPDATE CreditCustomerMaster SET CurrentBalance = CurrentBalance - @Amount WHERE CustomerId = @CustomerId");
+  }, { name: "CreditCustomerPayment" });
 
-    await transaction.commit();
-    res.json({ success: true });
-  } catch (err) {
-    console.error("[CREDIT CUSTOMER PAYMENT ERROR]", err);
-    try {
-      await transaction.rollback();
-    } catch (rErr) {
-      console.error("⚠️ Credit customer pay rollback failed:", rErr.message);
-    }
-    res.status(500).json({ error: err.message });
-  }
+  res.json({ success: true });
+} catch (err) {
+  console.error("[CREDIT CUSTOMER PAYMENT ERROR]", err);
+  res.status(500).json({ error: err.message });
+}
 });
 
 /* ================= OUTSTANDING BILLS ================= */

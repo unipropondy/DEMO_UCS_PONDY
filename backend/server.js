@@ -31,6 +31,7 @@ const { poolPromise } = require("./config/db");
 const { initDB } = require("./config/init");
 const dbCheck = require("./middleware/dbCheck");
 const { getHoldOvertimeMinutes } = require("./utils/settingsCache");
+const { rollbackAllActive } = require("./utils/transactionHelper");
 
 // Import Routes
 const authRoutes = require("./routes/auth");
@@ -352,5 +353,25 @@ httpServer.listen(PORT, async () => {
     }
   } catch (err) {
     console.error("⚠️ Initial DB setup failed:", err.message);
+  }
+});
+
+// Register global exception handlers for transaction cleanup
+process.on("uncaughtException", async (err) => {
+  console.error("🔥 [Fatal] Uncaught Exception occurred:", err);
+  try {
+    await rollbackAllActive();
+  } catch (cleanErr) {
+    console.error("⚠️ Failed to clean up transactions during uncaughtException:", cleanErr);
+  }
+  process.exit(1);
+});
+
+process.on("unhandledRejection", async (reason, promise) => {
+  console.error("🔥 [Fatal] Unhandled Rejection at:", promise, "reason:", reason);
+  try {
+    await rollbackAllActive();
+  } catch (cleanErr) {
+    console.error("⚠️ Failed to clean up transactions during unhandledRejection:", cleanErr);
   }
 });

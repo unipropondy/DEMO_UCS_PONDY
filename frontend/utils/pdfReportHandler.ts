@@ -9,7 +9,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = 'https://demoucspondy-production.up.railway.app/api';
 
 /**
  * Download consolidated sales report PDF

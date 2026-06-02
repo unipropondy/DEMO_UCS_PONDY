@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
+const { runInTransaction } = require("../utils/transactionHelper");
 const { getActiveOrganization } = require("../utils/organizationHelper");
 const { processSplitPayments } = require("../services/payment.service");
 
@@ -901,14 +902,13 @@ router.post("/save", async (req, res) => {
     if (validationError) {
       console.warn(`[SAVE SALE] Validation failed: ${validationError}`);
       return res.status(400).json({ error: validationError });
-    }
+    }    let settlementId;
+    let displayOrderId = null;
+    let guidOrderId;
 
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
-
-    try {
+    await runInTransaction(async (transaction) => {
       const settlementIdResult = await transaction.request().query(`SELECT NEWID() AS id`);
-      const settlementId = settlementIdResult.recordset[0].id;
+      settlementId = settlementIdResult.recordset[0].id;
       let billNo = ""; // Will be set to displayOrderId later
 
       const activeOrg = await getActiveOrganization();
@@ -960,7 +960,7 @@ router.post("/save", async (req, res) => {
 
     // 2. Order ID Retrieval
     const now = new Date();
-    let displayOrderId = null;
+    displayOrderId = null;
     let dailySequence = 0;
 
     if (tableId) {
@@ -1727,43 +1727,33 @@ router.post("/save", async (req, res) => {
         }
       }
 
-      await transaction.commit();
-      
-      // 🚀 POST-SAVE VALIDATION: Deep integrity check for Backoffice compatibility
-      if (guidOrderId) {
-        setImmediate(async () => {
-          try {
-            const checkPool = await poolPromise;
-            const check = await checkPool.request()
-              .input("oid", sql.UniqueIdentifier, guidOrderId)
-              .input("sid", sql.UniqueIdentifier, settlementId)
-              .query(`
-                SELECT 
-                  (SELECT COUNT(*) FROM PaymentDetail WHERE RestaurantBillId = @sid) as PaymentMasterCount,
-                  (SELECT COUNT(*) FROM RestaurantInvoice WHERE RestaurantBillId = @sid AND OrderId = @oid) as InvoiceMasterMatch,
-                  (SELECT COUNT(*) FROM RestaurantOrder WHERE OrderId = @oid) as OrderMasterCount,
-                  (SELECT BillNumber FROM RestaurantInvoice WHERE RestaurantBillId = @sid) as FinalBillNo
-              `);
-            const stats = check.recordset[0];
-            const isHealthy = stats.PaymentMasterCount > 0 && stats.InvoiceMasterMatch > 0 && stats.OrderMasterCount > 0;
-            console.log(`[INTEGRITY ${isHealthy ? 'OK' : 'FAIL'}] Order: ${displayOrderId} | MasterOrder: ${stats.OrderMasterCount} | Invoice: ${stats.InvoiceMasterMatch} | Payments: ${stats.PaymentMasterCount} | Bill: ${stats.FinalBillNo}`);
-          } catch (vErr) {
-            console.error("[INTEGRITY ERROR] Verification failed:", vErr.message);
-          }
-        });
-      }
-      
-      res.json({ success: true, settlementId, billNo: displayOrderId, orderId: displayOrderId });
-    } catch (err) {
-      if (transaction) {
+    }, { name: "SaveSale", timeoutMs: 30000 });
+
+    // 🚀 POST-SAVE VALIDATION: Deep integrity check for Backoffice compatibility
+    if (guidOrderId) {
+      setImmediate(async () => {
         try {
-          await transaction.rollback();
-        } catch (rollBackErr) {
-          console.error("⚠️ Sales rollback failed:", rollBackErr.message);
+          const checkPool = await poolPromise;
+          const check = await checkPool.request()
+            .input("oid", sql.UniqueIdentifier, guidOrderId)
+            .input("sid", sql.UniqueIdentifier, settlementId)
+            .query(`
+              SELECT 
+                (SELECT COUNT(*) FROM PaymentDetail WHERE RestaurantBillId = @sid) as PaymentMasterCount,
+                (SELECT COUNT(*) FROM RestaurantInvoice WHERE RestaurantBillId = @sid AND OrderId = @oid) as InvoiceMasterMatch,
+                (SELECT COUNT(*) FROM RestaurantOrder WHERE OrderId = @oid) as OrderMasterCount,
+                (SELECT BillNumber FROM RestaurantInvoice WHERE RestaurantBillId = @sid) as FinalBillNo
+            `);
+          const stats = check.recordset[0];
+          const isHealthy = stats.PaymentMasterCount > 0 && stats.InvoiceMasterMatch > 0 && stats.OrderMasterCount > 0;
+          console.log(`[INTEGRITY ${isHealthy ? 'OK' : 'FAIL'}] Order: ${displayOrderId} | MasterOrder: ${stats.OrderMasterCount} | Invoice: ${stats.InvoiceMasterMatch} | Payments: ${stats.PaymentMasterCount} | Bill: ${stats.FinalBillNo}`);
+        } catch (vErr) {
+          console.error("[INTEGRITY ERROR] Verification failed:", vErr.message);
         }
-      }
-      throw err;
+      });
     }
+    
+    res.json({ success: true, settlementId, billNo: displayOrderId, orderId: displayOrderId });
   } catch (err) {
     console.error("SAVE SALE ERROR:", err);
     res.status(500).json({ success: false, error: err.message });

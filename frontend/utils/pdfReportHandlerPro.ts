@@ -10,7 +10,7 @@ import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
 
 // API configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+const API_BASE_URL = 'https://demoucspondy-production.up.railway.app';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 2000; // ms
 const TIMEOUT = 30000; // ms
