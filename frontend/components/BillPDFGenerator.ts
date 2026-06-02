@@ -356,6 +356,9 @@ private static escapeHtml(str: string): string {
     const serviceChargeAmount = savedServiceCharge !== null ? savedServiceCharge : (currentSubtotal * (scPercentage / 100));
     const taxableAmount = currentSubtotal + serviceChargeAmount;
     const hasSC = serviceChargeAmount > 0;
+    const effectiveSCPercentage = serviceChargeAmount > 0 && currentSubtotal > 0
+      ? Math.round((serviceChargeAmount / currentSubtotal) * 100)
+      : scPercentage;
     const gstAmountRaw = hasGST ? taxableAmount * (gstRate / 100) : 0;
     const gstAmount = Math.round(gstAmountRaw * 100) / 100;
     const amountWithoutGST = currentSubtotal;
@@ -772,7 +775,7 @@ private static escapeHtml(str: string): string {
             
             ${hasSC ? `
             <div class="total-row">
-              <span>Service Charge (${scPercentage}%):</span>
+              <span>Service Charge (${effectiveSCPercentage}%):</span>
               <span>${currencySymbol}${serviceChargeAmount.toFixed(2)}</span>
             </div>
             ` : ''}
