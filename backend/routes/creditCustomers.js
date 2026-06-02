@@ -326,7 +326,7 @@ router.post("/pay", async (req, res) => {
       .input("CustomerId", sql.UniqueIdentifier, memberId)
       .input("Amount", sql.Decimal(18, 2), numericAmt)
       .query("UPDATE CreditCustomerMaster SET CurrentBalance = CurrentBalance - @Amount WHERE CustomerId = @CustomerId");
-  }, { name: "CreditCustomerPayment" });
+  }, { name: "CreditCustomerPayment", timeoutMs: 60000 });
 
   res.json({ success: true });
 } catch (err) {

@@ -705,7 +705,7 @@ router.post("/save-cart", async (req, res) => {
                                ELSE StartTime END
           WHERE TableId = @tid
         `);
-    }, { name: "SaveCart" });
+    }, { name: "SaveCart", timeoutMs: 60000 });
 
     res.json({ success: true, orderId: currentOrderId });
 
@@ -803,7 +803,7 @@ router.post("/send", async (req, res) => {
               ModifiedOn = GETDATE()
           WHERE TableId = @tid
         `);
-    }, { name: "SendOrder" });
+    }, { name: "SendOrder", timeoutMs: 60000 });
 
     res.json({ success: true, orderId: finalOrderId });
 
@@ -1106,7 +1106,7 @@ router.post("/cancel", async (req, res) => {
         .query(
           "UPDATE TableMaster SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid",
         );
-    }, { name: "CancelOrder" });
+    }, { name: "CancelOrder", timeoutMs: 60000 });
 
     await syncTableStatus(req, cleanTid);
     req.app
@@ -1268,7 +1268,7 @@ router.post("/remove-item", async (req, res) => {
             WHERE OrderDetailId = @itemId;
           END
         `);
-    }, { name: "RemoveItem" });
+    }, { name: "RemoveItem", timeoutMs: 60000 });
 
     // 🚀 Refresh total immediately
     syncTableStatus(req, tableId).catch(() => {});
@@ -1693,7 +1693,7 @@ router.post("/merge", async (req, res) => {
           UPDATE TableMaster SET TotalAmount = @total WHERE TableId = @tid;
           UPDATE RestaurantOrderCur SET TotalAmount = @total, TotalLineItemAmount = @total WHERE OrderId = @parentOid;
         `);
-    }, { name: "MergeTables" });
+    }, { name: "MergeTables", timeoutMs: 60000 });
 
     // 4. Emit target socket events
     const io = req.app.get("io");

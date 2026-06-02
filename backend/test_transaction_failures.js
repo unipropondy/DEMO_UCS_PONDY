@@ -138,6 +138,41 @@ async function runTests() {
   }
   console.log("\n--------------------------------------------------\n");
 
+  // Test Case 4: Timeout while Query is executing
+  try {
+    console.log("🔹 [Test 4] Testing Timeout while Query is executing...");
+    console.log("Registry size before:", activeTransactions.size);
+
+    await runInTransaction(async (transaction) => {
+      console.log("Inside transaction. Registry size:", activeTransactions.size);
+      
+      // Run a query that takes 3 seconds (exceeding 1s timeout)
+      console.log("Running a slow query (WAITFOR DELAY '00:00:03')...");
+      await transaction.request().query("WAITFOR DELAY '00:00:03'");
+      
+      console.log("This should not execute!");
+    }, { name: "TestQueryTimeoutRollback", timeoutMs: 1000 });
+
+    console.error("❌ Test 4 Failed: Transaction did not timeout.");
+    failed++;
+  } catch (err) {
+    if (err.message.includes("timeout exceeded")) {
+      console.log("✅ Test 4 Passed: Timeout caught correctly:", err.message);
+      console.log("Registry size after:", activeTransactions.size);
+      if (activeTransactions.size === 0) {
+        console.log("✅ Registry successfully cleared.");
+        passed++;
+      } else {
+        console.error("❌ Registry not cleared!");
+        failed++;
+      }
+    } else {
+      console.error("❌ Test 4 Failed with unexpected error:", err.message);
+      failed++;
+    }
+  }
+  console.log("\n--------------------------------------------------\n");
+
   console.log(`📊 Test Results: ${passed} Passed, ${failed} Failed.`);
   if (failed > 0) {
     console.error("❌ One or more tests failed!");

@@ -402,7 +402,7 @@ router.post("/pay", async (req, res) => {
       .input("MemberId", sql.UniqueIdentifier, memberId)
       .input("Amount", sql.Decimal(18, 2), numericAmt)
       .query("UPDATE MemberMaster SET CurrentBalance = CurrentBalance - @Amount WHERE MemberId = @MemberId");
-  }, { name: "MemberPayment" });
+  }, { name: "MemberPayment", timeoutMs: 60000 });
 
   res.json({ success: true, memberPaymentId });
   } catch (err) {

@@ -1202,8 +1202,8 @@ router.post("/save", async (req, res) => {
             .query(`
               SELECT TOP 1 d.DishId, d.DishGroupId, dg.CategoryId, cm.CategoryName, dg.DishGroupName
               FROM DishMaster d
-              LEFT JOIN DishGroupMaster dg ON CAST(d.DishGroupId AS NVARCHAR(128)) = CAST(dg.DishGroupId AS NVARCHAR(128))
-              LEFT JOIN CategoryMaster cm ON CAST(dg.CategoryId AS NVARCHAR(128)) = CAST(cm.CategoryId AS NVARCHAR(128))
+              LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
+              LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
               WHERE (@DishId IS NOT NULL AND d.DishId = @DishId)
                  OR (@DishId IS NULL AND LTRIM(RTRIM(LOWER(d.Name))) = LTRIM(RTRIM(LOWER(@DishName))))
             `);
@@ -1727,7 +1727,7 @@ router.post("/save", async (req, res) => {
         }
       }
 
-    }, { name: "SaveSale", timeoutMs: 30000 });
+    }, { name: "SaveSale", timeoutMs: 60000 });
 
     // 🚀 POST-SAVE VALIDATION: Deep integrity check for Backoffice compatibility
     if (guidOrderId) {

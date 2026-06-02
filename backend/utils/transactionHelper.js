@@ -3,17 +3,50 @@ const { sql, getPool } = require("../config/db");
 // Keep a registry of active transactions for monitoring and emergency rollback
 const activeTransactions = new Set();
 
+// 🚀 GHOST SHIELD: Globally intercept sql.Request constructor to track requests created with new sql.Request(transaction)
+const originalRequest = sql.Request;
+sql.Request = function(connection, ...args) {
+  const req = new originalRequest(connection, ...args);
+  
+  // If connection is a Transaction and has our custom activeRequests registry, track it
+  if (connection && connection.activeRequests) {
+    connection.activeRequests.add(req);
+    
+    const originalQuery = req.query;
+    req.query = async function(...queryArgs) {
+      try {
+        return await originalQuery.apply(req, queryArgs);
+      } finally {
+        connection.activeRequests.delete(req);
+      }
+    };
+
+    const originalExecute = req.execute;
+    req.execute = async function(...execArgs) {
+      try {
+        return await originalExecute.apply(req, execArgs);
+      } finally {
+        connection.activeRequests.delete(req);
+      }
+    };
+  }
+  return req;
+};
+// Inherit prototype and static properties
+sql.Request.prototype = originalRequest.prototype;
+Object.assign(sql.Request, originalRequest);
+
 /**
  * Execute business logic inside an SQL transaction with automated lifecycle management.
  *
  * @param {Function} callback - Async function executing operations, receives the (transaction) object.
  * @param {Object} options - Configuration options.
  * @param {string} options.name - Name of transaction for diagnostics and logging.
- * @param {number} options.timeoutMs - Timeout threshold in milliseconds (default: 15000).
+ * @param {number} options.timeoutMs - Timeout threshold in milliseconds (default: 30000).
  */
 async function runInTransaction(callback, options = {}) {
   const name = options.name || "AnonymousTransaction";
-  const timeoutMs = options.timeoutMs || 15000;
+  const timeoutMs = options.timeoutMs || 30000; // Increased default timeout to 30s
   const startTime = Date.now();
 
   const pool = getPool();
@@ -22,7 +55,36 @@ async function runInTransaction(callback, options = {}) {
   }
 
   const transaction = new sql.Transaction(pool);
+  const activeRequests = new Set();
+  transaction.activeRequests = activeRequests;
   let isDone = false;
+
+  // Intercept transaction.request() to track requests created via method
+  const originalTxRequest = transaction.request;
+  transaction.request = function(...args) {
+    const req = originalTxRequest.apply(transaction, args);
+    activeRequests.add(req);
+
+    const originalQuery = req.query;
+    req.query = async function(...queryArgs) {
+      try {
+        return await originalQuery.apply(req, queryArgs);
+      } finally {
+        activeRequests.delete(req);
+      }
+    };
+
+    const originalExecute = req.execute;
+    req.execute = async function(...execArgs) {
+      try {
+        return await originalExecute.apply(req, execArgs);
+      } finally {
+        activeRequests.delete(req);
+      }
+    };
+
+    return req;
+  };
 
   const registryItem = {
     tx: transaction,
@@ -32,6 +94,28 @@ async function runInTransaction(callback, options = {}) {
       if (isDone) return;
       try {
         console.warn(`[TX] [${name}] Emergency rollback initiated via registry.`);
+        
+        // 1. Cancel all active queries on the connection to prevent "request in progress" error
+        if (activeRequests.size > 0) {
+          console.warn(`[TX] [${name}] Cancelling ${activeRequests.size} active query requests...`);
+          for (const req of activeRequests) {
+            try {
+              req.cancel();
+            } catch (err) {
+              console.error(`[TX] [${name}] Failed to cancel active request: ${err.message}`);
+            }
+          }
+          // Poll until activeRequests is empty or we hit a max wait time of 5 seconds
+          const cancelStartTime = Date.now();
+          while (activeRequests.size > 0 && Date.now() - cancelStartTime < 5000) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+          if (activeRequests.size > 0) {
+            console.warn(`[TX] [${name}] Warning: ${activeRequests.size} requests could not be cancelled in 5s.`);
+          }
+        }
+
+        // 2. Rollback
         await transaction.rollback();
         console.warn(`[TX] [${name}] Emergency rollback completed.`);
       } catch (err) {
@@ -77,6 +161,26 @@ async function runInTransaction(callback, options = {}) {
 
     if (!isDone) {
       try {
+        // 1. Cancel all active queries on the connection to prevent "request in progress" error
+        if (activeRequests.size > 0) {
+          console.warn(`[TX] [${name}] Cancelling ${activeRequests.size} active query requests...`);
+          for (const req of activeRequests) {
+            try {
+              req.cancel();
+            } catch (err) {
+              console.error(`[TX] [${name}] Failed to cancel active request: ${err.message}`);
+            }
+          }
+          // Poll until activeRequests is empty or we hit a max wait time of 5 seconds
+          const cancelStartTime = Date.now();
+          while (activeRequests.size > 0 && Date.now() - cancelStartTime < 5000) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+          if (activeRequests.size > 0) {
+            console.warn(`[TX] [${name}] Warning: ${activeRequests.size} requests could not be cancelled in 5s.`);
+          }
+        }
+
         console.log(`[TX] [${name}] Rolling back transaction...`);
         await transaction.rollback();
         console.log(`[TX] [${name}] Rollback completed successfully.`);
