@@ -1091,23 +1091,23 @@ export default function PaymentScreen() {
                       <View style={styles.breakdown}>
                         <View style={styles.breakRow}>
                           <Text style={styles.breakLabel}>Subtotal</Text>
-                          <Text style={styles.breakValue}>{currencySymbol}{payItemDiscount > 0 ? payGrossTotal.toFixed(2) : subtotal.toFixed(2)}</Text>
+                          <Text style={styles.breakValue}>{currencySymbol}{(payItemDiscount > 0 ? payGrossTotal : subtotal).toFixed(2)}</Text>
                         </View>
 
-                        {payItemDiscount > 0 && (
-                          <View style={styles.breakRow}>
-                            <Text style={[styles.breakLabel, { color: Theme.danger }]}>Item Discounts</Text>
-                            <Text style={[styles.breakValue, { color: Theme.danger }]}>-{currencySymbol}{payItemDiscount.toFixed(2)}</Text>
-                          </View>
-                        )}
-                        
-                        {(discount?.applied || discountAmount > 0) && (
-                          <View style={styles.breakRow}>
-                            <Text style={[styles.breakLabel, { color: Theme.danger }]}>Discount</Text>
-                            <Text style={[styles.breakValue, { color: Theme.danger }]}>
-                              -{currencySymbol}{discountAmount.toFixed(2)}
-                            </Text>
-                          </View>
+                        {(discountAmount + payItemDiscount) > 0 && (
+                          <>
+                            <View style={styles.breakRow}>
+                              <Text style={[styles.breakLabel, { color: Theme.danger }]}>Discount</Text>
+                              <Text style={[styles.breakValue, { color: Theme.danger }]}>
+                                -{currencySymbol}{(discountAmount + payItemDiscount).toFixed(2)}
+                              </Text>
+                            </View>
+                            <View style={styles.receiptDivider} />
+                            <View style={styles.breakRow}>
+                              <Text style={styles.breakLabel}>Net Amount</Text>
+                              <Text style={styles.breakValue}>{currencySymbol}{netAfterDiscount.toFixed(2)}</Text>
+                            </View>
+                          </>
                         )}
 
                         {displayedServiceCharge > 0 && (
@@ -1125,10 +1125,16 @@ export default function PaymentScreen() {
                           <View style={styles.breakRow}>
                             <Text style={[styles.breakLabel, { color: Theme.primary }]}>Rounding</Text>
                             <Text style={[styles.breakValue, { color: Theme.primary }]}>
-                              {displayedRoundOff > 0 ? "+" : ""}${displayedRoundOff.toFixed(2)}
+                              {displayedRoundOff > 0 ? "+" : ""}{currencySymbol}{displayedRoundOff.toFixed(2)}
                             </Text>
                           </View>
                         )}
+
+                        <View style={styles.receiptDivider} />
+                        <View style={styles.breakRow}>
+                          <Text style={[styles.breakLabel, { fontFamily: Fonts.bold, color: Theme.textPrimary }]}>Payable</Text>
+                          <Text style={[styles.breakValue, { fontFamily: Fonts.bold, color: Theme.textPrimary }]}>{currencySymbol}{total.toFixed(2)}</Text>
+                        </View>
                         {isCashMethod(method) && (
                           <>
                             <View style={styles.receiptDivider} />

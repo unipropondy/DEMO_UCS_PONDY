@@ -1017,67 +1017,78 @@ export default function SummaryScreen() {
                     ]}
                   >
                     {currencySymbol}
-                    {totalItemDiscount > 0 ? grossTotal.toFixed(2) : displaySubtotal.toFixed(2)}
+                    {(totalItemDiscount > 0 ? grossTotal : subtotal).toFixed(2)}
                   </Text>
                 </View>
 
-                {totalItemDiscount > 0 && (
-                  <View
-                    style={[
-                      styles.summaryRow,
-                      ((isLandscape && !isTablet) ||
-                        (isPhone && !isLandscape)) && { marginBottom: 6 },
-                    ]}
-                  >
-                    <Text
+                {(discountAmount + totalItemDiscount) > 0 && (
+                  <>
+                    <View
                       style={[
-                        styles.summaryLabel,
-                        { color: Theme.danger },
-                        isPhone && !isLandscape && { fontSize: 13 },
+                        styles.summaryRow,
+                        ((isLandscape && !isTablet) ||
+                          (isPhone && !isLandscape)) && { marginBottom: 6 },
                       ]}
                     >
-                      Item Discounts
-                    </Text>
-                    <Text
-                      style={[
-                        styles.summaryValue,
-                        { color: Theme.danger },
-                        isPhone && !isLandscape && { fontSize: 13 },
-                      ]}
-                    >
-                      -{currencySymbol}{totalItemDiscount.toFixed(2)}
-                    </Text>
-                  </View>
-                )}
+                      <Text
+                        style={[
+                          styles.summaryLabel,
+                          { color: Theme.danger },
+                          isPhone && !isLandscape && { fontSize: 13 },
+                        ]}
+                      >
+                        Discount
+                      </Text>
+                      <Text
+                        style={[
+                          styles.summaryValue,
+                          { color: Theme.danger },
+                          isPhone && !isLandscape && { fontSize: 13 },
+                        ]}
+                      >
+                        -{currencySymbol}
+                        {(discountAmount + totalItemDiscount).toFixed(2)}
+                      </Text>
+                    </View>
 
-                {discountInfo?.applied && (
-                  <View
-                    style={[
-                      styles.summaryRow,
-                      ((isLandscape && !isTablet) ||
-                        (isPhone && !isLandscape)) && { marginBottom: 6 },
-                    ]}
-                  >
-                    <Text
+                    <View
                       style={[
-                        styles.summaryLabel,
-                        { color: Theme.danger },
-                        isPhone && !isLandscape && { fontSize: 13 },
+                        styles.dashedDivider,
+                        ((isLandscape && !isTablet) ||
+                          (isPhone && !isLandscape)) && { marginVertical: 8 },
                       ]}
                     >
-                      {discountInfo.label || "Discount"}
-                    </Text>
-                    <Text
+                      <View
+                        style={[styles.dashLine, { borderColor: Theme.border }]}
+                      />
+                    </View>
+
+                    <View
                       style={[
-                        styles.summaryValue,
-                        { color: Theme.danger },
-                        isPhone && !isLandscape && { fontSize: 13 },
+                        styles.summaryRow,
+                        ((isLandscape && !isTablet) ||
+                          (isPhone && !isLandscape)) && { marginBottom: 6 },
                       ]}
                     >
-                      -{currencySymbol}
-                      {discountAmount.toFixed(2)}
-                    </Text>
-                  </View>
+                      <Text
+                        style={[
+                          styles.summaryLabel,
+                          isPhone && !isLandscape && { fontSize: 13 },
+                        ]}
+                      >
+                        Net Amount
+                      </Text>
+                      <Text
+                        style={[
+                          styles.summaryValue,
+                          isPhone && !isLandscape && { fontSize: 13 },
+                        ]}
+                      >
+                        {currencySymbol}
+                        {netAfterDiscount.toFixed(2)}
+                      </Text>
+                    </View>
+                  </>
                 )}
 
                 {scRate > 0 && (
@@ -1135,33 +1146,6 @@ export default function SummaryScreen() {
                     </Text>
                   </View>
                 )}
-
-                <TouchableOpacity
-                  style={[
-                    styles.gstBtn,
-                    isPhone &&
-                      !isLandscape && {
-                        marginBottom: 8,
-                        paddingVertical: 4,
-                        paddingHorizontal: 10,
-                      },
-                  ]}
-                  onPress={() => setShowGstModal(true)}
-                >
-                  <Ionicons
-                    name="options-outline"
-                    size={14}
-                    color={Theme.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.gstBtnText,
-                      isPhone && !isLandscape && { fontSize: 11 },
-                    ]}
-                  >
-                    GST Alter
-                  </Text>
-                </TouchableOpacity>
 
                 <View
                   style={[
