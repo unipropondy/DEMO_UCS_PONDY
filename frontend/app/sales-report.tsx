@@ -2230,6 +2230,21 @@ export default function SalesReport() {
                               </Text>
                             )}
                           </Text>
+                          {item.modifiers &&
+                            Array.isArray(item.modifiers) &&
+                            item.modifiers.filter((m: any) => {
+                              const id = m.ModifierId || m.modifierId || m.ModifierID || m.modifierID;
+                              const name = (m.ModifierName || m.modifierName || "").trim().toUpperCase();
+                              return id !== "00000000-0000-0000-0000-000000000001" && !name.startsWith("INSTR:");
+                            }).map((m: any, mIdx: number) => {
+                              const amt = Number(m.Amount || m.amount || 0);
+                              return (
+                                <Text key={mIdx} style={{ fontSize: 11, color: Theme.textSecondary, marginLeft: 8, marginTop: 2 }}>
+                                  • {m.ModifierName || m.name}
+                                  {amt > 0 ? ` (+$${amt.toFixed(2)})` : ""}
+                                </Text>
+                              );
+                            })}
                           {/* Unit price row — strikethrough if item has discount */}
                           {item.DiscountAmount > 0 ? (
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>

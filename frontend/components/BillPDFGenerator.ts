@@ -375,25 +375,44 @@ private static escapeHtml(str: string): string {
     
     const itemsHTML = (saleData.items || [])
         .filter((item: any) => item.status !== 'VOIDED')
-        .map((item: any) => `
-        <tr>
-            <td class="item-name">
-                ${item.name}
-                ${(() => {
-                  const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
-                  if (discAmt > 0) {
-                    const discType = item.discountType || 'percentage';
-                    const discStr = discType === 'percentage' ? `-${discAmt}%` : `-${currencySymbol}${discAmt.toFixed(2)}`;
-                    return `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">Discount: ${discStr}</div>`;
-                  }
-                  return '';
-                })()}
-            </td>
-            <td class="item-qty">${item.qty || item.quantity}</td>
-            <td class="item-price">${currencySymbol}${item.price.toFixed(2)}</td>
-            <td class="item-total">${currencySymbol}${(item.price * (item.qty || item.quantity)).toFixed(2)}</td>
-        </tr>
-    `).join('');
+        .map((item: any) => {
+          const qtyNum = item.qty || item.quantity || 1;
+          const modifiersHTML = (item.modifiers && Array.isArray(item.modifiers))
+            ? item.modifiers.filter((m: any) => {
+                const id = m.ModifierId || m.modifierId || m.ModifierID || m.modifierID;
+                const mName = (m.ModifierName || m.name || "").trim();
+                const isInstruction = id === "00000000-0000-0000-0000-000000000001" || mName.toUpperCase().startsWith("INSTR:");
+                if (isInstruction) return false;
+                const mAmt = parseFloat(String(m.Amount ?? m.Price ?? m.amount ?? m.price ?? 0)) || 0;
+                return mAmt > 0;
+              }).map((m: any) => {
+                const mName = (m.ModifierName || m.name || "").trim();
+                const mAmt = parseFloat(String(m.Amount ?? m.Price ?? m.amount ?? m.price ?? 0)) || 0;
+                return `<div class="item-modifiers">+ ${mName}: ${currencySymbol}${(mAmt * qtyNum).toFixed(2)}</div>`;
+              }).join('')
+            : '';
+
+          return `
+            <tr>
+                <td class="item-name">
+                    ${item.name}
+                    ${modifiersHTML}
+                    ${(() => {
+                      const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+                      if (discAmt > 0) {
+                        const discType = item.discountType || 'percentage';
+                        const discStr = discType === 'percentage' ? `-${discAmt}%` : `-${currencySymbol}${discAmt.toFixed(2)}`;
+                        return `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">Discount: ${discStr}</div>`;
+                      }
+                      return '';
+                    })()}
+                </td>
+                <td class="item-qty">${item.qty || item.quantity}</td>
+                <td class="item-price">${currencySymbol}${item.price.toFixed(2)}</td>
+                <td class="item-total">${currencySymbol}${(item.price * (item.qty || item.quantity)).toFixed(2)}</td>
+            </tr>
+          `;
+        }).join('');
 
     return `
       <!DOCTYPE html>

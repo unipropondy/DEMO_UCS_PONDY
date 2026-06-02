@@ -328,11 +328,11 @@ router.get("/detail/:id", async (req, res) => {
         const modifiersResult = await pool.request()
           .input("OrderId", sql.UniqueIdentifier, orderId)
           .query(`
-            SELECT DishId, ModifierName 
+            SELECT DishId, ModifierName, Amount 
             FROM Restaurantmodifierdetail 
             WHERE OrderId = @OrderId
             UNION ALL
-            SELECT DishId, ModifierName 
+            SELECT DishId, ModifierName, Amount 
             FROM RestaurantmodifierdetailCur 
             WHERE OrderId = @OrderId
           `);
@@ -343,7 +343,7 @@ router.get("/detail/:id", async (req, res) => {
         items.forEach(item => {
           const itemMods = modifiers
             .filter(m => m.DishId && item.DishId && String(m.DishId).toLowerCase() === String(item.DishId).toLowerCase())
-            .map(m => ({ name: m.ModifierName, ModifierName: m.ModifierName }));
+            .map(m => ({ name: m.ModifierName, ModifierName: m.ModifierName, Amount: m.Amount }));
           item.modifiers = itemMods;
         });
       }
