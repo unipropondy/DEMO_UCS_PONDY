@@ -81,27 +81,32 @@ export default function PaymentSuccess() {
 
   const handleDone = () => {
     CustomerDisplaySync.syncIdle();
-    router.replace({
-      pathname: "/(tabs)/category",
-      params: { section },
-    });
+    if (params.isLedgerCollection === "true") {
+      router.replace("/receivables");
+    } else {
+      router.replace({
+        pathname: "/(tabs)/category",
+        params: { section },
+      });
+    }
   };
 
   const handlePrint = async () => {
     setPromptVisible(false);
     try {
-      const discountInfo = JSON.parse(discountInfoRaw);
-      const items = JSON.parse(itemsRaw);
+      const isLedger = params.isLedgerCollection === "true";
+      const discountInfo = isLedger ? {} : JSON.parse(discountInfoRaw || "{}");
+      const items = isLedger ? [{ name: "Ledger Payment Settle", qty: 1, price: parseFloat(total) || 0 }] : JSON.parse(itemsRaw || "[]");
       const userId = await AsyncStorage.getItem("userId") || "1";
 
       // Compute subTotal from items so Sunmi printer can show Sub Total → Discount → Grand Total
-      const computedSubTotal = discountInfo?.subtotal 
+      const computedSubTotal = isLedger ? (parseFloat(total) || 0) : (discountInfo?.subtotal 
         ?? items.filter((i: any) => i.status !== 'VOIDED')
-               .reduce((s: number, i: any) => s + (i.price || 0) * (i.qty || i.quantity || 1), 0);
+               .reduce((s: number, i: any) => s + (i.price || 0) * (i.qty || i.quantity || 1), 0));
       
       const saleData = {
         invoiceNumber: orderId,
-        tableNo: tableNo,
+        tableNo: isLedger ? "LEDGER" : tableNo,
         total: parseFloat(total) || 0,
         paymentMethod: method,
         cashPaid: parseFloat(paid) || 0,
@@ -109,7 +114,7 @@ export default function PaymentSuccess() {
         items: items,
         payments: payments,
         roundOff: parseFloat(roundOff) || 0,
-        waiterName: waiterName,
+        waiterName: waiterName || (isLedger ? "Cashier" : ""),
         date: new Date().toISOString(),
         // ✅ Discount fields for Sunmi receipt (discountInfo handles LAN/PDF)
         discountAmount: discountInfo?.amount ?? 0,
@@ -135,13 +140,15 @@ export default function PaymentSuccess() {
             <Ionicons name="checkmark-circle" size={80} color={Theme.success} />
           </View>
 
-          <Text style={styles.title}>Payment Successful</Text>
-          <Text style={styles.orderText}>Order #{orderId}</Text>
+          <Text style={styles.title}>{params.isLedgerCollection === "true" ? "Collection Successful" : "Payment Successful"}</Text>
+          <Text style={styles.orderText}>{params.isLedgerCollection === "true" ? `Settlement ID: ${orderId}` : `Order #${orderId}`}</Text>
 
           <Text style={styles.sub}>
-            {orderType === "DINE_IN"
-              ? `Table ${tableNo} • ${formatSection(section)}`
-              : `Takeaway • ${formatSection(section)}`}
+            {params.isLedgerCollection === "true"
+              ? `Credit Account Ledger Settle`
+              : (orderType === "DINE_IN"
+                ? `Table ${tableNo} • ${formatSection(section)}`
+                : `Takeaway • ${formatSection(section)}`)}
           </Text>
 
           <View style={styles.divider} />

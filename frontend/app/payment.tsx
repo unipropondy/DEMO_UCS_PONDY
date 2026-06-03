@@ -1,5 +1,5 @@
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
-import { useRouter, usePathname } from "expo-router";
+import { useRouter, usePathname, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { useIsFocused } from "@react-navigation/native";
 import {
@@ -99,15 +99,52 @@ const isCashMethod = (payMode: string) => /^(CAS|CASH)$/i.test(payMode.trim());
 
 export default function PaymentScreen() {
   const pathname = usePathname();
+  const params = useLocalSearchParams();
+  const memberId = params.memberId as string | undefined;
+  const collectAmount = params.collectAmount ? parseFloat(params.collectAmount as string) : undefined;
+  const memberName = params.memberName as string | undefined;
+  const memberPhone = params.memberPhone as string | undefined;
+  const isLedgerCollection = !!memberId;
+
   const isFocused = useIsFocused() && pathname === "/payment";
   const pathnameRef = React.useRef(pathname);
   pathnameRef.current = pathname;
   const closeActiveOrder = useActiveOrdersStore((s) => s.closeActiveOrder);
   const clearTable = useTableStatusStore((s) => s.clearTable);
   const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
   const router = useRouter();
   const { showToast } = useToast();
   const { width, height } = useWindowDimensions();
+
+  const [selectedMember, setSelectedMember] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (memberId) {
+      setSelectedMember({
+        MemberId: memberId,
+        Name: memberName || "Credit Customer",
+        Phone: memberPhone || "",
+        CurrentBalance: collectAmount || 0,
+        CreditLimit: 999999
+      });
+      const fetchMemberDetails = async () => {
+        try {
+          const res = await fetch(`${API_URL}/api/credit-customers/search?query=${encodeURIComponent(memberPhone || memberId)}`);
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const match = data.find((m: any) => m.MemberId === memberId);
+            if (match) {
+              setSelectedMember(match);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load details for collection customer:", err);
+        }
+      };
+      fetchMemberDetails();
+    }
+  }, [memberId]);
 
   const isLandscape = width > height;
   const isTablet = Math.min(width, height) >= 500;
@@ -136,7 +173,6 @@ export default function PaymentScreen() {
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberQuery, setMemberQuery] = useState("");
   const [members, setMembers] = useState<any[]>([]);
-  const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [searchingMembers, setSearchingMembers] = useState(false);
 
   // Quick Add State variables
@@ -374,6 +410,7 @@ export default function PaymentScreen() {
 
       const filtered = deduped.filter(m => {
         const mUpper = m.payMode.toUpperCase().trim();
+        if (isLedgerCollection && (mUpper === "MEMBER" || mUpper === "CREDIT" || mUpper === "LEDGER")) return false;
         const isUPI = mUpper.includes("UPI") || mUpper.includes("GPAY") || mUpper.includes("PHONE") || mUpper.includes("PAYTM");
         const isPayNow = mUpper.includes("PAYNOW") || mUpper.includes("QR") || mUpper.includes("PAY-NOW");
         if (isUPI && !hasUPI) return false;
@@ -430,6 +467,9 @@ export default function PaymentScreen() {
   };
 
   const { subtotal, grossTotal: payGrossTotal, totalItemDiscount: payItemDiscount } = useMemo(() => {
+    if (isLedgerCollection) {
+      return { grossTotal: collectAmount || 0, totalItemDiscount: 0, subtotal: collectAmount || 0 };
+    }
     const nonVoided = finalItems.filter((i: any) => i.status !== "VOIDED");
     return nonVoided.reduce((acc: any, item: any) => {
       const baseTotal = (item.price || 0) * (item.qty || 0);
@@ -449,22 +489,28 @@ export default function PaymentScreen() {
         subtotal: acc.subtotal + (baseTotal - itemDiscount),
       };
     }, { grossTotal: 0, totalItemDiscount: 0, subtotal: 0 });
-  }, [finalItems]);
+  }, [finalItems, isLedgerCollection, collectAmount]);
 
   const discountAmount = useMemo(() => {
+    if (isLedgerCollection) return 0;
     if (!discount?.applied) return 0;
     if (discount.type === "percentage") return (subtotal * discount.value) / 100;
     return splitItems ? 0 : discount.value;
-  }, [discount, subtotal, splitItems]);
+  }, [discount, subtotal, splitItems, isLedgerCollection]);
 
   // Service Charge & GST: SC on net, GST on (net + SC)
-  const netAfterDiscount = subtotal - discountAmount;
-  const serviceChargeAmt = netAfterDiscount * scRate;
+  const netAfterDiscount = isLedgerCollection ? (collectAmount || 0) : (subtotal - discountAmount);
+  const serviceChargeAmt = isLedgerCollection ? 0 : (netAfterDiscount * scRate);
   const taxableAmount = netAfterDiscount + serviceChargeAmt;
-  const tax = taxableAmount * gstRate;
+  const tax = isLedgerCollection ? 0 : (taxableAmount * gstRate);
   const baseTotal = taxableAmount + tax;
 
   useEffect(() => {
+    if (isLedgerCollection) {
+      setRoundOff(0);
+      setRoundType(null);
+      return;
+    }
     if (!isCashMethod(method)) {
       setRoundOff(0);
       setRoundType(null);
@@ -473,11 +519,13 @@ export default function PaymentScreen() {
     if (roundType === "whole") setRoundOff(Math.round(baseTotal) - baseTotal);
     else if (roundType === "five") setRoundOff(Math.round(baseTotal * 20) / 20 - baseTotal);
     else if (roundType === "ten") setRoundOff(Math.round(baseTotal * 10) / 10 - baseTotal);
-  }, [baseTotal, roundType, method]);
+  }, [baseTotal, roundType, method, isLedgerCollection]);
 
-  const total = Math.max(0, Math.round((baseTotal + roundOff) * 100) / 100);
-  const displayedTax = Math.round(tax * 100) / 100;
-  const displayedServiceCharge = Math.round(serviceChargeAmt * 100) / 100;
+  const total = isLedgerCollection
+    ? (collectAmount || 0)
+    : Math.max(0, Math.round((baseTotal + roundOff) * 100) / 100);
+  const displayedTax = isLedgerCollection ? 0 : Math.round(tax * 100) / 100;
+  const displayedServiceCharge = isLedgerCollection ? 0 : Math.round(serviceChargeAmt * 100) / 100;
   const netAmountForDisplay = netAfterDiscount;
   // ✅ FIX: Compute round-off from raw (unrounded) total vs rounded-display components.
   // Previously this produced a phantom -$0.01 "Rounding" line when GST had a .5-cent fraction
@@ -536,6 +584,73 @@ export default function PaymentScreen() {
 
   const executeFinalPayment = async (payments?: Array<{ payModeId: number; amount: number; referenceNo?: string }>) => {
     setProcessing(true);
+    if (isLedgerCollection) {
+      const selectedMode = paymentMethods.find((m) => m.payMode === method);
+      const payModeId = selectedMode ? selectedMode.position || 1 : 1;
+      const finalPayments = payments ? payments.map(p => ({
+        payModeId: p.payModeId,
+        payMode: (p as any).payMode || paymentMethods.find(x => x.position === p.payModeId)?.payMode || "CASH",
+        amount: p.amount,
+        referenceNo: p.referenceNo || ""
+      })) : [{
+        payModeId,
+        payMode: method,
+        amount: total,
+        referenceNo: ""
+      }];
+
+      try {
+        const response = await fetch(`${API_URL}/api/credit-customers/pay`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : ""
+          },
+          body: JSON.stringify({
+            memberId: memberId,
+            amount: total,
+            payments: finalPayments,
+            allocations: null,
+            remarks: `Credit payment collection via POS checkout`,
+            userId: user?.userId
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          setTimeout(() => {
+            router.push({
+              pathname: "/payment_success" as any,
+              params: {
+                total: total.toFixed(2),
+                paidNum: (payments && payments.length > 0 ? total : paidNum).toFixed(2),
+                change: (payments && payments.length > 0 ? 0 : change).toFixed(2),
+                method: payments && payments.length > 0 ? "SPLIT" : method.trim(),
+                payments: payments ? JSON.stringify(payments) : "[]",
+                orderId: result.settlementId || result.transactionId || "COLL-" + Date.now(),
+                tableNo: "LEDGER",
+                section: "",
+                orderType: "LEDGER",
+                discountInfo: "{}",
+                items: "[]",
+                roundOff: "0.00",
+                serviceCharge: "0.00",
+                isSplit: payments && payments.length > 0 ? "true" : "false",
+                waiterName: user?.userName || "Cashier",
+                isLedgerCollection: "true"
+              },
+            });
+          }, 100);
+        } else {
+          showToast({ type: "error", message: "Failed", subtitle: result.error || "Failed to record collection" });
+        }
+      } catch (e: any) {
+        showToast({ type: "error", message: "Error", subtitle: e.message });
+      } finally {
+        setProcessing(false);
+      }
+      return;
+    }
     const saleData = {
       orderId: displayOrderId || activeOrder?.orderId,
       orderType: context?.orderType === "DINE_IN" ? "DINE-IN" : context?.orderType || "DINE-IN",
@@ -959,30 +1074,42 @@ export default function PaymentScreen() {
     );
   };
 
-  if (!context) return null;
+  if (!context && !isLedgerCollection) return null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(tabs)/category");
+            }
+          }}>
             <Ionicons name="arrow-back" size={24} color={Theme.textSecondary} />
           </TouchableOpacity>
           <View style={styles.orderInfo}>
-            <Text style={styles.orderTitle}>Checkout</Text>
+            <Text style={styles.orderTitle}>{isLedgerCollection ? "Ledger Collection" : "Checkout"}</Text>
             <View style={styles.orderBadgeRow}>
-              <View style={[styles.typeBadge, { backgroundColor: context!.orderType === 'DINE_IN' ? Theme.primaryLight : Theme.warningBg }]}>
-                <Text style={[styles.typeBadgeText, { color: context!.orderType === 'DINE_IN' ? Theme.primary : Theme.warning }]}>
-                  {context!.orderType === 'DINE_IN' ? 'DINE-IN' : 'TAKEAWAY'}
+              <View style={[styles.typeBadge, { backgroundColor: isLedgerCollection ? Theme.success + "20" : (context?.orderType === 'DINE_IN' ? Theme.primaryLight : Theme.warningBg) }]}>
+                <Text style={[styles.typeBadgeText, { color: isLedgerCollection ? Theme.success : (context?.orderType === 'DINE_IN' ? Theme.primary : Theme.warning) }]}>
+                  {isLedgerCollection ? 'LEDGER COLLECTION' : (context?.orderType === 'DINE_IN' ? 'DINE-IN' : 'TAKEAWAY')}
                 </Text>
               </View>
-              {context!.orderType === 'DINE_IN' && (
+              {isLedgerCollection ? (
                 <View style={styles.tableBadge}>
-                   <Text style={styles.tableBadgeText}>{formatSection(context!.section || "")} • T{context!.tableNo}</Text>
+                   <Text style={styles.tableBadgeText}>{memberName}</Text>
                 </View>
+              ) : (
+                context?.orderType === 'DINE_IN' && (
+                  <View style={styles.tableBadge}>
+                     <Text style={styles.tableBadgeText}>{formatSection(context.section || "")} • T{context.tableNo}</Text>
+                  </View>
+                )
               )}
-              <Text style={styles.orderSub}>#{displayOrderId || "NEW"}</Text>
+              <Text style={styles.orderSub}>#{isLedgerCollection ? (memberPhone || "LEDGER") : (displayOrderId || "NEW")}</Text>
             </View>
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
@@ -1373,10 +1500,31 @@ export default function PaymentScreen() {
                         )}
                       </View>
                     </View>
-                    <View style={styles.orderItemsCard}>
-                      <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Order Items</Text></View>
-                      <FlatList data={finalItems} keyExtractor={(_, index) => index.toString()} renderItem={renderItem} scrollEnabled={false} />
-                    </View>
+                    {isLedgerCollection ? (
+                      <View style={styles.orderItemsCard}>
+                        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Ledger Collection Details</Text></View>
+                        <View style={{ padding: 16, backgroundColor: Theme.bgInput, borderRadius: 8, gap: 10 }}>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                            <Text style={{ fontFamily: Fonts.bold, color: Theme.textSecondary }}>Customer Name</Text>
+                            <Text style={{ fontFamily: Fonts.black, color: Theme.textPrimary }}>{memberName}</Text>
+                          </View>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                            <Text style={{ fontFamily: Fonts.bold, color: Theme.textSecondary }}>Phone Number</Text>
+                            <Text style={{ fontFamily: Fonts.black, color: Theme.textPrimary }}>{memberPhone}</Text>
+                          </View>
+                          <View style={{ height: 1, backgroundColor: Theme.border, marginVertical: 4 }} />
+                          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                            <Text style={{ fontFamily: Fonts.bold, color: Theme.textSecondary }}>Amount to Collect</Text>
+                            <Text style={{ fontFamily: Fonts.black, color: Theme.primary, fontSize: 18 }}>{currencySymbol}{collectAmount?.toFixed(2)}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.orderItemsCard}>
+                        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Order Items</Text></View>
+                        <FlatList data={finalItems} keyExtractor={(_, index) => index.toString()} renderItem={renderItem} scrollEnabled={false} />
+                      </View>
+                    )}
                   </View>
                 )}
             </View>

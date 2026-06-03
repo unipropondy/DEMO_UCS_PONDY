@@ -416,15 +416,18 @@ router.get("/receivables/dashboard", async (req, res) => {
     // Total Outstanding & Overdue (defined as bills older than 30 days)
     const statsRes = await pool.request().query(`
       SELECT 
-        ISNULL(SUM(OutstandingAmount), 0) AS TotalOutstanding,
+        ISNULL(SUM(tx.OutstandingAmount), 0) AS TotalOutstanding,
         ISNULL(SUM(
           CASE 
-            WHEN CreatedDate < DATEADD(day, -30, GETDATE()) THEN OutstandingAmount 
+            WHEN tx.CreatedDate < DATEADD(day, -30, GETDATE()) THEN tx.OutstandingAmount 
             ELSE 0 
           END
         ), 0) AS TotalOverdue
-      FROM CustomerCreditTransactions
-      WHERE TransactionType IN ('CREDIT_SALE', 'ADJUSTMENT') AND Status IN ('OPEN', 'PARTIAL')
+      FROM CustomerCreditTransactions tx
+      INNER JOIN CreditCustomerMaster m ON tx.MemberId = m.CustomerId
+      WHERE tx.TransactionType IN ('CREDIT_SALE', 'ADJUSTMENT') 
+        AND tx.Status IN ('OPEN', 'PARTIAL')
+        AND m.IsActive = 1
     `);
     
     // Total Customers with Credit

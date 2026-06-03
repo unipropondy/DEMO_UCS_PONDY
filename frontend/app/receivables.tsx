@@ -23,6 +23,7 @@ import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
+import SplitPaymentComponent from "../components/payment/SplitPaymentComponent";
 import { useCompanySettingsStore } from "@/stores/companySettingsStore";
 
 type CustomerAgingType = {
@@ -93,11 +94,36 @@ export default function ReceivablesScreen() {
   // Collection Modal States
   const [showCollectModal, setShowCollectModal] = useState(false);
   const [collectAmount, setCollectAmount] = useState("");
-  const [collectMethod, setCollectMethod] = useState<"CASH" | "UPI" | "CARD">("CASH");
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([
+    { payMode: "CASH", description: "CASH", Position: 1 },
+    { payMode: "UPI", description: "UPI", Position: 2 },
+    { payMode: "CARD", description: "CARD", Position: 3 }
+  ]);
+  const [collectMethod, setCollectMethod] = useState<string>("CASH");
   const [collectRemarks, setCollectRemarks] = useState("");
   const [allocationMode, setAllocationMode] = useState<"FIFO" | "MANUAL">("FIFO");
   const [manualAllocations, setManualAllocations] = useState<{ [settlementId: string]: string }>({});
   const [submittingCollection, setSubmittingCollection] = useState(false);
+  const [paymentStep, setPaymentStep] = useState<"AMOUNT" | "SPLIT">("AMOUNT");
+
+  const fetchPaymentMethods = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/sales/payment-methods`);
+      const data = await res.json();
+      const filtered = (Array.isArray(data) ? data : []).filter(
+        (m: any) => {
+          const mUpper = (m.payMode || "").toUpperCase().trim();
+          return mUpper !== "MEMBER" && mUpper !== "CREDIT";
+        }
+      );
+      if (filtered.length > 0) {
+        setPaymentMethods(filtered);
+        setCollectMethod(filtered[0].payMode);
+      }
+    } catch (err) {
+      console.error("[FETCH PAYMENT METHODS ERROR]", err);
+    }
+  };
 
   // Fetch Dashboard Stats and Aging data
   const fetchData = useCallback(async () => {
@@ -131,6 +157,7 @@ export default function ReceivablesScreen() {
 
   useEffect(() => {
     fetchData();
+    fetchPaymentMethods();
   }, [fetchData]);
 
   // Fetch individual customer statements and unpaid bills
@@ -176,6 +203,7 @@ export default function ReceivablesScreen() {
     setCollectMethod("CASH");
     setCollectRemarks("");
     setAllocationMode("FIFO");
+    setPaymentStep("AMOUNT");
     
     // Auto fill manual allocations based on outstanding bills
     const initialManual: { [settlementId: string]: string } = {};
@@ -276,7 +304,10 @@ export default function ReceivablesScreen() {
           memberId: selectedCustomer.MemberId,
           amount: numericAmt,
           payments: [{
-            payModeId: collectMethod === "CASH" ? 1 : collectMethod === "UPI" ? 2 : 3,
+            payModeId: (() => {
+              const selectedMode = paymentMethods.find((m) => m.payMode === collectMethod);
+              return selectedMode ? selectedMode.Position || selectedMode.payModeId || 1 : 1;
+            })(),
             payMode: collectMethod,
             amount: numericAmt,
             referenceNo: collectRemarks.trim()
@@ -360,7 +391,13 @@ export default function ReceivablesScreen() {
         {/* --- Header --- */}
         <View style={styles.headerBar}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(tabs)/category");
+              }
+            }}
             style={styles.circularBack}
           >
             <Ionicons name="chevron-back" size={24} color={Theme.textPrimary} />
@@ -759,7 +796,19 @@ export default function ReceivablesScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      onPress={handleOpenCollectPayment}
+                      onPress={() => {
+                        if (!selectedCustomer) return;
+                        setShowLedgerModal(false);
+                        router.push({
+                          pathname: "/payment",
+                          params: {
+                            memberId: selectedCustomer.MemberId,
+                            collectAmount: String(selectedCustomer.OutstandingBalance || 0),
+                            memberName: selectedCustomer.Name,
+                            memberPhone: selectedCustomer.Phone,
+                          }
+                        });
+                      }}
                       style={[styles.actionButton, { backgroundColor: Theme.primary }]}
                       disabled={!selectedCustomer || selectedCustomer.OutstandingBalance <= 0.01}
                     >
@@ -810,14 +859,14 @@ export default function ReceivablesScreen() {
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>PAYMENT MODE</Text>
                   <View style={styles.methodGroup}>
-                    {(["CASH", "UPI", "CARD"] as const).map((m) => (
+                    {paymentMethods.map((m) => (
                       <TouchableOpacity
-                        key={m}
-                        style={[styles.methodToggle, collectMethod === m && styles.activeMethodToggle]}
-                        onPress={() => setCollectMethod(m)}
+                        key={m.payMode}
+                        style={[styles.methodToggle, collectMethod === m.payMode && styles.activeMethodToggle]}
+                        onPress={() => setCollectMethod(m.payMode)}
                       >
-                        <Text style={[styles.methodToggleText, collectMethod === m && styles.activeMethodToggleText]}>
-                          {m}
+                        <Text style={[styles.methodToggleText, collectMethod === m.payMode && styles.activeMethodToggleText]}>
+                          {m.description || m.payMode}
                         </Text>
                       </TouchableOpacity>
                     ))}

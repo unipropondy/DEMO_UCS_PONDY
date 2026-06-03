@@ -164,39 +164,76 @@ router.get("/all", async (req, res) => {
     res.set("Cache-Control", "no-store");
     const pool = await poolPromise;
     const result = await pool.request().query(`
-      SELECT TOP 200 
-        sh.SettlementID, 
-        DATEADD(MINUTE, -468, sh.LastSettlementDate) AS SettlementDate, 
-        sh.BillNo AS OrderId, 
-        sh.OrderType,
-        sh.TableNo, 
-        sh.Section, 
-        sh.CashierId, 
-        sh.BillNo, 
-        sh.SER_NAME,
-        ${normalizeReportPayModeSql("sts.PayMode")} as PayMode,
-        sh.SysAmount as SysAmount,
-        sh.ManualAmount as ManualAmount,
-        sh.SubTotal as SubTotal,
-        ISNULL(sh.DiscountAmount, 0) as DiscountAmount,
-        sh.DiscountType as DiscountType,
-        ISNULL(sh.ServiceCharge, 0) as ServiceCharge,
-        ISNULL(sts.ReceiptCount, 0) as ReceiptCount,
-        ISNULL(sh.VoidItemQty, 0) as VoidQty,
-        ISNULL(sh.VoidItemAmount, 0) as VoidAmount,
-        sh.IsCancelled,
-        sh.CancellationReason,
-        DATEADD(MINUTE, -468, sh.CancelledDate) as CancelledDate,
-        sh.CancelledByUserName,
-        ri.OrderId AS MasterOrderId,
-        ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
-        ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
-        sh.RoundedBy as RoundedBy,
-        ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage
-      FROM SettlementHeader sh
-      LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
-      LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
-      ORDER BY sh.LastSettlementDate DESC
+      SELECT TOP 200 * FROM (
+        SELECT 
+          sh.SettlementID, 
+          DATEADD(MINUTE, -468, sh.LastSettlementDate) AS SettlementDate, 
+          sh.BillNo AS OrderId, 
+          sh.OrderType,
+          sh.TableNo, 
+          sh.Section, 
+          sh.CashierId, 
+          sh.BillNo, 
+          sh.SER_NAME,
+          ${normalizeReportPayModeSql("sts.PayMode")} as PayMode,
+          sh.SysAmount as SysAmount,
+          sh.ManualAmount as ManualAmount,
+          sh.SubTotal as SubTotal,
+          ISNULL(sh.DiscountAmount, 0) as DiscountAmount,
+          sh.DiscountType as DiscountType,
+          ISNULL(sh.ServiceCharge, 0) as ServiceCharge,
+          ISNULL(sts.ReceiptCount, 0) as ReceiptCount,
+          ISNULL(sh.VoidItemQty, 0) as VoidQty,
+          ISNULL(sh.VoidItemAmount, 0) as VoidAmount,
+          sh.IsCancelled,
+          sh.CancellationReason,
+          DATEADD(MINUTE, -468, sh.CancelledDate) as CancelledDate,
+          sh.CancelledByUserName,
+          ri.OrderId AS MasterOrderId,
+          ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
+          ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
+          sh.RoundedBy as RoundedBy,
+          ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage
+        FROM SettlementHeader sh
+        LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
+        LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
+
+        UNION ALL
+
+        SELECT 
+          cct.TransactionId AS SettlementID,
+          DATEADD(MINUTE, -468, cct.CreatedDate) AS SettlementDate,
+          'CREDIT PAYMENT' AS OrderId,
+          'LEDGER' AS OrderType,
+          'LEDGER' AS TableNo,
+          m.Name AS Section,
+          CAST(cct.CreatedBy AS VARCHAR(50)) AS CashierId,
+          cct.Remarks AS BillNo,
+          'Cashier' AS SER_NAME,
+          cct.PaymentMethod AS PayMode,
+          cct.PaidAmount AS SysAmount,
+          cct.PaidAmount AS ManualAmount,
+          cct.PaidAmount AS SubTotal,
+          0 AS DiscountAmount,
+          NULL AS DiscountType,
+          0 AS ServiceCharge,
+          1 AS ReceiptCount,
+          0 AS VoidQty,
+          0 AS VoidAmount,
+          0 AS IsCancelled,
+          NULL AS CancellationReason,
+          NULL AS CancelledDate,
+          NULL AS CancelledByUserName,
+          NULL AS MasterOrderId,
+          0 AS TotalDiscountAmount,
+          0 AS TotalLineItemDiscountAmount,
+          0 AS RoundedBy,
+          0 AS DiscountPercentage
+        FROM CustomerCreditTransactions cct
+        INNER JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
+        WHERE cct.TransactionType = 'PAYMENT'
+      ) CombinedSales
+      ORDER BY SettlementDate DESC
     `);
 
     const records = result.recordset || [];
