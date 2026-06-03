@@ -349,12 +349,12 @@ router.get("/outstanding/:memberId", async (req, res) => {
           BillAmount AS GrossAmount,
           PaidAmount,
           OutstandingAmount,
-          CreatedDate AS InvoiceDate
+          CONVERT(VARCHAR, CreatedDate, 126) + '+08:00' AS InvoiceDate
         FROM CustomerCreditTransactions
         WHERE MemberId = @MemberId
           AND TransactionType IN ('CREDIT_SALE', 'ADJUSTMENT')
           AND Status IN ('OPEN', 'PARTIAL')
-        ORDER BY InvoiceDate ASC
+        ORDER BY CreatedDate ASC
       `);
     res.json({ success: true, outstandingBills: result.recordset });
   } catch (err) {
@@ -383,7 +383,7 @@ router.get("/statement/:memberId", async (req, res) => {
           PaymentMethod,
           ReferenceNo,
           Remarks,
-          CreatedDate,
+          CONVERT(VARCHAR, CreatedDate, 126) + '+08:00' AS CreatedDate,
           CreatedBy
         FROM CustomerCreditTransactions
         WHERE MemberId = @MemberId
