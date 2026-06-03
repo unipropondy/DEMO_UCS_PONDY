@@ -582,7 +582,10 @@ export default function PaymentScreen() {
     executeFinalPayment();
   };
 
-  const executeFinalPayment = async (payments?: Array<{ payModeId: number; amount: number; referenceNo?: string }>) => {
+  const executeFinalPayment = async (
+    payments?: Array<{ payModeId: number; amount: number; referenceNo?: string }>,
+    memberOverride?: any
+  ) => {
     setProcessing(true);
     if (isLedgerCollection) {
       const selectedMode = paymentMethods.find((m) => m.payMode === method);
@@ -665,7 +668,7 @@ export default function PaymentScreen() {
       totalAmount: total,
       paymentMethod: payments && payments.length > 0 ? "SPLIT" : method.trim(),
       payments: payments || null,
-      memberId: selectedMember?.MemberId || null,
+      memberId: memberOverride?.MemberId || selectedMember?.MemberId || null,
       roundOff: displayedRoundOff,
       cashierId: user?.userId,
       tableId: context?.tableId,
@@ -1771,11 +1774,11 @@ export default function PaymentScreen() {
                                         `Outstanding will be ${currencySymbol}${((item.CurrentBalance || 0) + total).toFixed(2)} exceeding limit of ${currencySymbol}${(item.CreditLimit || 0).toFixed(2)}. Authorize credit purchase?`,
                                         [
                                           { text: "Cancel", style: "cancel" },
-                                          { text: "Authorize & Confirm", onPress: () => executeFinalPayment() }
+                                          { text: "Authorize & Confirm", onPress: () => executeFinalPayment(undefined, item) }
                                         ]
                                       );
                                     } else {
-                                      executeFinalPayment();
+                                      executeFinalPayment(undefined, item);
                                     }
                                   }
                                 }}

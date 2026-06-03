@@ -137,8 +137,14 @@ export default function ReceivablesScreen() {
         headers: { Authorization: token ? `Bearer ${token}` : "" }
       });
       const statsJson = await statsRes.json();
-      if (statsJson.success) {
-        setStats(statsJson.stats);
+      if (statsJson.success && statsJson.stats) {
+        setStats({
+          totalOutstanding: Number(statsJson.stats.totalOutstanding || 0),
+          totalOverdue: Number(statsJson.stats.totalOverdue || 0),
+          totalCustomersWithCredit: Number(statsJson.stats.totalCustomersWithCredit || 0),
+          collectionsToday: Number(statsJson.stats.collectionsToday || 0),
+          collectionsThisMonth: Number(statsJson.stats.collectionsThisMonth || 0)
+        });
       }
 
       // 2. Fetch customer aging report
@@ -147,7 +153,15 @@ export default function ReceivablesScreen() {
       });
       const agingJson = await agingRes.json();
       if (agingJson.success) {
-        setAgingData(agingJson.customers || []);
+        const parsed = (agingJson.customers || []).map((c: any) => ({
+          ...c,
+          OutstandingBalance: Number(c.OutstandingBalance || 0),
+          Bucket0to30: Number(c.Bucket0to30 || 0),
+          Bucket31to60: Number(c.Bucket31to60 || 0),
+          Bucket61to90: Number(c.Bucket61to90 || 0),
+          Bucket90Plus: Number(c.Bucket90Plus || 0)
+        }));
+        setAgingData(parsed);
       }
     } catch (err) {
       console.error("[FETCH RECEIVABLES DATA ERROR]", err);
@@ -199,7 +213,12 @@ export default function ReceivablesScreen() {
       });
       const ledgerJson = await ledgerRes.json();
       if (ledgerJson.success) {
-        setTransactions(ledgerJson.transactions || []);
+        const parsedTx = (ledgerJson.transactions || []).map((t: any) => ({
+          ...t,
+          Amount: Number(t.Amount || 0),
+          runningBalance: Number(t.runningBalance || 0)
+        }));
+        setTransactions(parsedTx);
       }
 
       // 2. Fetch outstanding bills
@@ -208,7 +227,13 @@ export default function ReceivablesScreen() {
       });
       const billsJson = await billsRes.json();
       if (billsJson.success) {
-        setOutstandingBills(billsJson.outstandingBills || []);
+        const parsedBills = (billsJson.outstandingBills || []).map((b: any) => ({
+          ...b,
+          GrossAmount: Number(b.GrossAmount || 0),
+          PaidAmount: Number(b.PaidAmount || 0),
+          OutstandingAmount: Number(b.OutstandingAmount || 0)
+        }));
+        setOutstandingBills(parsedBills);
       }
     } catch (err) {
       console.error("[FETCH CUSTOMER DETAILS ERROR]", err);
@@ -686,7 +711,17 @@ export default function ReceivablesScreen() {
         </ScrollView>
 
         {/* ================= LEDGER STATEMENT VIEW MODAL ================= */}
-        <Modal visible={showLedgerModal} transparent animationType="slide">
+        <Modal 
+          visible={showLedgerModal} 
+          transparent 
+          animationType="slide"
+          onRequestClose={() => {
+            setShowLedgerModal(false);
+            setSelectedCustomer(null);
+            setTransactions([]);
+            setOutstandingBills([]);
+          }}
+        >
           <View style={styles.modalOverlay}>
             <View style={[styles.ledgerSheet, isMobile && { height: "95%", borderRadius: 16 }]}>
               {/* Header */}
@@ -876,7 +911,12 @@ export default function ReceivablesScreen() {
         </Modal>
 
         {/* ================= COLLECTION & ALLOCATION MODAL ================= */}
-        <Modal visible={showCollectModal} transparent animationType="fade">
+        <Modal 
+          visible={showCollectModal} 
+          transparent 
+          animationType="fade"
+          onRequestClose={() => setShowCollectModal(false)}
+        >
           <View style={styles.modalOverlay}>
             <View style={[styles.collectCard, isMobile && { width: "100%", maxHeight: "95%" }]}>
               <View style={styles.adjustModalHeader}>
