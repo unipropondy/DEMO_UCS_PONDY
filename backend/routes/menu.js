@@ -156,17 +156,29 @@ router.get("/dishes/group/:DishGroupId", async (req, res) => {
 });
 
 /* ================= IMAGES ================= */
+const imageCache = new Map();
+
 router.get("/image/:imageId", async (req, res) => {
   try {
+    const imageId = req.params.imageId;
+    
+    // Serve from cache if available
+    if (imageCache.has(imageId)) {
+      res.set("Cache-Control", "public, max-age=86400");
+      return res.type("image/jpeg").send(imageCache.get(imageId));
+    }
+
     const pool = await poolPromise;
     const result = await pool
       .request()
-      .input("Imageid", req.params.imageId)
+      .input("Imageid", imageId)
       .query(`SELECT ImageData FROM ImageList WHERE Imageid = @Imageid`);
 
     if (result.recordset.length > 0 && result.recordset[0].ImageData) {
-      res.set("Cache-Control", "public, max-age=86400"); // Cache for 1 day
-      res.type("image/jpeg").send(result.recordset[0].ImageData);
+      const buffer = result.recordset[0].ImageData;
+      imageCache.set(imageId, buffer);
+      res.set("Cache-Control", "public, max-age=86400");
+      res.type("image/jpeg").send(buffer);
     } else {
       res.status(404).send("Image not found");
     }
