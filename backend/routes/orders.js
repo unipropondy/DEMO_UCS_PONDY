@@ -256,14 +256,30 @@ async function syncToProfessionalTables(
       ELSE IF @Section = 3 SET @PriorityCode = 3
       ELSE IF @Section = 4 SET @PriorityCode = 4
 
-      -- 🛡️ SHIELD: Find the DEFINITIVE active order for this table/number
+      -- 🛡️ SHIELD: Find the DEFINITIVE active order for this table/number using indexed lookups
+      DECLARE @OrderId UNIQUEIDENTIFIER = NULL;
+
+      -- 1. Try by OrderNumber first if valid
+      IF @orderNo <> 'PENDING' AND @orderNo <> 'NEW' AND @orderNo <> '' AND @orderNo IS NOT NULL
+      BEGIN
+        SELECT TOP 1 @OrderId = OrderId 
+        FROM RestaurantOrderCur WITH (UPDLOCK) 
+        WHERE OrderNumber = @orderNo;
+      END
+
+      -- 2. If not found, fall back to looking up the open order for the table
+      IF @OrderId IS NULL AND @ActualTableNo IS NOT NULL
+      BEGIN
+        SELECT TOP 1 @OrderId = OrderId 
+        FROM RestaurantOrderCur WITH (UPDLOCK) 
+        WHERE Tableno = @ActualTableNo AND (isOrderClosed = 0 OR isOrderClosed IS NULL)
+        ORDER BY CreatedOn DESC;
+      END
+
+      -- 3. Retrieve the full active order record
       SELECT TOP 1 OrderId, Tableno, BusinessUnitId, OrderNumber
       FROM RestaurantOrderCur WITH (UPDLOCK)
-      WHERE OrderNumber = @orderNo 
-      OR (Tableno = @ActualTableNo AND (isOrderClosed = 0 OR isOrderClosed IS NULL)) 
-      ORDER BY 
-        CASE WHEN OrderNumber = @orderNo THEN 0 ELSE 1 END,
-        CreatedOn DESC;
+      WHERE OrderId = @OrderId;
       
       SELECT @ActualTableNo as ActualTableNo, @PriorityCode as PriorityCode;
     `);
@@ -677,6 +693,11 @@ router.post("/save-cart", async (req, res) => {
     }
 
     await runInTransaction(async (transaction) => {
+      // 🚀 Lock TableMaster first to serialize table updates and prevent deadlock with Settlement
+      await transaction.request()
+        .input("tid", sql.VarChar(50), cleanId)
+        .query("SELECT CurrentOrderId FROM TableMaster WITH (UPDLOCK) WHERE TableId = @tid");
+
       // 🚀 ALWAYS SYNC: Even if items is empty, we need to run syncToProfessionalTables
       // to ensure any existing items in the DB are voided/cleaned up.
       await syncToProfessionalTables(
@@ -738,6 +759,11 @@ router.post("/send", async (req, res) => {
     let sentItems;
 
     await runInTransaction(async (transaction) => {
+      // 🚀 Lock TableMaster first to serialize table updates and prevent deadlock with Settlement
+      await transaction.request()
+        .input("tid", sql.VarChar(50), cleanId)
+        .query("SELECT CurrentOrderId FROM TableMaster WITH (UPDLOCK) WHERE TableId = @tid");
+
       // 1. 🚀 GENERATE PROFESSIONAL ID NOW (At the moment of sending)
       finalOrderId = await getOrGenerateOrderId(req, cleanId);
 

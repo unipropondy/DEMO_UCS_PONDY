@@ -120,6 +120,19 @@ async function runInTransaction(callback, options = {}) {
         console.warn(`[TX] [${name}] Emergency rollback completed.`);
       } catch (err) {
         console.error(`[TX] [${name}] Emergency rollback failed: ${err.message}`);
+        try {
+          const conn = transaction._acquiredConnection;
+          if (conn) {
+            console.warn(`[TX] [${name}] Forcing connection closure to clean up database locks...`);
+            if (typeof conn.close === 'function') {
+              conn.close();
+            } else if (conn.socket && typeof conn.socket.destroy === 'function') {
+              conn.socket.destroy();
+            }
+          }
+        } catch (closeErr) {
+          console.error(`[TX] [${name}] Failed to force close connection: ${closeErr.message}`);
+        }
       } finally {
         isDone = true;
         activeTransactions.delete(registryItem);
@@ -186,6 +199,19 @@ async function runInTransaction(callback, options = {}) {
         console.log(`[TX] [${name}] Rollback completed successfully.`);
       } catch (rollbackErr) {
         console.error(`[TX] [${name}] Rollback failed: ${rollbackErr.message}`);
+        try {
+          const conn = transaction._acquiredConnection;
+          if (conn) {
+            console.warn(`[TX] [${name}] Forcing connection closure to clean up database locks...`);
+            if (typeof conn.close === 'function') {
+              conn.close();
+            } else if (conn.socket && typeof conn.socket.destroy === 'function') {
+              conn.socket.destroy();
+            }
+          }
+        } catch (closeErr) {
+          console.error(`[TX] [${name}] Failed to force close connection: ${closeErr.message}`);
+        }
       }
     }
     throw error;

@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { poolPromise } = require("../config/db");
 const jwt = require("jsonwebtoken");
-const JWT_SECRET = process.env.JWT_SECRET || "pos_secure_secret_2026";
+const JWT_SECRET = process.env.JWT_SECRET || "supersecureposjwttokensecretkey";
 
 /* ================= AUTH - LOGIN ================= */
 router.post("/login", async (req, res) => {
