@@ -459,11 +459,16 @@ export default function PaymentScreen() {
     else if (roundType === "ten") setRoundOff(Math.round(baseTotal * 10) / 10 - baseTotal);
   }, [baseTotal, roundType, method]);
 
-  const total = Math.max(0, baseTotal + roundOff);
+  const total = Math.max(0, Math.round((baseTotal + roundOff) * 100) / 100);
   const displayedTax = Math.round(tax * 100) / 100;
   const displayedServiceCharge = Math.round(serviceChargeAmt * 100) / 100;
   const netAmountForDisplay = netAfterDiscount;
-  const displayedRoundOff = parseFloat((total - (netAmountForDisplay + displayedServiceCharge + displayedTax)).toFixed(2));
+  // ✅ FIX: Compute round-off from raw (unrounded) total vs rounded-display components.
+  // Previously this produced a phantom -$0.01 "Rounding" line when GST had a .5-cent fraction
+  // because displayedTax was rounded up but total was the raw float sum.
+  const displayedRoundOff = roundOff !== 0
+    ? parseFloat((total - (netAmountForDisplay + displayedServiceCharge + displayedTax)).toFixed(2))
+    : 0;
   const paidNum = isCashMethod(method) ? (parseFloat(cashInput) || 0) : total;
   const change = Math.max(0, paidNum - total);
   const quickCash = [20, 50, 100, 200, 500, 1000];

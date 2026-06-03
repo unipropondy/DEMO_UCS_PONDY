@@ -611,8 +611,10 @@ export default function SummaryScreen() {
   const netAfterDiscount = useMemo(() => subtotal - discountAmount, [subtotal, discountAmount]);
   const serviceChargeAmount = useMemo(() => netAfterDiscount * scRate, [netAfterDiscount, scRate]);
   const taxableAmount = useMemo(() => netAfterDiscount + serviceChargeAmount, [netAfterDiscount, serviceChargeAmount]);
-  const gstAmount = useMemo(() => taxableAmount * gstRate, [taxableAmount, gstRate]);
-  const grandTotal = useMemo(() => taxableAmount + gstAmount, [taxableAmount, gstAmount]);
+  const gstAmountRaw = useMemo(() => taxableAmount * gstRate, [taxableAmount, gstRate]);
+  // ✅ FIX: Round GST for display so breakdown matches the rounded grand total
+  const gstAmount = useMemo(() => Math.round(gstAmountRaw * 100) / 100, [gstAmountRaw]);
+  const grandTotal = useMemo(() => Math.round((taxableAmount + gstAmountRaw) * 100) / 100, [taxableAmount, gstAmountRaw]);
   const displaySubtotal = subtotal;
 
   if (!context) return null;

@@ -1064,8 +1064,11 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
   const subtotal = grossTotal - totalDiscount;
   const serviceChargeAmt = subtotal * scRate;
   const taxableAmt = subtotal + serviceChargeAmt;
-  const taxAmount = taxableAmt * gstRate;
-  const payableAmount = taxableAmt + taxAmount;
+  const taxAmountRaw = taxableAmt * gstRate;
+  // ✅ FIX: Round GST for display so it matches the payable total
+  // (e.g. 0.495 → 0.50, not 0.49 which is what toFixed(2) gives due to V8 float truncation)
+  const taxAmount = Math.round(taxAmountRaw * 100) / 100;
+  const payableAmount = Math.round((taxableAmt + taxAmountRaw) * 100) / 100;
 
   const handleClearCart = () => {
     if (cart.length === 0) return;
