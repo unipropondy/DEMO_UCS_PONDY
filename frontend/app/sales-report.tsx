@@ -811,7 +811,7 @@ export default function SalesReport() {
       const typeMatch =
         activeOrderTypes.length === 2 ||
         (s.OrderType
-          ? activeOrderTypes.includes(s.OrderType?.trim())
+          ? activeOrderTypes.includes(s.OrderType?.trim()) || s.OrderType?.trim() === 'LEDGER'
           : activeOrderTypes.includes("DINE-IN"));
       return modeMatch && typeMatch;
     });
@@ -1696,6 +1696,11 @@ export default function SalesReport() {
                         value: filteredMetrics.Member,
                         color: "#ec4899",
                         label: "MEMBER",
+                      },
+                      {
+                        value: filteredMetrics.Upi,
+                        color: "#a855f7",
+                        label: "UPI",
                       },
                     ].filter((d) => d.value > 0)}
                     donut

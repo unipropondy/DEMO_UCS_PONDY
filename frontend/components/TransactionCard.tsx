@@ -77,11 +77,15 @@ const TransactionCard = React.memo(
         </View>
         <View style={styles.txOrderInfo}>
           <Text style={styles.txTitle} numberOfLines={1}>
-            {SCREEN_W < 450 ? `#${formatOrderId(item).split("-").pop()}` : `Order #${formatOrderId(item)}`}
+            {item.OrderType === "LEDGER" 
+              ? `Collection: ${item.Section || 'Credit Customer'}`
+              : (SCREEN_W < 450 ? `#${formatOrderId(item).split("-").pop()}` : `Order #${formatOrderId(item)}`)}
           </Text>
           <Text style={styles.txSmall} numberOfLines={1}>
-            {item.OrderType === "TAKEAWAY" ? "🛍️ Takeaway" : `🪑 Table ${item.TableNo || "N/A"}`}
-            {item.SER_NAME ? ` • ${item.SER_NAME}` : ""}
+            {item.OrderType === "LEDGER"
+              ? "💳 Ledger Settle"
+              : (item.OrderType === "TAKEAWAY" ? "🛍️ Takeaway" : `🪑 Table ${item.TableNo || "N/A"}`)}
+            {item.SER_NAME && item.OrderType !== "LEDGER" ? ` • ${item.SER_NAME}` : ""}
           </Text>
           {(item.isMerged || item.isSplit) && (
             <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>

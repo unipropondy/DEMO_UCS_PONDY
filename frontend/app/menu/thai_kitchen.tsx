@@ -136,11 +136,11 @@ const DishCard = React.memo(
               ? { width: 48, height: 48, marginBottom: 4 }
               : isTablet
                 ? {
-                    width: 75,
-                    height: 75,
-                    marginBottom: 6,
-                    borderRadius: 37.5,
-                  }
+                  width: 75,
+                  height: 75,
+                  marginBottom: 6,
+                  borderRadius: 37.5,
+                }
                 : null,
           ]}
         >
@@ -188,13 +188,8 @@ const DishCard = React.memo(
             isPhone ? { fontSize: 12 } : isTablet ? { fontSize: 14 } : null,
           ]}
         >
-          {(Number(dish.IsOpenItem) === 1 || dish.IsOpenItem === true || dish.IsOpenItem === 'true' || dish.IsOpenItem === '1') ? "Open Price" : `$${(dish.Price || 0).toFixed(2)}`}
+          ${(dish.Price || 0).toFixed(2)}
         </Text>
-        {(Number(dish.IsOpenItem) === 1 || dish.IsOpenItem === true || dish.IsOpenItem === 'true' || dish.IsOpenItem === '1') ? (
-          <View style={{ backgroundColor: "#F59E0B22", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginTop: 2, borderWidth: 1, borderColor: "#F59E0B44", alignSelf: "center" }}>
-            <Text style={{ fontSize: 9, color: "#B45309", fontFamily: Fonts.bold }}>OPEN</Text>
-          </View>
-        ) : null}
       </Pressable>
     );
   },
@@ -211,11 +206,7 @@ const DishCardWrapper = React.memo(
     const cartQty = useCartStore((state) => {
       if (!currentContextId) return 0;
       const qtyMap = state.cartQtyMap[currentContextId] || {};
-      const getDishQty = (id: string) => qtyMap[id] || 0;
-      const cartItems = state.carts[currentContextId] || [];
-      console.log("Cart Items:", cartItems);
-      console.log("Dish Count:", getDishQty(dishId));
-      return getDishQty(dishId);
+      return qtyMap[dishId] || 0;
     });
 
     return (
@@ -300,7 +291,7 @@ const CartBadge = React.memo(({ isPhone, isLandscape }: any) => {
       style={[
         styles.cartBadge,
         isPhone &&
-          isLandscape && { top: -4, right: -4, minWidth: 16, height: 16 },
+        isLandscape && { top: -4, right: -4, minWidth: 16, height: 16 },
       ]}
     >
       <Text
@@ -345,6 +336,11 @@ export default function MenuScreen() {
   // Modifier Modal State
   const [modifiers, setModifiers] = useState<any[]>([]);
   const [showModifier, setShowModifier] = useState(false);
+
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [splitMembers, setSplitMembers] = useState<any[]>([]);
+  const [selectedSplitDish, setSelectedSplitDish] = useState<any>(null);
+
   const [selectedDish, setSelectedDish] = useState<any | null>(null);
   const [selectedModifierIds, setSelectedModifierIds] = useState<string[]>([]);
   const [loadingModifiers, setLoadingModifiers] = useState(false);
@@ -358,12 +354,6 @@ export default function MenuScreen() {
     null,
   );
   const [showReprintOptions, setShowReprintOptions] = useState(false);
-
-  // 🆕 Open Item modal state
-  const [showOpenItemModal, setShowOpenItemModal] = useState(false);
-  const [openItemDish, setOpenItemDish] = useState<any | null>(null);
-  const [openItemPrice, setOpenItemPrice] = useState("");
-  const [openItemError, setOpenItemError] = useState("");
   const { showToast } = useToast();
   const user = useAuthStore((s: any) => s.user);
   const paymentSettings = usePaymentSettingsStore((s: any) => s.settings);
@@ -620,7 +610,7 @@ export default function MenuScreen() {
           style={[
             styles.headerBillBtn,
             isPhone &&
-              isLandscape && { width: 36, height: 36, borderRadius: 8 },
+            isLandscape && { width: 36, height: 36, borderRadius: 8 },
           ]}
           onPress={() => setShowReprintOptions(true)}
         >
@@ -635,7 +625,7 @@ export default function MenuScreen() {
           style={[
             styles.headerCartBtn,
             isPhone &&
-              isLandscape && { width: 36, height: 36, borderRadius: 8 },
+            isLandscape && { width: 36, height: 36, borderRadius: 8 },
           ]}
           onPress={() => router.push("/cart")}
         >
@@ -718,7 +708,7 @@ export default function MenuScreen() {
                   styles.groupPill,
                   selectedGroup === g.DishGroupId && styles.groupPillActive,
                   isPhone &&
-                    isLandscape && { height: 36, paddingHorizontal: 14 },
+                  isLandscape && { height: 36, paddingHorizontal: 14 },
                 ]}
                 onPress={() => loadDishes(g.DishGroupId)}
               >
@@ -801,6 +791,28 @@ export default function MenuScreen() {
 
   const openModifiers = React.useCallback(
     async (dish: any) => {
+      console.log("Dish Clicked", dish);
+
+      try {
+
+        const res = await fetch(
+          `${API_URL}/api/menu/ordershare/${dish.DishId}`
+        );
+
+        const data = await res.json();
+
+        if (Array.isArray(data) && data.length > 0) {
+          setSelectedSplitDish(dish);
+          setSplitMembers(data);
+          setShowSplitModal(true);
+
+          return;
+        }
+
+      } catch (err) {
+        console.log(err);
+      }
+
       if (isAdding) return;
 
       const currentKitchen = kitchens.find(
@@ -810,39 +822,17 @@ export default function MenuScreen() {
       const currentKitchenCode =
         currentKitchen?.KitchenTypeCode || String(selectedKitchenId || "0");
 
-      const addToCartSimple = (overridePrice?: number) => {
+      const addToCartSimple = () => {
         addToCartGlobal({
           id: dish.DishId,
           name: dish.Name,
-          price: overridePrice !== undefined ? overridePrice : (dish.Price || 0),
+          price: dish.Price || 0,
           categoryName: currentKitchenName,
           KitchenTypeName: dish.KitchenTypeName || currentKitchenName,
           PrinterIP: dish.PrinterIP,
           KitchenTypeCode: dish.KitchenTypeCode || currentKitchenCode,
-          IsOpenItem: dish.IsOpenItem,
         });
       };
-
-      // 🆕 OPEN ITEM: Prompt for custom price before doing anything else
-      const isItOpenItem = Number(dish.IsOpenItem) === 1 || dish.IsOpenItem === true || dish.IsOpenItem === 'true' || dish.IsOpenItem === '1';
-      console.log("🔍 [thai_kitchen] openModifiers clicked. IsOpenItem evaluation:", {
-        dishId: dish.DishId,
-        dishName: dish.Name,
-        IsOpenItemRawValue: dish.IsOpenItem,
-        isItOpenItemEvaluated: isItOpenItem
-      });
-
-      if (isItOpenItem) {
-        setOpenItemDish({
-          ...dish,
-          _kitchenName: currentKitchenName,
-          _kitchenCode: currentKitchenCode,
-        });
-        setOpenItemPrice(dish.Price > 0 ? String(dish.Price) : "");
-        setOpenItemError("");
-        setShowOpenItemModal(true);
-        return; // Wait for user to confirm price
-      }
 
       // 🚀 SPEED BOOST: Instant add if we know there are no modifiers from GLOBAL cache
       const cachedData = modifierCache[dish.DishId];
@@ -969,57 +959,12 @@ export default function MenuScreen() {
         KitchenTypeName: selectedDish.KitchenTypeName || currentKitchenName,
         PrinterIP: selectedDish.PrinterIP,
         KitchenTypeCode: selectedDish.KitchenTypeCode || currentKitchenCode,
-        IsOpenItem: selectedDish.IsOpenItem,
-      });
+        splitMembers: selectedDish.splitMembers || undefined,
+      } as any);
 
       // addToCartGlobal handles both local state and database sync
     }
     setShowModifier(false);
-  };
-
-  // 🆕 OPEN ITEM: Validate and add to cart at custom price
-  const confirmOpenItemPrice = () => {
-    const trimmed = openItemPrice.trim();
-    if (!trimmed || trimmed === "") {
-      setOpenItemError("Please enter a price.");
-      return;
-    }
-    const parsed = parseFloat(trimmed);
-    if (isNaN(parsed) || parsed < 0) {
-      setOpenItemError("Enter a valid non-negative number.");
-      return;
-    }
-    if (parsed === 0) {
-      setOpenItemError("Price cannot be zero.");
-      return;
-    }
-
-    const dish = openItemDish;
-    if (!dish) return;
-
-    console.log("✏️ [thai_kitchen] confirmOpenItemPrice adding custom price item:", {
-      dishId: dish.DishId,
-      dishName: dish.Name,
-      customPrice: parsed
-    });
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    addToCartGlobal({
-      id: dish.DishId,
-      name: dish.Name,
-      price: parsed,
-      categoryName: dish._kitchenName,
-      KitchenTypeName: dish.KitchenTypeName || dish._kitchenName,
-      PrinterIP: dish.PrinterIP,
-      KitchenTypeCode: dish.KitchenTypeCode || dish._kitchenCode,
-      IsOpenItem: dish.IsOpenItem,
-    });
-
-    // Reset
-    setShowOpenItemModal(false);
-    setOpenItemDish(null);
-    setOpenItemPrice("");
-    setOpenItemError("");
   };
 
   if (!orderContext) return null;
@@ -1172,6 +1117,171 @@ export default function MenuScreen() {
           </View>
         )}
 
+        {/* SPLIT MEMBERS MODAL (New Feature) */}
+
+        {showSplitModal && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Split Members</Text>
+
+                <TouchableOpacity
+                  onPress={() => setShowSplitModal(false)}
+                  style={styles.modalClose}
+                >
+                  <Ionicons
+                    name="close"
+                    size={20}
+                    color={Theme.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {splitMembers.map((item, index) => (
+                <View
+                  key={index}
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#eee",
+                  }}
+                >
+                  <Text>{item.CustomerName}</Text>
+
+                  <TouchableOpacity
+                    onPress={() => {
+                      const updated = [...splitMembers];
+
+                      updated[index].IsSelected =
+                        !updated[index].IsSelected;
+
+                      setSplitMembers(updated);
+                    }}
+                  >
+                    <Ionicons
+                      name={
+                        item.IsSelected
+                          ? "checkbox"
+                          : "square-outline"
+                      }
+                      size={22}
+                      color="green"
+                    />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "#22c55e",
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  marginTop: 20,
+                  alignItems: "center",
+                }}
+                onPress={() => {
+                  const selected = splitMembers.filter(
+                    (x) => x.IsSelected
+                  );
+
+
+                  if (selected.length === 0) {
+                    alert("Please select at least one member");
+                    return;
+                  }
+
+                  const shareAmount =
+                    (selectedSplitDish.Price || 0) /
+                    selected.length;
+
+                  const splitDataList = selected.map(member => ({
+                    CustomerName: member.CustomerName,
+                    Amount: shareAmount,
+                  }));
+
+                  // Check if the dish has modifiers. If so, open modifier selection modal with the split parameters.
+                  const cachedData = modifierCache[selectedSplitDish.DishId];
+                  if (cachedData && cachedData.length > 0) {
+                    setSelectedDish({
+                      ...selectedSplitDish,
+                      splitMembers: splitDataList
+                    });
+                    setSelectedModifierIds([]);
+                    setCustomMods([]);
+                    setModifiers(cachedData);
+                    setShowSplitModal(false);
+                    setShowModifier(true);
+                    return;
+                  }
+
+                  // If not cached, fetch modifiers
+                  setLoadingModifiers(true);
+                  fetch(`${API_URL}/api/menu/modifiers/${selectedSplitDish.DishId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                      if (Array.isArray(data) && data.length > 0) {
+                        setSelectedDish({
+                          ...selectedSplitDish,
+                          splitMembers: splitDataList
+                        });
+                        setSelectedModifierIds([]);
+                        setCustomMods([]);
+                        setModifiers(data);
+                        setShowSplitModal(false);
+                        setShowModifier(true);
+                      } else {
+                        // Add directly if no modifiers
+                        addToCartGlobal({
+                          id: selectedSplitDish.DishId,
+                          name: selectedSplitDish.Name,
+                          price: selectedSplitDish.Price || 0,
+                          splitMembers: splitDataList,
+                          categoryName: kitchens.find(k => k.CategoryId === selectedKitchenId)?.KitchenTypeName || "KITCHEN",
+                          KitchenTypeName: selectedSplitDish.KitchenTypeName || kitchens.find(k => k.CategoryId === selectedKitchenId)?.KitchenTypeName || "KITCHEN",
+                          PrinterIP: selectedSplitDish.PrinterIP,
+                          KitchenTypeCode: selectedSplitDish.KitchenTypeCode || String(selectedKitchenId || "0"),
+                        } as any);
+                        setShowSplitModal(false);
+                      }
+                    })
+                    .catch(err => {
+                      console.error(err);
+                      addToCartGlobal({
+                        id: selectedSplitDish.DishId,
+                        name: selectedSplitDish.Name,
+                        price: selectedSplitDish.Price || 0,
+                        splitMembers: splitDataList,
+                        categoryName: kitchens.find(k => k.CategoryId === selectedKitchenId)?.KitchenTypeName || "KITCHEN",
+                        KitchenTypeName: selectedSplitDish.KitchenTypeName || kitchens.find(k => k.CategoryId === selectedKitchenId)?.KitchenTypeName || "KITCHEN",
+                        PrinterIP: selectedSplitDish.PrinterIP,
+                        KitchenTypeCode: selectedSplitDish.KitchenTypeCode || String(selectedKitchenId || "0"),
+                      } as any);
+                      setShowSplitModal(false);
+                    })
+                    .finally(() => {
+                      setLoadingModifiers(false);
+                    });
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontWeight: "bold",
+                    fontSize: 16,
+                  }}
+                >
+                  DONE
+                </Text>
+              </TouchableOpacity>
+
+            </View>
+          </View>
+        )}
+
+
+
         {/* MODIFIER MODAL (Screenshot 1 Style) */}
         {showModifier && selectedDish && (
           <View style={styles.modalOverlay}>
@@ -1215,7 +1325,7 @@ export default function MenuScreen() {
                           style={[
                             styles.checkbox,
                             selectedModifierIds.includes(m.ModifierID) &&
-                              styles.checkboxActive,
+                            styles.checkboxActive,
                           ]}
                         >
                           {selectedModifierIds.includes(m.ModifierID) && (
@@ -1358,109 +1468,6 @@ export default function MenuScreen() {
                   </View>
                   <Text style={styles.reprintText}>Bill Reprint</Text>
                 </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-
-      {/* 🆕 OPEN ITEM PRICE MODAL */}
-      <Modal
-        transparent
-        visible={showOpenItemModal}
-        animationType="fade"
-        onRequestClose={() => setShowOpenItemModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowOpenItemModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.customItemModal}>
-                {/* Header */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 6,
-                  }}
-                >
-                  <Text style={styles.customModalTitle}>Enter Price</Text>
-                  <TouchableOpacity
-                    onPress={() => setShowOpenItemModal(false)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="close" size={22} color={Theme.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Dish name */}
-                <Text
-                  style={{
-                    fontFamily: Fonts.medium,
-                    fontSize: 13,
-                    color: Theme.textSecondary,
-                    marginBottom: 16,
-                  }}
-                  numberOfLines={2}
-                >
-                  {openItemDish?.Name}
-                </Text>
-
-                {/* Price input */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Custom Price *</Text>
-                  <TextInput
-                    style={[
-                      styles.customInput,
-                      openItemError
-                        ? { borderColor: Theme.danger, borderWidth: 1.5 }
-                        : {},
-                    ]}
-                    placeholder={
-                      openItemDish?.Price > 0
-                        ? `Default: ${openItemDish.Price}`
-                        : "Enter price"
-                    }
-                    placeholderTextColor="#999"
-                    keyboardType="decimal-pad"
-                    value={openItemPrice}
-                    onChangeText={(t) => {
-                      setOpenItemPrice(t);
-                      setOpenItemError("");
-                    }}
-                    autoFocus
-                    returnKeyType="done"
-                    onSubmitEditing={confirmOpenItemPrice}
-                  />
-                  {openItemError ? (
-                    <Text
-                      style={{
-                        color: Theme.danger,
-                        fontSize: 11,
-                        fontFamily: Fonts.medium,
-                        marginTop: 4,
-                      }}
-                    >
-                      {openItemError}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {/* Actions */}
-                <View style={styles.customModalActions}>
-                  <TouchableOpacity
-                    style={styles.customBtnCancel}
-                    onPress={() => setShowOpenItemModal(false)}
-                  >
-                    <Text style={styles.customBtnTextCancel}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.customBtnAdd}
-                    onPress={confirmOpenItemPrice}
-                  >
-                    <Text style={styles.customBtnTextAdd}>Add to Cart</Text>
-                  </TouchableOpacity>
-                </View>
               </View>
             </TouchableWithoutFeedback>
           </View>
