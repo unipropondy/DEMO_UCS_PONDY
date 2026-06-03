@@ -1151,7 +1151,7 @@ export default function PaymentScreen() {
         </View>
 
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
             <View style={[styles.mainLayout, isLandscape && { flexDirection: "row" }]}>
                 <View style={[styles.leftPane, isLandscape && { flex: 1.2, paddingRight: 20 }]}>
                   {/* Summary for Mobile */}
@@ -1949,7 +1949,7 @@ const styles = StyleSheet.create({
   tableBadge: { backgroundColor: Theme.bgMuted, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, borderWidth: 1, borderColor: Theme.border },
   tableBadgeText: { fontSize: 9, fontFamily: Fonts.bold, color: Theme.textPrimary },
   orderSub: { color: Theme.textSecondary, fontSize: 10, fontFamily: Fonts.bold },
-  mainLayout: { flex: 1, gap: 15 },
+  mainLayout: { gap: 15 },
   leftPane: { padding: 15, borderRadius: 20, backgroundColor: Theme.bgCard, ...Theme.shadowMd, borderWidth: 1, borderColor: Theme.border },
   methodsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 15 },
   methodCard: { width: '31.8%', height: 70, backgroundColor: Theme.bgMuted, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Theme.border, gap: 4 },

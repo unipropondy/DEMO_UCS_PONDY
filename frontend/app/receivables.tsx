@@ -723,7 +723,7 @@ export default function ReceivablesScreen() {
           }}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.ledgerSheet, isMobile && { height: "95%", borderRadius: 16 }]}>
+            <View style={[styles.ledgerSheet, isMobile && { maxHeight: "95%", borderRadius: 16 }]}>
               {/* Header */}
               <View style={styles.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -888,16 +888,16 @@ export default function ReceivablesScreen() {
                     <TouchableOpacity
                       onPress={() => {
                         if (!selectedCustomer) return;
-                        setCollectAmount(selectedCustomer.OutstandingBalance > 0 ? selectedCustomer.OutstandingBalance.toFixed(2) : "");
-                        setCollectRemarks("");
-                        setAllocationMode("FIFO");
-                        const updated: { [settlementId: string]: string } = {};
-                        outstandingBills.forEach((bill) => {
-                          updated[bill.SettlementId] = "0.00";
-                        });
-                        setManualAllocations(updated);
                         setShowLedgerModal(false);
-                        setShowCollectModal(true);
+                        router.push({
+                          pathname: "/payment",
+                          params: {
+                            memberId: selectedCustomer.MemberId,
+                            collectAmount: String(selectedCustomer.OutstandingBalance || 0),
+                            memberName: selectedCustomer.Name,
+                            memberPhone: selectedCustomer.Phone,
+                          }
+                        });
                       }}
                       style={[
                         styles.actionButton,
@@ -1133,7 +1133,7 @@ const styles = StyleSheet.create({
 
   // Ledger sheets
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 10 },
-  ledgerSheet: { backgroundColor: Theme.bgCard, borderRadius: 24, width: "100%", maxWidth: 650, height: "90%", ...Theme.shadowLg, overflow: "hidden" },
+  ledgerSheet: { backgroundColor: Theme.bgCard, borderRadius: 24, width: "100%", maxWidth: 650, flex: 1, maxHeight: "90%", ...Theme.shadowLg, overflow: "hidden" },
   sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1, borderBottomColor: Theme.border },
   sheetTitle: { color: Theme.textPrimary, fontSize: 20, fontFamily: Fonts.black },
   sheetSubtitle: { color: Theme.textSecondary, fontSize: 12, fontFamily: Fonts.medium, marginTop: 2 },
