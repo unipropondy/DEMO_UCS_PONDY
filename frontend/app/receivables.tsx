@@ -315,8 +315,9 @@ export default function ReceivablesScreen() {
     if (!selectedCustomer) return;
     
     // Clean phone number (remove spaces, symbols)
+    const hasPlus = selectedCustomer.Phone.trim().startsWith("+");
     const cleanPhone = selectedCustomer.Phone.replace(/[^0-9]/g, "");
-    const phoneWithCountry = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    const phoneWithCountry = hasPlus ? cleanPhone : (cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone);
     
     let message = `Hi ${selectedCustomer.Name},\n\nThis is a friendly reminder that you have a pending outstanding balance of *${currencySymbol}${selectedCustomer.OutstandingBalance.toFixed(2)}* with us.`;
     

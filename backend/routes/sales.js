@@ -746,8 +746,32 @@ router.get("/day-end-summary", async (req, res) => {
       }
     }
 
-    const cashTotal = paymodes.filter(p => p.Paymode === 'CASH').reduce((acc, curr) => acc + (Number(curr.Amount) || 0), 0);
-    const otherTotal = paymodes.filter(p => p.Paymode !== 'CASH').reduce((acc, curr) => acc + (Number(curr.Amount) || 0), 0);
+    // Fetch Credit Customer Payments (ReferenceType = 'MEMBER')
+    const creditPaymentsRes = await pool.request()
+      .input("start", sql.VarChar, start)
+      .input("end", sql.VarChar, end)
+      .query(`
+        SELECT 
+          'CREDIT PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' as Paymode,
+          SUM(ptd.Amount) as Amount,
+          COUNT(ptd.PaymentTransactionId) as Count
+        FROM PaymentTransactionDetails ptd
+        INNER JOIN Paymode pm ON pm.Position = ptd.PayModeId
+        WHERE ptd.ReferenceType = 'MEMBER'
+          AND CAST(ptd.CreatedDate AS DATE) >= @start
+          AND CAST(ptd.CreatedDate AS DATE) <= @end
+        GROUP BY pm.Description
+      `);
+
+    const creditPayments = creditPaymentsRes.recordset || [];
+    creditPayments.forEach(p => {
+      p.ReceiptCount = p.Count;
+    });
+
+    paymodes.push(...creditPayments);
+
+    const cashTotal = paymodes.filter(p => p.Paymode === 'CASH' || p.Paymode === 'CREDIT PAYMENT (CASH)').reduce((acc, curr) => acc + (Number(curr.Amount) || 0), 0);
+    const otherTotal = paymodes.filter(p => p.Paymode !== 'CASH' && p.Paymode !== 'CREDIT PAYMENT (CASH)').reduce((acc, curr) => acc + (Number(curr.Amount) || 0), 0);
 
     const billCount = Number(analysis.TotalBills) || 0;
     console.log(`[DAY-END DEBUG] billCount: ${billCount}`);
@@ -791,13 +815,24 @@ router.get("/day-end-summary", async (req, res) => {
         ORDER BY sh.LastSettlementDate DESC
       `);
 
+    const settlementBreakdown = settlementRes.recordset || [];
+    creditPayments.forEach(cp => {
+      settlementBreakdown.push({
+        Paymode: cp.Paymode,
+        SysAmount: cp.Amount,
+        ManualAmount: cp.Amount,
+        SortageOrExces: 0,
+        ReceiptCount: cp.Count
+      });
+    });
+
     res.json({
       success: true,
       orgInfo,
       terminalCode: analysis.TerminalCode,
       refNo: analysis.RefNo,
       paymodeDetail: paymodes,
-      settlementBreakdown: settlementRes.recordset,
+      settlementBreakdown: settlementBreakdown,
       cancelledOrders: cancelledOrdersRes.recordset,
       settlementDetail: {
         cashTotal,

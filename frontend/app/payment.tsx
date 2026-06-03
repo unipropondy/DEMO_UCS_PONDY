@@ -144,6 +144,11 @@ export default function PaymentScreen() {
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newCreditLimit, setNewCreditLimit] = useState("1000");
+  const [newEmail, setNewEmail] = useState("");
+  const [newAddress, setNewAddress] = useState("");
+  const [newIsActive, setNewIsActive] = useState(true);
+  const [selectedCountryCode, setSelectedCountryCode] = useState("+65");
+  const [showCountryCodeModal, setShowCountryCodeModal] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
 
   const handleQuickAddMember = async () => {
@@ -155,16 +160,19 @@ export default function PaymentScreen() {
     const isCredit = method.trim().toUpperCase() === "CREDIT";
     const endpoint = isCredit ? `${API_URL}/api/credit-customers/add` : `${API_URL}/api/members/add`;
     try {
+      const fullPhone = selectedCountryCode + newPhone.trim();
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newName.trim(),
-          phone: newPhone.trim(),
+          phone: fullPhone,
+          email: newEmail.trim() || null,
+          address: newAddress.trim() || null,
           creditLimit: parseFloat(newCreditLimit) || 1000,
           currentBalance: 0,
           balance: 0,
-          isActive: 1,
+          isActive: newIsActive ? 1 : 0,
           userId: user?.userId
         })
       });
@@ -174,6 +182,10 @@ export default function PaymentScreen() {
         setIsQuickAddMode(false);
         setNewName("");
         setNewPhone("");
+        setNewEmail("");
+        setNewAddress("");
+        setNewIsActive(true);
+        setSelectedCountryCode("+65");
         setNewCreditLimit("1000");
         setMemberQuery(data.member.Name);
         showToast({ 
@@ -222,6 +234,10 @@ export default function PaymentScreen() {
       setIsQuickAddMode(false);
       setNewName("");
       setNewPhone("");
+      setNewEmail("");
+      setNewAddress("");
+      setNewIsActive(true);
+      setSelectedCountryCode("+65");
       setNewCreditLimit("1000");
     }
   }, [showMemberModal]);
@@ -1406,226 +1422,365 @@ export default function PaymentScreen() {
                     <Ionicons name="close" size={24} color={Theme.textPrimary} />
                   </TouchableOpacity>
                 </View>
-
-                {isQuickAddMode ? (
-                  /* QUICK ADD FORM */
-                  <View style={styles.quickAddForm}>
-                    <View style={styles.formField}>
-                      <Text style={styles.formLabel}>Customer Name *</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="Enter full name"
-                        placeholderTextColor={Theme.textMuted || "#999"}
-                        value={newName}
-                        onChangeText={setNewName}
-                        {...Platform.select({ web: { outlineStyle: "none" } as any })}
-                      />
-                    </View>
-                    <View style={styles.formField}>
-                      <Text style={styles.formLabel}>Phone Number *</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="Enter phone number"
-                        placeholderTextColor={Theme.textMuted || "#999"}
-                        value={newPhone}
-                        onChangeText={setNewPhone}
-                        keyboardType="phone-pad"
-                        {...Platform.select({ web: { outlineStyle: "none" } as any })}
-                      />
-                    </View>
-                    <View style={styles.formField}>
-                      <Text style={styles.formLabel}>Default Credit Limit ({currencySymbol})</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="e.g. 1000"
-                        placeholderTextColor={Theme.textMuted || "#999"}
-                        value={newCreditLimit}
-                        onChangeText={setNewCreditLimit}
-                        keyboardType="numeric"
-                        {...Platform.select({ web: { outlineStyle: "none" } as any })}
-                      />
-                    </View>
-
-                    <View style={styles.adjustModalActions}>
-                      <TouchableOpacity 
-                        style={styles.cancelBtn} 
-                        onPress={() => setIsQuickAddMode(false)}
-                      >
-                        <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Back to Search</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.confirmBtn, addingMember && { opacity: 0.7 }]}
-                        disabled={addingMember}
-                        onPress={handleQuickAddMember}
-                      >
-                        {addingMember ? (
-                          <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                          <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Save & Select</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  /* SEARCH & LIST WORKFLOW */
-                  <>
-                    {/* Quick Add Toggle Button */}
-                    <TouchableOpacity 
-                      style={styles.quickAddToggleBtn} 
-                      onPress={() => {
-                        setIsQuickAddMode(true);
-                        if (memberQuery && isNaN(Number(memberQuery))) {
-                          setNewName(memberQuery);
-                        } else if (memberQuery) {
-                          setNewPhone(memberQuery);
-                        }
-                      }}
-                    >
-                      <Ionicons name="person-add" size={16} color={Theme.primary} />
-                      <Text style={styles.quickAddToggleText}>+ Quick Add New Customer</Text>
-                    </TouchableOpacity>
-
-                    {/* Search Bar */}
-                    <View style={styles.searchBarBox}>
-                      <Ionicons name="search" size={20} color={Theme.textSecondary} style={{ marginRight: 8 }} />
-                      <TextInput
-                        style={{
-                          flex: 1,
-                          fontSize: 16,
-                          fontFamily: Fonts.medium,
-                          color: Theme.textPrimary,
-                          height: '100%',
-                          borderWidth: 0,
-                          marginLeft: 8,
-                          ...Platform.select({ web: { outlineStyle: "none" } as any })
-                        }}
-                        placeholder="Search by Name or Phone..."
-                        placeholderTextColor={Theme.textMuted || "#999"}
-                        value={memberQuery}
-                        onChangeText={setMemberQuery}
-                        autoFocus
-                      />
-                      {searchingMembers && <ActivityIndicator size="small" color={Theme.primary} />}
-                    </View>
-
-                    {/* Members List */}
-                    <View style={{ maxHeight: 220, marginVertical: 8 }}>
-                      <FlatList
-                        data={members}
-                        keyExtractor={(item) => item.MemberId}
-                        ListEmptyComponent={() => (
-                          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
-                            <Text style={{ fontSize: 14, fontFamily: Fonts.medium, color: Theme.textSecondary }}>No members found</Text>
-                          </View>
-                        )}
-                        renderItem={({ item }) => {
-                          const isSelected = selectedMember?.MemberId === item.MemberId;
-                          const remainingCredit = (item.CreditLimit || 0) - (item.CurrentBalance || 0);
-                          const isLimitExceeded = (item.CurrentBalance || 0) + total > (item.CreditLimit || 0);
-                          return (
-                            <TouchableOpacity
-                              style={[
-                                styles.memberListItem,
-                                isSelected && styles.selectedMemberItem,
-                                !item.IsActive && { opacity: 0.5 }
-                              ]}
-                              disabled={!item.IsActive}
-                              onPress={() => {
-                                if (!item.IsActive) {
-                                  showToast({ type: "warning", message: "Inactive Member", subtitle: "Cannot select inactive member" });
-                                  return;
-                                }
-                                setSelectedMember(item);
-                              }}
-                            >
-                              <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                  <Text style={[styles.memberNameText, isSelected && { color: Theme.primary }]}>{item.Name}</Text>
-                                  {!item.IsActive && <View style={styles.inactiveBadge}><Text style={styles.inactiveBadgeText}>INACTIVE</Text></View>}
-                                </View>
-                                <Text style={styles.memberPhoneText}>{item.Phone}</Text>
-                                <Text style={{ fontSize: 11, fontFamily: Fonts.medium, color: Theme.textMuted, marginTop: 4 }}>
-                                  Limit: {currencySymbol}{(item.CreditLimit || 0).toFixed(2)} | Balance: {currencySymbol}{(item.CurrentBalance || 0).toFixed(2)}
-                                </Text>
-                              </View>
-                              <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: isLimitExceeded ? Theme.danger : Theme.success }}>
-                                  Rem: {currencySymbol}{remainingCredit.toFixed(2)}
-                                </Text>
-                                {isLimitExceeded && (
-                                  <Text style={{ fontSize: 10, fontFamily: Fonts.medium, color: Theme.danger, marginTop: 2 }}>
-                                    Limit Exceeded
-                                  </Text>
-                                )}
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        }}
-                      />
-                    </View>
-
-                    {/* Selected Member Details & Confirmation */}
-                    {selectedMember && (
-                      <View style={styles.selectedMemberDetailCard}>
-                        <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary }}>SELECTED ACCOUNT</Text>
-                        <View style={{ marginTop: 6, gap: 4 }}>
-                          <Text style={{ fontSize: 14, fontFamily: Fonts.bold, color: Theme.primary }}>{selectedMember.Name} ({selectedMember.Phone})</Text>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                            <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Bill Amount:</Text>
-                            <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>{currencySymbol}{total.toFixed(2)}</Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Remaining Credit:</Text>
-                            <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
-                              {currencySymbol}{(selectedMember.CreditLimit - selectedMember.CurrentBalance).toFixed(2)}
+                <ScrollView 
+                  style={{ flexShrink: 1 }} 
+                  contentContainerStyle={{ paddingBottom: 10 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {isQuickAddMode ? (
+                    /* QUICK ADD FORM */
+                    <View style={styles.quickAddForm}>
+                      <View style={styles.formField}>
+                        <Text style={styles.formLabel}>Customer Name *</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          placeholder="Enter full name"
+                          placeholderTextColor={Theme.textMuted || "#999"}
+                          value={newName}
+                          onChangeText={setNewName}
+                          {...Platform.select({ web: { outlineStyle: "none" } as any })}
+                        />
+                      </View>
+                      <View style={styles.formField}>
+                        <Text style={styles.formLabel}>Phone Number *</Text>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <TouchableOpacity
+                            style={[styles.formInput, { width: 85, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 4 }]}
+                            onPress={() => setShowCountryCodeModal(true)}
+                          >
+                            <Text style={{ fontSize: 14, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                              {selectedCountryCode}
                             </Text>
-                          </View>
+                            <Ionicons name="chevron-down" size={12} color={Theme.textSecondary} />
+                          </TouchableOpacity>
+                          <TextInput
+                            style={[styles.formInput, { flex: 1 }]}
+                            placeholder="Enter phone number"
+                            placeholderTextColor={Theme.textMuted || "#999"}
+                            value={newPhone}
+                            onChangeText={setNewPhone}
+                            keyboardType="phone-pad"
+                            {...Platform.select({ web: { outlineStyle: "none" } as any })}
+                          />
                         </View>
                       </View>
-                    )}
+                      <View style={styles.formField}>
+                        <Text style={styles.formLabel}>Email Address</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          placeholder="Enter email address"
+                          placeholderTextColor={Theme.textMuted || "#999"}
+                          value={newEmail}
+                          onChangeText={setNewEmail}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          {...Platform.select({ web: { outlineStyle: "none" } as any })}
+                        />
+                      </View>
+                      <View style={styles.formField}>
+                        <Text style={styles.formLabel}>Address</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          placeholder="Enter address"
+                          placeholderTextColor={Theme.textMuted || "#999"}
+                          value={newAddress}
+                          onChangeText={setNewAddress}
+                          {...Platform.select({ web: { outlineStyle: "none" } as any })}
+                        />
+                      </View>
+                      <View style={styles.formField}>
+                        <Text style={styles.formLabel}>Default Credit Limit ({currencySymbol})</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          placeholder="e.g. 1000"
+                          placeholderTextColor={Theme.textMuted || "#999"}
+                          value={newCreditLimit}
+                          onChangeText={setNewCreditLimit}
+                          keyboardType="numeric"
+                          {...Platform.select({ web: { outlineStyle: "none" } as any })}
+                        />
+                      </View>
+                      <View style={[styles.formField, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }]}>
+                        <Text style={styles.formLabel}>Account Status (Active)</Text>
+                        <TouchableOpacity 
+                          style={{
+                            width: 48,
+                            height: 28,
+                            borderRadius: 14,
+                            backgroundColor: newIsActive ? Theme.primary : Theme.border,
+                            justifyContent: 'center',
+                            paddingHorizontal: 2
+                          }}
+                          onPress={() => setNewIsActive(!newIsActive)}
+                        >
+                          <View style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 12,
+                            backgroundColor: '#fff',
+                            alignSelf: newIsActive ? 'flex-end' : 'flex-start',
+                            ...Theme.shadowSm
+                          }} />
+                        </TouchableOpacity>
+                      </View>
 
-                    {/* Modal Actions */}
-                    <View style={styles.adjustModalActions}>
-                      <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowMemberModal(false)}>
-                        <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.confirmBtn,
-                          (!selectedMember || (((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0)) && !(user?.role === "ADMIN" || user?.role === "MANAGER"))) && { backgroundColor: Theme.border, opacity: 0.7 }
-                        ]}
-                        disabled={!selectedMember || (((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0)) && !(user?.role === "ADMIN" || user?.role === "MANAGER"))}
+                      <View style={styles.adjustModalActions}>
+                        <TouchableOpacity 
+                          style={styles.cancelBtn} 
+                          onPress={() => setIsQuickAddMode(false)}
+                        >
+                          <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Back to Search</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.confirmBtn, addingMember && { opacity: 0.7 }]}
+                          disabled={addingMember}
+                          onPress={handleQuickAddMember}
+                        >
+                          {addingMember ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Save & Select</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    /* SEARCH & LIST WORKFLOW */
+                    <>
+                      {/* Quick Add Toggle Button */}
+                      <TouchableOpacity 
+                        style={styles.quickAddToggleBtn} 
                         onPress={() => {
-                          setShowMemberModal(false);
-                          if (!isSplitActive) {
-                            const isLimitExceeded = (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0);
-                            if (isLimitExceeded) {
-                              Alert.alert(
-                                "Credit Limit Exceeded",
-                                `Outstanding will be ${currencySymbol}${((selectedMember.CurrentBalance || 0) + total).toFixed(2)} exceeding limit of ${currencySymbol}${(selectedMember.CreditLimit || 0).toFixed(2)}. Authorize credit purchase?`,
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  { text: "Authorize & Confirm", onPress: () => executeFinalPayment() }
-                                ]
-                              );
-                            } else {
-                              executeFinalPayment();
-                            }
+                          setIsQuickAddMode(true);
+                          if (memberQuery && isNaN(Number(memberQuery))) {
+                            setNewName(memberQuery);
+                          } else if (memberQuery) {
+                            setNewPhone(memberQuery);
                           }
                         }}
                       >
-                        <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>
-                          {selectedMember && (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0) ? "Authorize & Confirm" : "Confirm Credit Payment"}
-                        </Text>
+                        <Ionicons name="person-add" size={16} color={Theme.primary} />
+                        <Text style={styles.quickAddToggleText}>+ Quick Add New Customer</Text>
                       </TouchableOpacity>
-                    </View>
-                  </>
-                )}
+
+                      {/* Search Bar */}
+                      <View style={styles.searchBarBox}>
+                        <Ionicons name="search" size={20} color={Theme.textSecondary} style={{ marginRight: 8 }} />
+                        <TextInput
+                          style={{
+                            flex: 1,
+                            fontSize: 16,
+                            fontFamily: Fonts.medium,
+                            color: Theme.textPrimary,
+                            height: '100%',
+                            borderWidth: 0,
+                            marginLeft: 8,
+                            ...Platform.select({ web: { outlineStyle: "none" } as any })
+                          }}
+                          placeholder="Search by Name or Phone..."
+                          placeholderTextColor={Theme.textMuted || "#999"}
+                          value={memberQuery}
+                          onChangeText={setMemberQuery}
+                          autoFocus
+                        />
+                        {searchingMembers && <ActivityIndicator size="small" color={Theme.primary} />}
+                      </View>
+
+                      {/* Members List */}
+                      <View style={{ marginVertical: 8 }}>
+                        {members.length === 0 ? (
+                          <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                            <Text style={{ fontSize: 14, fontFamily: Fonts.medium, color: Theme.textSecondary }}>No members found</Text>
+                          </View>
+                        ) : (
+                          members.map((item) => {
+                            const isSelected = selectedMember?.MemberId === item.MemberId;
+                            const remainingCredit = (item.CreditLimit || 0) - (item.CurrentBalance || 0);
+                            const isLimitExceeded = (item.CurrentBalance || 0) + total > (item.CreditLimit || 0);
+                            return (
+                              <TouchableOpacity
+                                key={item.MemberId}
+                                style={[
+                                  styles.memberListItem,
+                                  isSelected && styles.selectedMemberItem,
+                                  !item.IsActive && { opacity: 0.5 }
+                                ]}
+                                disabled={!item.IsActive}
+                                onPress={() => {
+                                  if (!item.IsActive) {
+                                    showToast({ type: "warning", message: "Inactive Member", subtitle: "Cannot select inactive member" });
+                                    return;
+                                  }
+                                  setSelectedMember(item);
+                                  
+                                  // Auto-confirm payment on click
+                                  setShowMemberModal(false);
+                                  if (!isSplitActive) {
+                                    const isLimitExceeded = (item.CurrentBalance || 0) + total > (item.CreditLimit || 0);
+                                    if (isLimitExceeded) {
+                                      Alert.alert(
+                                        "Credit Limit Exceeded",
+                                        `Outstanding will be ${currencySymbol}${((item.CurrentBalance || 0) + total).toFixed(2)} exceeding limit of ${currencySymbol}${(item.CreditLimit || 0).toFixed(2)}. Authorize credit purchase?`,
+                                        [
+                                          { text: "Cancel", style: "cancel" },
+                                          { text: "Authorize & Confirm", onPress: () => executeFinalPayment() }
+                                        ]
+                                      );
+                                    } else {
+                                      executeFinalPayment();
+                                    }
+                                  }
+                                }}
+                              >
+                                <View style={{ flex: 1 }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={[styles.memberNameText, isSelected && { color: Theme.primary }]}>{item.Name}</Text>
+                                    {!item.IsActive && <View style={styles.inactiveBadge}><Text style={styles.inactiveBadgeText}>INACTIVE</Text></View>}
+                                  </View>
+                                  <Text style={styles.memberPhoneText}>{item.Phone}</Text>
+                                  <Text style={{ fontSize: 11, fontFamily: Fonts.medium, color: Theme.textMuted, marginTop: 4 }}>
+                                    Limit: {currencySymbol}{(item.CreditLimit || 0).toFixed(2)} | Balance: {currencySymbol}{(item.CurrentBalance || 0).toFixed(2)}
+                                  </Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                  <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: isLimitExceeded ? Theme.danger : Theme.success }}>
+                                    Rem: {currencySymbol}{remainingCredit.toFixed(2)}
+                                  </Text>
+                                  {isLimitExceeded && (
+                                    <Text style={{ fontSize: 10, fontFamily: Fonts.medium, color: Theme.danger, marginTop: 2 }}>
+                                      Limit Exceeded
+                                    </Text>
+                                  )}
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })
+                        )}
+                      </View>
+
+                      {/* Selected Member Details & Confirmation */}
+                      {selectedMember && (
+                        <View style={styles.selectedMemberDetailCard}>
+                          <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary }}>SELECTED ACCOUNT</Text>
+                          <View style={{ marginTop: 6, gap: 4 }}>
+                            <Text style={{ fontSize: 14, fontFamily: Fonts.bold, color: Theme.primary }}>{selectedMember.Name} ({selectedMember.Phone})</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                              <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Bill Amount:</Text>
+                              <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>{currencySymbol}{total.toFixed(2)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Remaining Credit:</Text>
+                              <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                                {currencySymbol}{(selectedMember.CreditLimit - selectedMember.CurrentBalance).toFixed(2)}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Modal Actions */}
+                      <View style={styles.adjustModalActions}>
+                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowMemberModal(false)}>
+                          <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.confirmBtn,
+                            (!selectedMember || (((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0)) && !(user?.role === "ADMIN" || user?.role === "MANAGER"))) && { backgroundColor: Theme.border, opacity: 0.7 }
+                          ]}
+                          disabled={!selectedMember || (((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0)) && !(user?.role === "ADMIN" || user?.role === "MANAGER"))}
+                          onPress={() => {
+                            setShowMemberModal(false);
+                            if (!isSplitActive) {
+                              const isLimitExceeded = (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0);
+                              if (isLimitExceeded) {
+                                Alert.alert(
+                                  "Credit Limit Exceeded",
+                                  `Outstanding will be ${currencySymbol}${((selectedMember.CurrentBalance || 0) + total).toFixed(2)} exceeding limit of ${currencySymbol}${(selectedMember.CreditLimit || 0).toFixed(2)}. Authorize credit purchase?`,
+                                  [
+                                    { text: "Cancel", style: "cancel" },
+                                    { text: "Authorize & Confirm", onPress: () => executeFinalPayment() }
+                                  ]
+                                );
+                              } else {
+                                executeFinalPayment();
+                              }
+                            }
+                          }}
+                        >
+                          <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>
+                            {selectedMember && (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0) ? "Authorize & Confirm" : "Confirm Credit Payment"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
+                </ScrollView>
               </View>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {showCountryCodeModal && (
+        <Modal
+          visible={showCountryCodeModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowCountryCodeModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay} 
+            activeOpacity={1} 
+            onPress={() => setShowCountryCodeModal(false)}
+          >
+            <View style={[styles.adjustModalContent, { maxHeight: '60%', width: '80%' }]}>
+              <View style={styles.adjustModalHeader}>
+                <Text style={styles.adjustModalTitle}>Select Country Code</Text>
+                <TouchableOpacity onPress={() => setShowCountryCodeModal(false)}>
+                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView>
+                {[
+                  { code: "+65", label: "Singapore (+65)", flag: "🇸🇬" },
+                  { code: "+60", label: "Malaysia (+60)", flag: "🇲🇾" },
+                  { code: "+971", label: "UAE (+971)", flag: "🇦🇪" },
+                  { code: "+91", label: "India (+91)", flag: "🇮🇳" },
+                  { code: "+1", label: "US/Canada (+1)", flag: "🇺🇸" },
+                  { code: "+44", label: "UK (+44)", flag: "🇬🇧" },
+                  { code: "+61", label: "Australia (+61)", flag: "🇦🇺" },
+                  { code: "+62", label: "Indonesia (+62)", flag: "🇮🇩" },
+                  { code: "+66", label: "Thailand (+66)", flag: "🇹🇭" },
+                ].map((c) => (
+                  <TouchableOpacity
+                    key={c.code}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 12,
+                      borderBottomWidth: 0.5,
+                      borderBottomColor: Theme.border
+                    }}
+                    onPress={() => {
+                      setSelectedCountryCode(c.code);
+                      setShowCountryCodeModal(false);
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                      {c.flag}  {c.label}
+                    </Text>
+                    {selectedCountryCode === c.code && (
+                      <Ionicons name="checkmark" size={20} color={Theme.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
