@@ -15,15 +15,16 @@ import {
   StatusBar,
   Linking,
   Dimensions,
+  BackHandler,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
-import SplitPaymentComponent from "../components/payment/SplitPaymentComponent";
 import { useCompanySettingsStore } from "@/stores/companySettingsStore";
 
 type CustomerAgingType = {
@@ -71,6 +72,8 @@ export default function ReceivablesScreen() {
   const { user, token } = useAuthStore();
   const settingsStore = useCompanySettingsStore((state) => state.settings);
   const currencySymbol = settingsStore?.currencySymbol || "$";
+  const { width: screenWidth } = useWindowDimensions();
+  const isMobile = screenWidth < 768;
 
   // Tab state
   const [activeTab, setActiveTab] = useState<"DASHBOARD" | "AGING">("DASHBOARD");
@@ -104,7 +107,6 @@ export default function ReceivablesScreen() {
   const [allocationMode, setAllocationMode] = useState<"FIFO" | "MANUAL">("FIFO");
   const [manualAllocations, setManualAllocations] = useState<{ [settlementId: string]: string }>({});
   const [submittingCollection, setSubmittingCollection] = useState(false);
-  const [paymentStep, setPaymentStep] = useState<"AMOUNT" | "SPLIT">("AMOUNT");
 
   const fetchPaymentMethods = async () => {
     try {
@@ -160,6 +162,32 @@ export default function ReceivablesScreen() {
     fetchPaymentMethods();
   }, [fetchData]);
 
+  // Handle hardware back button on Android
+  useEffect(() => {
+    const backAction = () => {
+      if (showCollectModal) {
+        setShowCollectModal(false);
+        return true;
+      }
+      if (showLedgerModal) {
+        setShowLedgerModal(false);
+        setSelectedCustomer(null);
+        setTransactions([]);
+        setOutstandingBills([]);
+        return true;
+      }
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(tabs)/category");
+      }
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+    return () => backHandler.remove();
+  }, [showCollectModal, showLedgerModal]);
+
   // Fetch individual customer statements and unpaid bills
   const fetchCustomerDetails = async (customer: CustomerAgingType) => {
     setLoadingDetails(true);
@@ -194,30 +222,6 @@ export default function ReceivablesScreen() {
     setSelectedCustomer(customer);
     setShowLedgerModal(true);
     fetchCustomerDetails(customer);
-  };
-
-  // Open collection payment modal
-  const handleOpenCollectPayment = () => {
-    if (!selectedCustomer) return;
-    setCollectAmount(String(selectedCustomer.OutstandingBalance || 0));
-    setCollectMethod("CASH");
-    setCollectRemarks("");
-    setAllocationMode("FIFO");
-    setPaymentStep("AMOUNT");
-    
-    // Auto fill manual allocations based on outstanding bills
-    const initialManual: { [settlementId: string]: string } = {};
-    let runningPayment = selectedCustomer.OutstandingBalance || 0;
-    
-    outstandingBills.forEach((bill) => {
-      const due = bill.OutstandingAmount;
-      const alloc = Math.min(runningPayment, due);
-      initialManual[bill.SettlementId] = alloc > 0 ? alloc.toFixed(2) : "0.00";
-      runningPayment -= alloc;
-    });
-
-    setManualAllocations(initialManual);
-    setShowCollectModal(true);
   };
 
   // Calculate allocated sum for manual allocation
@@ -423,46 +427,93 @@ export default function ReceivablesScreen() {
           }
         >
           {/* --- KPI Stats section --- */}
-          <View style={styles.kpiContainer}>
-            <View style={[styles.kpiCard, { backgroundColor: Theme.bgDark, borderColor: Theme.borderDark }]}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <Text style={[styles.kpiLabel, { color: Theme.textMuted }]}>TOTAL OUTSTANDING</Text>
-                <Ionicons name="alert-circle" size={18} color={Theme.warning} />
+          {isMobile ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 15 }}
+            >
+              <View style={[styles.kpiCard, { width: 220, backgroundColor: Theme.bgDark, borderColor: Theme.borderDark }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <Text style={[styles.kpiLabel, { color: Theme.textMuted }]}>TOTAL OUTSTANDING</Text>
+                  <Ionicons name="alert-circle" size={18} color={Theme.warning} />
+                </View>
+                <Text style={[styles.kpiVal, { color: "#FFF" }]}>
+                  {currencySymbol}{(stats?.totalOutstanding || 0).toFixed(2)}
+                </Text>
+                <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 4 }}>
+                  Active Accounts: {stats?.totalCustomersWithCredit || 0}
+                </Text>
               </View>
-              <Text style={[styles.kpiVal, { color: "#FFF" }]}>
-                {currencySymbol}{(stats?.totalOutstanding || 0).toFixed(2)}
-              </Text>
-              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 4 }}>
-                Active Accounts: {stats?.totalCustomersWithCredit || 0}
-              </Text>
-            </View>
 
-            <View style={[styles.kpiCard, { backgroundColor: Theme.danger + "10", borderColor: Theme.danger }]}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <Text style={[styles.kpiLabel, { color: Theme.danger }]}>OVERDUE (30+ DAYS)</Text>
-                <Ionicons name="warning" size={18} color={Theme.danger} />
+              <View style={[styles.kpiCard, { width: 220, backgroundColor: Theme.danger + "10", borderColor: Theme.danger }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <Text style={[styles.kpiLabel, { color: Theme.danger }]}>OVERDUE (30+ DAYS)</Text>
+                  <Ionicons name="warning" size={18} color={Theme.danger} />
+                </View>
+                <Text style={[styles.kpiVal, { color: Theme.danger }]}>
+                  {currencySymbol}{(stats?.totalOverdue || 0).toFixed(2)}
+                </Text>
+                <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textSecondary, marginTop: 4 }}>
+                  Action required immediately
+                </Text>
               </View>
-              <Text style={[styles.kpiVal, { color: Theme.danger }]}>
-                {currencySymbol}{(stats?.totalOverdue || 0).toFixed(2)}
-              </Text>
-              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textSecondary, marginTop: 4 }}>
-                Action required immediately
-              </Text>
-            </View>
 
-            <View style={[styles.kpiCard, { backgroundColor: Theme.success + "10", borderColor: Theme.success }]}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <Text style={[styles.kpiLabel, { color: Theme.success }]}>COLLECTED THIS MONTH</Text>
-                <Ionicons name="checkmark-done" size={18} color={Theme.success} />
+              <View style={[styles.kpiCard, { width: 220, backgroundColor: Theme.success + "10", borderColor: Theme.success }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <Text style={[styles.kpiLabel, { color: Theme.success }]}>COLLECTED THIS MONTH</Text>
+                  <Ionicons name="checkmark-done" size={18} color={Theme.success} />
+                </View>
+                <Text style={[styles.kpiVal, { color: Theme.success }]}>
+                  {currencySymbol}{(stats?.collectionsThisMonth || 0).toFixed(2)}
+                </Text>
+                <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textSecondary, marginTop: 4 }}>
+                  Today: {currencySymbol}{(stats?.collectionsToday || 0).toFixed(2)}
+                </Text>
               </View>
-              <Text style={[styles.kpiVal, { color: Theme.success }]}>
-                {currencySymbol}{(stats?.collectionsThisMonth || 0).toFixed(2)}
-              </Text>
-              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textSecondary, marginTop: 4 }}>
-                Today: {currencySymbol}{(stats?.collectionsToday || 0).toFixed(2)}
-              </Text>
+            </ScrollView>
+          ) : (
+            <View style={styles.kpiContainer}>
+              <View style={[styles.kpiCard, { backgroundColor: Theme.bgDark, borderColor: Theme.borderDark }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <Text style={[styles.kpiLabel, { color: Theme.textMuted }]}>TOTAL OUTSTANDING</Text>
+                  <Ionicons name="alert-circle" size={18} color={Theme.warning} />
+                </View>
+                <Text style={[styles.kpiVal, { color: "#FFF" }]}>
+                  {currencySymbol}{(stats?.totalOutstanding || 0).toFixed(2)}
+                </Text>
+                <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 4 }}>
+                  Active Accounts: {stats?.totalCustomersWithCredit || 0}
+                </Text>
+              </View>
+
+              <View style={[styles.kpiCard, { backgroundColor: Theme.danger + "10", borderColor: Theme.danger }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <Text style={[styles.kpiLabel, { color: Theme.danger }]}>OVERDUE (30+ DAYS)</Text>
+                  <Ionicons name="warning" size={18} color={Theme.danger} />
+                </View>
+                <Text style={[styles.kpiVal, { color: Theme.danger }]}>
+                  {currencySymbol}{(stats?.totalOverdue || 0).toFixed(2)}
+                </Text>
+                <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textSecondary, marginTop: 4 }}>
+                  Action required immediately
+                </Text>
+              </View>
+
+              <View style={[styles.kpiCard, { backgroundColor: Theme.success + "10", borderColor: Theme.success }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <Text style={[styles.kpiLabel, { color: Theme.success }]}>COLLECTED THIS MONTH</Text>
+                  <Ionicons name="checkmark-done" size={18} color={Theme.success} />
+                </View>
+                <Text style={[styles.kpiVal, { color: Theme.success }]}>
+                  {currencySymbol}{(stats?.collectionsThisMonth || 0).toFixed(2)}
+                </Text>
+                <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textSecondary, marginTop: 4 }}>
+                  Today: {currencySymbol}{(stats?.collectionsToday || 0).toFixed(2)}
+                </Text>
+              </View>
             </View>
-          </View>
+          )}
 
           {/* --- Navigation Tabs --- */}
           <View style={styles.tabsWrapper}>
@@ -520,10 +571,10 @@ export default function ReceivablesScreen() {
               ) : (
                 filteredCustomers.map((item) => (
                   <TouchableOpacity
-                    key={item.MemberId}
-                    style={styles.customerCard}
-                    activeOpacity={0.8}
-                    onPress={() => handleOpenCustomer(item)}
+                     key={item.MemberId}
+                     style={styles.customerCard}
+                     activeOpacity={0.8}
+                     onPress={() => handleOpenCustomer(item)}
                   >
                     <View style={styles.cardHeader}>
                       <View style={styles.avatarCircle}>
@@ -637,7 +688,7 @@ export default function ReceivablesScreen() {
         {/* ================= LEDGER STATEMENT VIEW MODAL ================= */}
         <Modal visible={showLedgerModal} transparent animationType="slide">
           <View style={styles.modalOverlay}>
-            <View style={styles.ledgerSheet}>
+            <View style={[styles.ledgerSheet, isMobile && { height: "95%", borderRadius: 16 }]}>
               {/* Header */}
               <View style={styles.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -674,7 +725,7 @@ export default function ReceivablesScreen() {
                       style={[styles.ledgerTabBtn, ledgerTab === "LEDGER" && styles.activeLedgerTabBtn]}
                       onPress={() => setLedgerTab("LEDGER")}
                     >
-                      <Text style={[styles.ledgerTabText, ledgerTab === "LEDGER" && styles.activeLedgerTabText]}>
+                      <Text style={[styles.ledgerTabText, ledgerTab === "LEDGER" && styles.activeLedgerTabText, isMobile && { fontSize: 11 }]}>
                         Transaction Statement
                       </Text>
                     </TouchableOpacity>
@@ -682,13 +733,13 @@ export default function ReceivablesScreen() {
                       style={[styles.ledgerTabBtn, ledgerTab === "BILLS" && styles.activeLedgerTabBtn]}
                       onPress={() => setLedgerTab("BILLS")}
                     >
-                      <Text style={[styles.ledgerTabText, ledgerTab === "BILLS" && styles.activeLedgerTabText]}>
+                      <Text style={[styles.ledgerTabText, ledgerTab === "BILLS" && styles.activeLedgerTabText, isMobile && { fontSize: 11 }]}>
                         Open Invoices ({outstandingBills.length})
                       </Text>
                     </TouchableOpacity>
                   </View>
 
-                  <ScrollView style={{ flex: 1, padding: 20 }} showsVerticalScrollIndicator={false}>
+                  <ScrollView style={{ flex: 1, padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
                     {ledgerTab === "LEDGER" ? (
                       /* --- Ledger transaction statement history --- */
                       <View style={{ paddingBottom: 20 }}>
@@ -712,9 +763,9 @@ export default function ReceivablesScreen() {
                               
                               return (
                                 <View key={tx.TransactionId || idx} style={styles.ledgerRow}>
-                                  <Text style={[styles.ledgerCol, { flex: 1.1, fontSize: 11 }]}>{formattedDate}</Text>
+                                  <Text style={[styles.ledgerCol, { flex: 1.1, fontSize: 10 }]}>{formattedDate}</Text>
                                   <View style={{ flex: 1.2 }}>
-                                    <Text style={[styles.ledgerCol, { fontFamily: Fonts.bold }]}>
+                                    <Text style={[styles.ledgerCol, { fontFamily: Fonts.bold, fontSize: 11 }]}>
                                       {tx.TransactionType} {tx.BillNo ? `#${tx.BillNo}` : ""}
                                     </Text>
                                     {tx.Remarks && (
@@ -723,10 +774,10 @@ export default function ReceivablesScreen() {
                                       </Text>
                                     )}
                                   </View>
-                                  <Text style={[styles.ledgerCol, { flex: 0.8, textAlign: "right", fontFamily: Fonts.bold, color: isDebit ? Theme.danger : Theme.success }]}>
+                                  <Text style={[styles.ledgerCol, { flex: 0.8, textAlign: "right", fontFamily: Fonts.bold, color: isDebit ? Theme.danger : Theme.success, fontSize: 11 }]}>
                                     {isDebit ? "+" : "-"}{currencySymbol}{tx.Amount.toFixed(0)}
                                   </Text>
-                                  <Text style={[styles.ledgerCol, { flex: 0.9, textAlign: "right", fontFamily: Fonts.black }]}>
+                                  <Text style={[styles.ledgerCol, { flex: 0.9, textAlign: "right", fontFamily: Fonts.black, fontSize: 11 }]}>
                                     {currencySymbol}{tx.runningBalance.toFixed(0)}
                                   </Text>
                                 </View>
@@ -784,7 +835,7 @@ export default function ReceivablesScreen() {
                   </ScrollView>
 
                   {/* Actions footer */}
-                  <View style={styles.ledgerActions}>
+                  <View style={[styles.ledgerActions, isMobile && { flexDirection: "column", gap: 10, padding: 12 }]}>
                     <TouchableOpacity
                       onPress={handleSendWhatsAppReminder}
                       style={[styles.actionButton, { backgroundColor: Theme.bgInput, borderWidth: 1, borderColor: Theme.border }]}
@@ -827,7 +878,7 @@ export default function ReceivablesScreen() {
         {/* ================= COLLECTION & ALLOCATION MODAL ================= */}
         <Modal visible={showCollectModal} transparent animationType="fade">
           <View style={styles.modalOverlay}>
-            <View style={styles.collectCard}>
+            <View style={[styles.collectCard, isMobile && { width: "100%", maxHeight: "95%" }]}>
               <View style={styles.adjustModalHeader}>
                 <View>
                   <Text style={styles.adjustModalTitle}>Collect Payment</Text>
@@ -838,7 +889,7 @@ export default function ReceivablesScreen() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
                 {/* Collected Amount Input */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>COLLECTED AMOUNT ({currencySymbol})</Text>
@@ -894,8 +945,8 @@ export default function ReceivablesScreen() {
                       onPress={() => setAllocationMode("FIFO")}
                     >
                       <Ionicons name="list-outline" size={16} color={allocationMode === "FIFO" ? "#FFF" : Theme.textSecondary} />
-                      <Text style={[styles.allocToggleText, allocationMode === "FIFO" && styles.activeAllocToggleText]}>
-                        FIFO (Auto Oldest First)
+                      <Text style={[styles.allocToggleText, allocationMode === "FIFO" && styles.activeAllocToggleText, isMobile && { fontSize: 10 }]}>
+                        FIFO (Auto)
                       </Text>
                     </TouchableOpacity>
 
@@ -904,8 +955,8 @@ export default function ReceivablesScreen() {
                       onPress={() => setAllocationMode("MANUAL")}
                     >
                       <Ionicons name="options-outline" size={16} color={allocationMode === "MANUAL" ? "#FFF" : Theme.textSecondary} />
-                      <Text style={[styles.allocToggleText, allocationMode === "MANUAL" && styles.activeAllocToggleText]}>
-                        Manual (Bill-by-Bill)
+                      <Text style={[styles.allocToggleText, allocationMode === "MANUAL" && styles.activeAllocToggleText, isMobile && { fontSize: 10 }]}>
+                        Manual (Bill)
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -917,7 +968,7 @@ export default function ReceivablesScreen() {
                     <Text style={styles.manualAllocTitle}>Allocate Collected Dues:</Text>
                     <View style={styles.liveAllocSummary}>
                       <Text style={styles.liveAllocText}>
-                        Total collected: <Text style={{ fontFamily: Fonts.black }}>{currencySymbol}{(parseFloat(collectAmount) || 0).toFixed(2)}</Text>
+                        Collected: <Text style={{ fontFamily: Fonts.black }}>{currencySymbol}{(parseFloat(collectAmount) || 0).toFixed(2)}</Text>
                       </Text>
                       <Text style={[
                         styles.liveAllocText,
@@ -1033,7 +1084,7 @@ const styles = StyleSheet.create({
   agingGridValue: { fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary, marginTop: 4 },
 
   // Ledger sheets
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 10 },
   ledgerSheet: { backgroundColor: Theme.bgCard, borderRadius: 24, width: "100%", maxWidth: 650, height: "90%", ...Theme.shadowLg, overflow: "hidden" },
   sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1, borderBottomColor: Theme.border },
   sheetTitle: { color: Theme.textPrimary, fontSize: 20, fontFamily: Fonts.black },

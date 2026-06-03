@@ -489,7 +489,7 @@ router.get("/receivables/aging", async (req, res) => {
         ISNULL(SUM(CASE WHEN b.AgeDays > 60 AND b.AgeDays <= 90 THEN b.NetOutstanding ELSE 0 END), 0) AS Bucket61to90,
         ISNULL(SUM(CASE WHEN b.AgeDays > 90 THEN b.NetOutstanding ELSE 0 END), 0) AS Bucket90Plus
       FROM CreditCustomerMaster m
-      INNER JOIN BillBalances b ON m.CustomerId = b.MemberId
+      LEFT JOIN BillBalances b ON m.CustomerId = b.MemberId
       WHERE m.IsActive = 1
       GROUP BY m.CustomerId, m.Name, m.Phone
       ORDER BY m.Name
