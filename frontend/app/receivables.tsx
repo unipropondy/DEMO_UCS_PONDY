@@ -884,22 +884,22 @@ export default function ReceivablesScreen() {
                     <TouchableOpacity
                       onPress={() => {
                         if (!selectedCustomer) return;
-                        setShowLedgerModal(false);
-                        router.push({
-                          pathname: "/payment",
-                          params: {
-                            memberId: selectedCustomer.MemberId,
-                            collectAmount: String(selectedCustomer.OutstandingBalance || 0),
-                            memberName: selectedCustomer.Name,
-                            memberPhone: selectedCustomer.Phone,
-                          }
+                        setCollectAmount(selectedCustomer.OutstandingBalance > 0 ? selectedCustomer.OutstandingBalance.toFixed(2) : "");
+                        setCollectRemarks("");
+                        setAllocationMode("FIFO");
+                        const updated: { [settlementId: string]: string } = {};
+                        outstandingBills.forEach((bill) => {
+                          updated[bill.SettlementId] = "0.00";
                         });
+                        setManualAllocations(updated);
+                        setShowLedgerModal(false);
+                        setShowCollectModal(true);
                       }}
                       style={[styles.actionButton, { backgroundColor: Theme.primary }]}
                       disabled={!selectedCustomer || selectedCustomer.OutstandingBalance <= 0.01}
                     >
-                      <Ionicons name="wallet-outline" size={20} color="#FFF" />
-                      <Text style={[styles.actionButtonText, { color: "#FFF" }]}>
+                      <Ionicons name="wallet-outline" size={20} color="#fff" />
+                      <Text style={[styles.actionButtonText, { color: "#fff" }]}>
                         Record Collection
                       </Text>
                     </TouchableOpacity>
