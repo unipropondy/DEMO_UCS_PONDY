@@ -873,7 +873,11 @@ export default function ReceivablesScreen() {
                   <View style={[styles.ledgerActions, isMobile && { flexDirection: "column", gap: 10, padding: 12 }]}>
                     <TouchableOpacity
                       onPress={handleSendWhatsAppReminder}
-                      style={[styles.actionButton, { backgroundColor: Theme.bgInput, borderWidth: 1, borderColor: Theme.border }]}
+                      style={[
+                        styles.actionButton,
+                        { backgroundColor: Theme.bgInput, borderWidth: 1, borderColor: Theme.border },
+                        isMobile && { flex: 0, width: "100%" }
+                      ]}
                     >
                       <Ionicons name="logo-whatsapp" size={20} color={Theme.success} />
                       <Text style={[styles.actionButtonText, { color: Theme.textPrimary }]}>
@@ -895,7 +899,11 @@ export default function ReceivablesScreen() {
                         setShowLedgerModal(false);
                         setShowCollectModal(true);
                       }}
-                      style={[styles.actionButton, { backgroundColor: Theme.primary }]}
+                      style={[
+                        styles.actionButton,
+                        { backgroundColor: Theme.primary },
+                        isMobile && { flex: 0, width: "100%" }
+                      ]}
                       disabled={!selectedCustomer || selectedCustomer.OutstandingBalance <= 0.01}
                     >
                       <Ionicons name="wallet-outline" size={20} color="#fff" />
