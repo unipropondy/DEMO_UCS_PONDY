@@ -61,9 +61,9 @@ export default function KitchenStatusScreen() {
         };
       }
 
-      // Add items that are SENT, READY, SERVED, or VOIDED
+      // Add items that are SENT, READY, or VOIDED
       order.items.forEach((i: any) => {
-        if (i.status === "SENT" || i.status === "READY" || i.status === "SERVED" || i.status === "VOIDED") {
+        if (i.status === "SENT" || i.status === "READY" || i.status === "VOIDED") {
           // Deduplicate items by lineItemId
           const exists = tableGroups[groupKey].items.find((ei: any) => ei.lineItemId === i.lineItemId);
           if (!exists) {
@@ -74,40 +74,18 @@ export default function KitchenStatusScreen() {
     });
 
     return Object.values(tableGroups)
-      // Only show orders/tables that have at least one active item (SENT/cooking or READY)
-      .filter(g => g.items.some((i: any) => i.status === "SENT" || i.status === "READY"))
+      .filter(g => g.items.length > 0)
       .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
   }, [activeOrders]);
 
   const renderOrderItem = (orderId: string, item: any) => {
     const isReady = item.status === "READY";
-    const isServed = item.status === "SERVED";
-    const isVoided = item.status === "VOIDED";
-
-    let badgeStyle = styles.statusBadgePrep;
-    let badgeText = "COOKING";
-    let badgeIcon = "restaurant" as const;
-
-    if (isReady) {
-      badgeStyle = styles.statusBadgeReady;
-      badgeText = "READY";
-      badgeIcon = "notifications" as const;
-    } else if (isServed) {
-      badgeStyle = styles.statusBadgeServed;
-      badgeText = "SERVED";
-      badgeIcon = "checkmark-done-circle" as const;
-    } else if (isVoided) {
-      badgeStyle = styles.statusBadgeVoided;
-      badgeText = "VOIDED";
-      badgeIcon = "ban" as const;
-    }
-
     return (
       <View key={item.lineItemId} style={[styles.itemRow, isReady && styles.itemReadyRow]}>
         <View style={styles.itemMain}>
           <View style={styles.itemTitle}>
             <Text style={styles.itemQty}>{item.qty}x</Text>
-            <Text style={[styles.itemName, isVoided && styles.strikeThrough]}>{item.name}</Text>
+            <Text style={[styles.itemName, item.status === "VOIDED" && styles.strikeThrough]}>{item.name}</Text>
           </View>
           {(!!item.isTakeaway || !!item.IsTakeaway || !!item.isTakeAway) && (
             <View style={styles.takeawayBadge}>
@@ -136,14 +114,14 @@ export default function KitchenStatusScreen() {
         </View>
 
         <View style={{ alignItems: 'flex-end', gap: 6 }}>
-          <View style={[styles.statusBadge, badgeStyle]}>
+          <View style={[styles.statusBadge, isReady ? styles.statusBadgeReady : styles.statusBadgePrep]}>
             <Ionicons 
-              name={badgeIcon} 
+              name={isReady ? "notifications" : "restaurant"} 
               size={12} 
               color="#FFF" 
             />
             <Text style={styles.statusBadgeText}>
-              {badgeText}
+              {isReady ? "READY" : "COOKING"}
             </Text>
           </View>
 
@@ -166,8 +144,7 @@ export default function KitchenStatusScreen() {
 
   const renderOrderCard = ({ item }: { item: any }) => {
     const readyCount = item.items.filter((i: any) => i.status === "READY").length;
-    const servedCount = item.items.filter((i: any) => i.status === "SERVED").length;
-    const totalCount = item.items.filter((i: any) => i.status !== "VOIDED").length;
+    const totalCount = item.items.length;
     const isDineIn = item.context.orderType === "DINE_IN";
 
     return (
@@ -190,7 +167,7 @@ export default function KitchenStatusScreen() {
           </View>
           <View style={styles.headerRight}>
             <View style={styles.orderStats}>
-              <Text style={styles.statsText}>{readyCount + servedCount}/{totalCount} READY</Text>
+              <Text style={styles.statsText}>{readyCount}/{totalCount} READY</Text>
             </View>
           </View>
         </View>
@@ -380,8 +357,6 @@ const styles = StyleSheet.create({
   },
   statusBadgePrep: { backgroundColor: "#3B82F6" },
   statusBadgeReady: { backgroundColor: "#22C55E" },
-  statusBadgeServed: { backgroundColor: "#F97316" }, // Orange
-  statusBadgeVoided: { backgroundColor: "#EF4444" }, // Red
   statusBadgeText: {
     color: "#FFF",
     fontSize: 10,
