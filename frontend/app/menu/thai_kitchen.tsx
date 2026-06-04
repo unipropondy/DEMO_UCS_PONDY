@@ -340,7 +340,8 @@ export default function MenuScreen() {
   const [selectedGroup, setSelectedGroup] = useState("");
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [isAdding, setIsAdding] = useState(false);
+  // Track in-flight modifier fetches to prevent duplicate requests
+  const fetchingModifiers = React.useRef<Set<string>>(new Set());
 
   // Modifier Modal State
   const [modifiers, setModifiers] = useState<any[]>([]);
@@ -800,7 +801,9 @@ export default function MenuScreen() {
 
   const openModifiers = React.useCallback(
     async (dish: any) => {
-      if (isAdding) return;
+      // Prevent concurrent fetches for the same dish
+    if (fetchingModifiers.current.has(dish.DishId)) return;
+    fetchingModifiers.current.add(dish.DishId);
 
       const currentKitchen = kitchens.find(
         (k) => k.CategoryId === selectedKitchenId,
@@ -835,7 +838,7 @@ export default function MenuScreen() {
         return;
       }
 
-      setIsAdding(true);
+      // No need to set isAdding state for UI blocking
       setLoadingModifiers(true);
       setSelectedDish(dish);
       setSelectedModifierIds([]);
@@ -854,11 +857,12 @@ export default function MenuScreen() {
       } catch (err) {
         addToCartSimple();
       } finally {
-        setIsAdding(false);
+        // Remove dishId from fetching set after fetch completes
+        fetchingModifiers.current.delete(dish.DishId);
         setLoadingModifiers(false);
       }
     },
-    [selectedKitchenId, kitchens, isAdding, modifierCache],
+    [selectedKitchenId, kitchens, modifierCache],
   );
 
   const renderDishItem = React.useCallback(
