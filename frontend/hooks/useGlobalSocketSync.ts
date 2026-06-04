@@ -219,6 +219,7 @@ export function useGlobalSocketSync() {
 
     return () => {
       socket.off("connect", handleConnect);
+      socket.off("connect_error", handleConnectError);
       socket.off("new_order", handleNewOrder);
       socket.off("table_status_updated", handleTableStatus);
       socket.off("item_status_updated", handleItemStatus);

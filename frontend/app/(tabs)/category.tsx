@@ -351,7 +351,6 @@ export default function Category() {
 
   // Removed global 'tables' selector for performance
   const getLockedName = useTableStatusStore((s: any) => s.getLockedName);
-  const syncLockedTables = useTableStatusStore((s: any) => s.syncLockedTables);
 
   const insets = useSafeAreaInsets();
   const isTablet = Math.min(width, height) >= 500;
@@ -435,7 +434,6 @@ export default function Category() {
   useEffect(() => {
     // Initial load
     fetchTables();
-    fetchLockedTables();
     
     // Only fetch settings if not already loaded
     usePaymentSettingsStore.getState().fetchSettings();
@@ -447,7 +445,6 @@ export default function Category() {
       // Re-fetch only if data is likely stale (older than 30s)
       const lastUpdate = useTableStatusStore.getState().tables[0]?.startTime || 0;
       if (Date.now() - lastUpdate > 30000) {
-        fetchLockedTables();
         fetchTables();
       }
     }, []),
@@ -461,31 +458,7 @@ export default function Category() {
     return () => clearInterval(interval);
   }, []); 
 
-  const fetchLockedTables = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/tables/locked`);
-      const lockedTables = await response.json();
-      if (Array.isArray(lockedTables)) {
-        const syncList = lockedTables.map((t: any) => {
-          const ds = Number(t.DiningSection);
-          let section = "SECTION_1";
-          if (ds === 1) section = "SECTION_1";
-          else if (ds === 2) section = "SECTION_2";
-          else if (ds === 3) section = "SECTION_3";
-          else if (ds === 4) section = "TAKEAWAY";
-          return {
-            tableId: t.tableId || t.TableId,
-            tableNo: t.tableNumber || t.TableNumber,
-            section,
-            lockedByName: t.lockedByName || "",
-          };
-        });
-        syncLockedTables(syncList);
-      }
-    } catch (error) {
-      console.error("Failed to fetch locked tables:", error);
-    }
-  };
+  // fetchLockedTables consolidated into fetchTables
 
 
 
@@ -613,8 +586,8 @@ export default function Category() {
                     0
                   );
                 }
-                fetchLockedTables();
-                Alert.alert("Success", `Table ${tableLabel} unlocked.`);
+                 fetchTables();
+                 Alert.alert("Success", `Table ${tableLabel} unlocked.`);
               } else {
                 Alert.alert("Error", data.error || "Failed to unlock");
               }
@@ -718,10 +691,9 @@ export default function Category() {
       });
       if (!res.ok) throw new Error("Failed to update status");
 
-      // Successfully updated backend
-      fetchTables(); // 🔥 refresh after update
-      if (status === 4) fetchLockedTables();
-      return true;
+       // Successfully updated backend
+       fetchTables(); // 🔥 refresh after update
+       return true;
     } catch (err) {
       console.error("Status update failed:", err);
       Alert.alert(

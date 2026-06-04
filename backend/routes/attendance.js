@@ -41,54 +41,7 @@ router.post("/getUser", async (req, res) => {
   }
 });
 
-// ================= VALIDATE PASSWORD =================
-router.post("/validatePassword", async (req, res) => {
-  try {
-    const { userName, password } = req.body;
-
-    if (!userName || !password) {
-      return res
-        .status(400)
-        .json({ message: "Username and password required" });
-    }
-
-    const pool = await poolPromise;
-    const result = await pool.request().input("UserName", sql.VarChar, userName)
-      .query(`
-        SELECT UserId, UserName, FullName, UserPassword
-        FROM Vw_UserMaster
-        WHERE UserName = @UserName AND IsDisabled = 0
-      `);
-
-    if (result.recordset.length === 0) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    const user = result.recordset[0];
-
-    // Decode base64 password (same as auth.js)
-    let storedPassword = user.UserPassword;
-    try {
-      storedPassword = Buffer.from(user.UserPassword, "base64").toString("utf8");
-    } catch (e) {
-      storedPassword = user.UserPassword;
-    }
-
-    if (storedPassword !== password) {
-      return res.status(401).json({ message: "Invalid password" });
-    }
-
-    res.json({
-      success: true,
-      message: "Password validated",
-      userId: user.UserId,
-      fullName: user.FullName,
-    });
-  } catch (err) {
-    console.error("VALIDATE PASSWORD ERROR:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+// Unused validatePassword endpoint removed
 
 // ================= GET TODAY'S SUMMARY =================
 router.get("/summary/:userId", async (req, res) => {
@@ -391,73 +344,7 @@ router.post("/save", async (req, res) => {
   }
 });
 
-// ================= SYNC OFFLINE ENTRIES =================
-router.post("/sync", async (req, res) => {
-  try {
-    const { entries } = req.body;
-
-    if (!entries || !Array.isArray(entries)) {
-      return res.status(400).json({ message: "Invalid entries array" });
-    }
-
-    const pool = await poolPromise;
-    const activeOrg = await getActiveOrganization();
-    const businessUnitId = activeOrg.businessUnitId;
-    let synced = 0;
-    let failed = 0;
-
-    for (const entry of entries) {
-      try {
-        // Verify user credentials for each entry
-        const userCheck = await pool
-          .request()
-          .input("UserId", sql.UniqueIdentifier, entry.userId)
-          .query(
-            `SELECT UserPassword FROM Vw_UserMaster WHERE UserId = @UserId AND IsDisabled = 0`,
-          );
-
-        if (userCheck.recordset.length === 0) {
-          failed++;
-          continue;
-        }
-
-        if (userCheck.recordset[0].UserPassword !== entry.password) {
-          failed++;
-          continue;
-        }
-
-        // Insert the entry
-        await pool
-          .request()
-          .input("UserId", sql.UniqueIdentifier, entry.userId)
-          .input("Status", sql.Int, entry.status)
-          .input("ClockTime", sql.DateTime, new Date(entry.timestamp))
-          .input("BusinessUnitId", sql.UniqueIdentifier, businessUnitId)
-          .input("CreatedBy", sql.UniqueIdentifier, entry.userId).query(`
-            INSERT INTO TimeEntry
-            (Userid, ClockinTime, status, BusinessUnitId, CreatedBy, CreatedOn, ModifiedBy, ModifiedOn)
-            VALUES
-            (@UserId, @ClockTime, @Status, @BusinessUnitId, @CreatedBy, GETDATE(), @CreatedBy, GETDATE())
-          `);
-
-        synced++;
-      } catch (err) {
-        console.error("Error syncing entry:", err);
-        failed++;
-      }
-    }
-
-    res.json({
-      success: true,
-      synced: synced,
-      failed: failed,
-      message: `Synced ${synced} entries, ${failed} failed`,
-    });
-  } catch (err) {
-    console.error("SYNC ERROR:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+// Unused sync offline entries endpoint removed
 
 // ================= GET TODAY'S ENTRIES =================
 router.get("/today/:userId", async (req, res) => {
@@ -504,73 +391,6 @@ router.get("/today/:userId", async (req, res) => {
   }
 });
 
-// ================= CHECK CURRENT STATUS =================
-router.get("/status/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    if (!userId) {
-      return res.status(400).json({ message: "UserId is required" });
-    }
-
-    const pool = await poolPromise;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const result = await pool
-      .request()
-      .input("UserId", sql.UniqueIdentifier, userId)
-      .input("StartDate", sql.DateTime, today)
-      .input("EndDate", sql.DateTime, tomorrow).query(`
-        SELECT TOP 1
-          status,
-          ClockinTime
-        FROM TimeEntry
-        WHERE Userid = @UserId 
-        AND CreatedOn >= @StartDate 
-        AND CreatedOn < @EndDate
-        ORDER BY CreatedOn DESC
-      `);
-
-    if (result.recordset.length === 0) {
-      return res.json({
-        status: "NOT_CLOCKED_IN",
-        clockedIn: false,
-        onBreak: false,
-        message: "No attendance record for today",
-      });
-    }
-
-    const lastEntry = result.recordset[0];
-    let currentStatus = "NOT_CLOCKED_IN";
-    let clockedIn = false;
-    let onBreak = false;
-
-    if (lastEntry.status === 1) {
-      currentStatus = "CLOCKED_IN";
-      clockedIn = true;
-    } else if (lastEntry.status === 3) {
-      currentStatus = "ON_BREAK";
-      clockedIn = true;
-      onBreak = true;
-    } else if (lastEntry.status === 0) {
-      currentStatus = "COMPLETED";
-    }
-
-    res.json({
-      status: currentStatus,
-      clockedIn,
-      onBreak,
-      lastAction: lastEntry.status,
-      lastTime: lastEntry.ClockinTime,
-    });
-  } catch (err) {
-    console.error("GET STATUS ERROR:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+// Unused check current status endpoint removed
 
 module.exports = router;

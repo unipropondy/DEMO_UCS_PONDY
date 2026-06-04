@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { poolPromise } = require("../config/db");
+const { poolPromise, sql } = require("../config/db");
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "supersecureposjwttokensecretkey";
 
@@ -150,34 +150,27 @@ router.post("/verify", async (req, res) => {
     }
 
     const pool = await poolPromise;
-    // Fetch all users from DB (No hardcoding, strictly from DB as requested)
+    const base64Password = Buffer.from(password).toString("base64");
+
+    // Perform database-level search to avoid pulling all credentials into Express memory
     const result = await pool.request()
+      .input("password", sql.VarChar, password)
+      .input("base64Password", sql.VarChar, base64Password)
       .query(`
-        SELECT u.UserPassword 
+        SELECT TOP 1 u.UserId 
         FROM [dbo].[UserMaster] u
         INNER JOIN [dbo].[UserGroupMaster] g ON u.UserGroupid = g.UserGroupId
         WHERE (u.IsDisabled IS NULL OR u.IsDisabled = 0)
           AND g.isActive = 1
+          AND (
+            u.UserPassword = @password
+            OR u.UserPassword = @base64Password
+            OR u.UserPassword LIKE @password + '-%'
+            OR u.UserPassword LIKE @base64Password + '-%'
+          )
       `);
 
-    let isValid = false;
-
-    // Check the password against all users in the DB
-    for (const row of result.recordset) {
-      const dbPassword = (row.UserPassword || "").trim();
-      const parts = dbPassword.split("-");
-      const candidates = [dbPassword, parts[0]].filter(c => c.length > 0);
-
-      for (const cand of candidates) {
-        if (cand === password) { isValid = true; break; }
-        try {
-          const decoded = Buffer.from(cand, "base64").toString("utf-8").trim();
-          if (decoded === password) { isValid = true; break; }
-        } catch (e) {}
-      }
-      if (isValid) break;
-    }
-
+    const isValid = result.recordset.length > 0;
     return res.json({ success: isValid });
   } catch (err) {
     console.error("VERIFY ERROR:", err);
