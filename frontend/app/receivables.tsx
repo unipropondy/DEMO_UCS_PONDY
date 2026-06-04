@@ -723,7 +723,7 @@ export default function ReceivablesScreen() {
           }}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.ledgerSheet, isMobile && { maxHeight: "95%", borderRadius: 16 }]}>
+            <View style={[styles.ledgerSheet, isMobile && { height: "85%", maxHeight: "85%", borderRadius: 16 }]}>
               {/* Header */}
               <View style={styles.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -926,7 +926,7 @@ export default function ReceivablesScreen() {
           onRequestClose={() => setShowCollectModal(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.collectCard, isMobile && { width: "100%", maxHeight: "95%" }]}>
+            <View style={[styles.collectCard, isMobile && { width: "100%", height: "85%", maxHeight: "85%", borderRadius: 16 }]}>
               <View style={styles.adjustModalHeader}>
                 <View>
                   <Text style={styles.adjustModalTitle}>Collect Payment</Text>
@@ -937,7 +937,7 @@ export default function ReceivablesScreen() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ flexShrink: 1, padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flex: 1, flexShrink: 1, padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
                 {/* Collected Amount Input */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>COLLECTED AMOUNT ({currencySymbol})</Text>
