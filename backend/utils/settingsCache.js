@@ -103,6 +103,15 @@ async function getAppSettings() {
   return cachedAppSettings;
 }
 
+async function getBusinessTimezoneSettings() {
+  const companySettings = await getCompanySettings();
+  
+  return {
+    timezone: companySettings?.BusinessTimezone || 'Asia/Singapore',
+    offsetMinutes: companySettings?.DayEndOffsetMinutes != null ? Number(companySettings.DayEndOffsetMinutes) : 0
+  };
+}
+
 function invalidateCache() {
   console.log("⚡ [SettingsCache] Cache INVALIDATION: Clearing all settings cache");
   cachedHoldOvertimeMinutes = null;
@@ -117,5 +126,6 @@ module.exports = {
   getHoldOvertimeMinutes,
   getCompanySettings,
   getAppSettings,
+  getBusinessTimezoneSettings,
   invalidateCache
 };

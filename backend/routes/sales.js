@@ -5,6 +5,8 @@ const { poolPromise } = require("../config/db");
 const { runInTransaction } = require("../utils/transactionHelper");
 const { getActiveOrganization } = require("../utils/organizationHelper");
 const { processSplitPayments } = require("../services/payment.service");
+const { getBusinessDaySqlBounds } = require("../utils/timezoneHelper");
+const { getBusinessTimezoneSettings } = require("../utils/settingsCache");
 
 // Helper to generate a random 8-character hex ID (e.g. A996E780)
 const generateRandomBillId = () => {
@@ -473,8 +475,8 @@ router.get("/category", async (req, res) => {
     const pool = await poolPromise;
     const filter = normalizeReportFilter(req.query.filter);
     const date = req.query.date;
-    const appDateWhereSql = getReportDateWhereSql(filter, "sh.LastSettlementDate", date);
-    const legacyDateWhereSql = getReportDateWhereSql(filter, "InvoiceDate", date);
+    const appDateWhereSql = await getReportDateWhereSql(filter, "sh.LastSettlementDate", date);
+    const legacyDateWhereSql = await getReportDateWhereSql(filter, "InvoiceDate", date);
     console.log(`[REPORT API] type=category filter=${filter} date=${date || 'today'}`);
 
     const result = await pool.request().query(`
@@ -549,8 +551,8 @@ router.get("/dish", async (req, res) => {
     const pool = await poolPromise;
     const filter = normalizeReportFilter(req.query.filter);
     const date = req.query.date;
-    const appDateWhereSql = getReportDateWhereSql(filter, "sh.LastSettlementDate", date);
-    const legacyDateWhereSql = getReportDateWhereSql(filter, "InvoiceDate", date);
+    const appDateWhereSql = await getReportDateWhereSql(filter, "sh.LastSettlementDate", date);
+    const legacyDateWhereSql = await getReportDateWhereSql(filter, "InvoiceDate", date);
     console.log(`[REPORT API] type=dish filter=${filter} date=${date || 'today'}`);
 
     const result = await pool.request().query(`
@@ -1918,7 +1920,7 @@ router.get("/consolidated-report/pdf", async (req, res) => {
 
     const filter = normalizeReportFilter(req.query.filter || 'daily');
     const date = req.query.date;
-    const dateWhereClause = getReportDateWhereSql(filter, "sh.LastSettlementDate", date);
+    const dateWhereClause = await getReportDateWhereSql(filter, "sh.LastSettlementDate", date);
 
     // Aggregate all settlement data
     const aggregateResult = await pool.request().query(`
