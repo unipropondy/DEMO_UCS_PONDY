@@ -793,26 +793,6 @@ export default function MenuScreen() {
     async (dish: any) => {
       console.log("Dish Clicked", dish);
 
-      try {
-
-        const res = await fetch(
-          `${API_URL}/api/menu/ordershare/${dish.DishId}`
-        );
-
-        const data = await res.json();
-
-        if (Array.isArray(data) && data.length > 0) {
-          setSelectedSplitDish(dish);
-          setSplitMembers(data);
-          setShowSplitModal(true);
-
-          return;
-        }
-
-      } catch (err) {
-        console.log(err);
-      }
-
       if (isAdding) return;
 
       const currentKitchen = kitchens.find(
