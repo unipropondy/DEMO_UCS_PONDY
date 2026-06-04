@@ -1680,26 +1680,6 @@ export default function PaymentScreen() {
                           }} />
                         </TouchableOpacity>
                       </View>
-
-                      <View style={styles.adjustModalActions}>
-                        <TouchableOpacity 
-                          style={styles.cancelBtn} 
-                          onPress={() => setIsQuickAddMode(false)}
-                        >
-                          <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Back to Search</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.confirmBtn, addingMember && { opacity: 0.7 }]}
-                          disabled={addingMember}
-                          onPress={handleQuickAddMember}
-                        >
-                          {addingMember ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                          ) : (
-                            <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Save & Select</Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
                     </View>
                   ) : (
                     /* SEARCH & LIST WORKFLOW */
@@ -1817,28 +1797,50 @@ export default function PaymentScreen() {
                           </View>
                         </View>
                       )}
-
-                      {/* Modal Actions */}
-                      <View style={styles.adjustModalActions}>
-                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowMemberModal(false)}>
-                          <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Cancel</Text>
-                        </TouchableOpacity>
-                        {selectedMember && (
-                          <TouchableOpacity
-                            style={styles.confirmBtn}
-                            onPress={() => {
-                              // Only close the modal and confirm member selection.
-                              // Payment is finalized by pressing "Complement Settlement" on the payment screen.
-                              setShowMemberModal(false);
-                            }}
-                          >
-                            <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Confirm</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
                     </>
                   )}
                 </ScrollView>
+
+                {/* Fixed bottom actions outside ScrollView */}
+                {isQuickAddMode ? (
+                  <View style={styles.adjustModalActions}>
+                    <TouchableOpacity 
+                      style={styles.cancelBtn} 
+                      onPress={() => setIsQuickAddMode(false)}
+                    >
+                      <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Back to Search</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.confirmBtn, addingMember && { opacity: 0.7 }]}
+                      disabled={addingMember}
+                      onPress={handleQuickAddMember}
+                    >
+                      {addingMember ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Save & Select</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.adjustModalActions}>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowMemberModal(false)}>
+                      <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Cancel</Text>
+                    </TouchableOpacity>
+                    {selectedMember && (
+                      <TouchableOpacity
+                        style={styles.confirmBtn}
+                        onPress={() => {
+                          // Only close the modal and confirm member selection.
+                          // Payment is finalized by pressing "Complement Settlement" on the payment screen.
+                          setShowMemberModal(false);
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Confirm</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </View>
             </TouchableWithoutFeedback>
           </View>
