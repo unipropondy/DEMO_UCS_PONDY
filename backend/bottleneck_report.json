@@ -1,0 +1,418 @@
+{
+  "timestamp": "2026-06-04T10:31:42.289Z",
+  "dbServer": "myerpcloud.dyndns.org:9199",
+  "dbName": "UCSPONDY",
+  "dns": {
+    "dnsMs": 79,
+    "resolved": "202.156.19.151"
+  },
+  "tcp": {
+    "avgMs": 943.89,
+    "minMs": 45,
+    "maxMs": 3063,
+    "failures": 1,
+    "samples": 9
+  },
+  "queries": [
+    {
+      "query": "Ping (SELECT 1)",
+      "avgMs": 1566.6,
+      "minMs": 94,
+      "maxMs": 7359,
+      "rows": 1,
+      "error": null,
+      "dmvData": null
+    },
+    {
+      "query": "TableMaster (live state)",
+      "avgMs": 227.2,
+      "minMs": 94,
+      "maxMs": 494,
+      "rows": 135,
+      "error": null,
+      "dmvData": null
+    },
+    {
+      "query": "Active cart (RestaurantOrderCur)",
+      "avgMs": 141.4,
+      "minMs": 92,
+      "maxMs": 230,
+      "rows": 6,
+      "error": null,
+      "dmvData": null
+    },
+    {
+      "query": "Menu load (DishMaster)",
+      "avgMs": null,
+      "minMs": null,
+      "maxMs": null,
+      "rows": 0,
+      "error": "Invalid column name 'Price'.",
+      "dmvData": null
+    },
+    {
+      "query": "Sales report (SettlementHeader TOP 200)",
+      "avgMs": 132.2,
+      "minMs": 99,
+      "maxMs": 214,
+      "rows": 200,
+      "error": null,
+      "dmvData": null
+    },
+    {
+      "query": "DMV: CPU + Memory snapshot",
+      "avgMs": 148,
+      "minMs": 148,
+      "maxMs": 148,
+      "rows": 1,
+      "error": null,
+      "dmvData": [
+        {
+          "sql_cpu_utilization": 0,
+          "combined": 92,
+          "total_cpu_utilization": 8
+        }
+      ]
+    },
+    {
+      "query": "DMV: Memory usage (MB)",
+      "avgMs": 105,
+      "minMs": 105,
+      "maxMs": 105,
+      "rows": 1,
+      "error": null,
+      "dmvData": [
+        {
+          "memory_used_mb": 5207.707031,
+          "page_fault_count": "5538469",
+          "memory_utilization_percentage": 100
+        }
+      ]
+    },
+    {
+      "query": "DMV: Disk I/O (top 5 tables by reads)",
+      "avgMs": null,
+      "minMs": null,
+      "maxMs": null,
+      "rows": 0,
+      "error": "Invalid column name 'leaf_physical_reads'.",
+      "dmvData": null
+    },
+    {
+      "query": "DMV: Connection pool & active sessions",
+      "avgMs": null,
+      "minMs": null,
+      "maxMs": null,
+      "rows": 0,
+      "error": "Invalid column name 'wait_type'.",
+      "dmvData": null
+    },
+    {
+      "query": "DMV: Top slow queries (avg elapsed > 100ms)",
+      "avgMs": 242,
+      "minMs": 242,
+      "maxMs": 242,
+      "rows": 10,
+      "error": null,
+      "dmvData": [
+        {
+          "query_text": "select * from OpenRowset(TABLE TRCDATA, @traceid, @records)",
+          "execution_count": "4",
+          "avg_elapsed_ms": 18087.638,
+          "avg_logical_reads": "0",
+          "avg_cpu_ms": 17.394
+        },
+        {
+          "query_text": "WITH AllMovements AS (\n                -- PURCHASE\n                SELECT \n                    PH.TranDate, PD.ItemID AS DishId, CONVERT(VARCHAR(100), PD.TranNo) AS TranNo,\n                    CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)) AS PQty, 0 AS PRQty, 0 AS SQty, 0 AS SRQty,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN purchaseHeader PH ON PD.TranId = PH.Tranid\n                WHERE PD.TranType = 'PURINV'\n\n                UNION ALL\n\n                -- PURCHASE RETURN\n                SELECT \n                    PH.TranDate, PD.ItemID, CONVERT(VARCHAR(100), PD.TranNo), \n                    0, CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN purchaseHeader PH ON PD.TranId = PH.Tranid\n                WHERE PD.TranType = 'PURRET'\n\n                UNION ALL\n\n                -- SALES\n                SELECT \n                    CONVERT(DATE, pd.OrderDateTime), od.DishId, CONVERT(VARCHAR(100), pd.BillNumber),\n                    0, 0, CONVERT(DECIMAL(18,2), ISNULL(od.Quantity, 0)), 0,\n                    pd.OrderDateTime\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.vw_RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.vw_RestaurantOrderDetailCur\n                ) od\n                INNER JOIN (\n                    SELECT OrderId, OrderDateTime, BillNumber FROM dbo.vw_PaymentDetail\n                    UNION ALL\n                    SELECT OrderId, OrderDateTime, BillNumber FROM dbo.vw_PaymentDetailCur\n                ) pd ON CAST(od.OrderId AS VARCHAR(50)) = CAST(pd.OrderId AS VARCHAR(50))\n                WHERE od.Exflag = 'N'\n\n                UNION ALL\n\n                -- SALES RETURN\n                SELECT \n                    CONVERT(DATE, pd.OrderDateTime), od.DishId, CONVERT(VARCHAR(100), pd.BillNumber),\n                    0, 0, 0, CONVERT(DECIMAL(18,2), ISNULL(od.Quantity, 0)),\n                    pd.OrderDateTime\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.vw_RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.vw_RestaurantOrderDetailCur\n                ) od\n                INNER JOIN (\n                    SELECT OrderId, OrderDateTime, BillNumber FROM dbo.vw_PaymentDetail\n                    UNION ALL\n                    SELECT OrderId, OrderDateTime, BillNumber FROM dbo.vw_PaymentDetailCur\n                ) pd ON CAST(od.OrderId AS VARCHAR(50)) = CAST(pd.OrderId AS VARCHAR(50))\n                WHERE od.Exflag IN ('E', 'R')\n\n                UNION ALL\n\n                -- STOCK LOCK (as a base)\n                SELECT \n                    CONVERT(DATE, SL.stockdate + 1), SL.DishID, 'STOCKLOCK',\n                    0, 0, 0, 0,\n                    SL.stockdate\n                FROM stocklock SL\n            ),\n            DishOpening AS (\n                -- Calculate Opening Balance as of @start ONLY for the dishes we are interested in\n                SELECT \n                    v_hist.DishId,\n                    SUM(v_hist.PQty - v_hist.PRQty - v_hist.SQty + v_hist.SRQty) AS OpeningBalance\n                FROM AllMovements v_hist\n                WHERE v_hist.TranDate < @start\n                AND v_hist.DishId IN (\n                    SELECT dm.DishId \n                    FROM DishMaster dm\n                    INNER JOIN DishGroupMaster dgm ON dm.DishGroupId = dgm.DishGroupId\n                    INNER JOIN CategoryMaster cm ON dgm.CategoryId = cm.CategoryId\n                    WHERE 1=1\n                    \n                    \n                    \n                )\n                GROUP BY v_hist.DishId\n            ),\n            DishTransactions AS (\n                -- Transactions in range\n                SELECT \n                    DishId, TranDate, TranNo, PQty, PRQty, SQty, SRQty, Createdon\n                FROM AllMovements\n                WHERE TranDate BETWEEN @start AND @end\n                AND DishId IN (\n                    SELECT dm.DishId \n                    FROM DishMaster dm\n                    INNER JOIN DishGroupMaster dgm ON dm.DishGroupId = dgm.DishGroupId\n                    INNER JOIN CategoryMaster cm ON dgm.CategoryId = cm.CategoryId\n                    WHERE 1=1\n                    \n                    \n                    \n                )\n            )\n            SELECT \n                CM.CategoryName       AS [Category Name],\n                DGM.DishGroupName      AS [DishGroup Name],\n                DM.Name               AS [DishName],\n                CONVERT(VARCHAR(10), v.TranDate, 103) AS [TranDate],\n                -- Running Balance logic for Opening\n                ISNULL(o.OpeningBalance, 0) + ISNULL(SUM(v.PQty - v.PRQty - v.SQty + v.SRQty) OVER (PARTITION BY v.DishId ORDER BY v.TranDate, v.Createdon ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS [Opening Stock],\n                v.PQty,\n                v.PRQty,\n                v.SQty,\n                v.SRQty,\n                -- Running Balance logic for Closing\n                ISNULL(o.OpeningBalance, 0) + ISNULL(SUM(v.PQty - v.PRQty - v.SQty + v.SRQty) OVER (PARTITION BY v.DishId ORDER BY v.TranDate, v.Createdon ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 0) AS [Closing Stock]\n            FROM DishTransactions v\n            LEFT JOIN DishOpening o ON v.DishId = o.DishId\n            INNER JOIN DishMaster DM ON v.DishId = DM.DishId\n            INNER JOIN DishGroupMaster DGM ON DM.DishGroupId = DGM.DishGroupId\n            INNER JOIN CategoryMaster CM ON DGM.CategoryId = CM.CategoryId\n            ORDER BY v.TranDate, CM.CategoryName, DGM.DishGroupName, DM.Name, v.Createdon",
+          "execution_count": "3",
+          "avg_elapsed_ms": 13614.986,
+          "avg_logical_reads": "1482875",
+          "avg_cpu_ms": 13434.955
+        },
+        {
+          "query_text": "WITH AllMovements(TranDate, DishId, TranNo, PQty, PRQty, SQty, SRQty, Createdon) AS (\n                -- PURCHASES\n                SELECT \n                    PH.Trandate, PD.ItemID as DishId, PH.TranNo,\n                    CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN PurchaseHeader PH ON PD.TranId = PH.TranId\n                WHERE PD.TranType = 'PURINV'\n\n                UNION ALL\n\n                -- PURCHASE RETURN\n                SELECT \n                    PH.Trandate, PD.ItemID as DishId, PH.TranNo,\n                    0, CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN PurchaseHeader PH ON PD.TranId = PH.TranId\n                WHERE PD.TranType = 'PURRET'\n\n                UNION ALL\n\n                -- SALES\n                SELECT \n                    RI.InvoiceDate, ROD.DishId, RI.BillNumber,\n                    0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)), 0,\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag = 'N'\n                AND RI.TotalAmount > 0\n                AND RI.StatusCode = (SELECT PickListNumber FROM picklistmaster WHERE Tablename ='RestaurantOrder' AND FieldName='StatusCode' AND picklistvalue='Paid')\n\n                UNION ALL\n\n                -- SALES RETURN\n                SELECT \n                    RI.InvoiceDate, ROD.DishId, RI.BillNumber,\n                    0, 0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)),\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag IN ('E', 'R')\n                AND RI.StatusCode = (SELECT PickListNumber FROM picklistmaster WHERE Tablename ='RestaurantOrder' AND FieldName='StatusCode' AND picklistvalue='Paid')\n\n                UNION ALL\n\n                -- STOCK LOCK\n                SELECT \n                    CONVERT(DATE, SL.stockdate + 1), SL.DishID, 'STOCKLOCK',\n                    0, 0, 0, 0,\n                    SL.stockdate\n                FROM stocklock SL\n            ),\n            DishTransactions AS (\n                -- Transactions in range for filtered dishes\n                SELECT \n                    v.DishId, v.TranDate, v.TranNo, v.PQty, v.PRQty, v.SQty, v.SRQty, v.Createdon\n                FROM AllMovements v\n                WHERE v.TranDate BETWEEN @start AND @end\n                AND v.DishId IN (\n                    SELECT dm.DishId \n                    FROM DishMaster dm\n                    INNER JOIN DishGroupMaster dgm ON dm.DishGroupId = dgm.DishGroupId\n                    INNER JOIN CategoryMaster cm ON dgm.CategoryId = cm.CategoryId\n                    WHERE 1=1\n                    \n                    \n                    \n                    AND dm.IsActive = 1\n                )\n            )\n        \n                SELECT \n                    ISNULL(SUM(v.PQty - v.PRQty - v.SQty + v.SRQty) OVER (PARTITION BY v.DishId ORDER BY v.TranDate, v.Createdon ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS OpeningStock,\n                    DGM.DishGroupName,\n                    CM.CategoryName,\n                    v.TranDate,\n                    CM.CategoryId,\n                    DGM.DishGroupId,\n                    DM.DishCode AS Code,\n                    v.TranNo,\n                    DM.Name,\n                    v.PQty,\n                    v.PRQty,\n                    v.SQty,\n                    v.SRQty,\n                    ISNULL(SUM(v.PQty - v.PRQty - v.SQty + v.SRQty) OVER (PARTITION BY v.DishId ORDER BY v.TranDate, v.Createdon ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 0) AS ClosingStock\n                FROM DishTransactions v\n                INNER JOIN DishMaster DM ON v.DishId = DM.DishId\n                INNER JOIN DishGroupMaster DGM ON DM.DishGroupId = DGM.DishGroupId\n                INNER JOIN CategoryMaster CM ON DGM.CategoryId = CM.CategoryId\n                WHERE (v.PQty <> 0 OR v.PRQty <> 0 OR v.SQty <> 0 OR v.SRQty <> 0)\n                ORDER BY CM.CategoryId, DGM.DishGroupId, v.DishId, v.TranDate, v.Createdon",
+          "execution_count": "2",
+          "avg_elapsed_ms": 4541.74,
+          "avg_logical_reads": "62514",
+          "avg_cpu_ms": 4535.458
+        },
+        {
+          "query_text": "SELECT \n    D.*,\n\n    DG.DishGroupName,\n\n    (\n      SELECT I.ImageData\n      FROM ImageList I\n      WHERE D.ImageId = I.ImageId\n    ) AS ImageData\n\nFROM DishMaster D\n\nLEFT JOIN DishGroupMaster DG\nON D.DishGroupId = DG.DishGroupId\n\nORDER BY DG.DishGroupName ASC, D.Name ASC",
+          "execution_count": "75",
+          "avg_elapsed_ms": 3627.615,
+          "avg_logical_reads": "2158",
+          "avg_cpu_ms": 34.773
+        },
+        {
+          "query_text": "SELECT sd.DeptCode AS DepartmentCode,DeptName AS DepartmentName, SUM(sd.NetAmount) as Total  \r\nFROM tblInvDepartment d   \r\nINNER JOIN vw_POS_SalesDetail sd   \r\nON d.DeptCode=sd.DeptCode   \r\nINNER JOIN vw_POS_SalesHeader sh   \r\nON sd.InvoiceNo= sh.InvoiceNo   \r\nWHERE sh.InvoiceDate BETWEEN @FromDate AND @ToDate    \r\nGROUP BY sd.DeptCode, d.DeptName  \r\nORDER BY Total DESC",
+          "execution_count": "5",
+          "avg_elapsed_ms": 3300.448,
+          "avg_logical_reads": "263966",
+          "avg_cpu_ms": 2769.05
+        },
+        {
+          "query_text": "WITH AllMovements(TranDate, DishId, TranNo, PQty, PRQty, SQty, SRQty, Createdon) AS (\n                -- PURCHASES\n                SELECT \n                    PH.Trandate, PD.ItemID as DishId, PH.TranNo,\n                    CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN PurchaseHeader PH ON PD.TranId = PH.TranId\n                WHERE PD.TranType = 'PURINV'\n\n                UNION ALL\n\n                -- PURCHASE RETURN\n                SELECT \n                    PH.Trandate, PD.ItemID as DishId, PH.TranNo,\n                    0, CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN PurchaseHeader PH ON PD.TranId = PH.TranId\n                WHERE PD.TranType = 'PURRET'\n\n                UNION ALL\n\n                -- SALES\n                SELECT \n                    RI.InvoiceDate, ROD.DishId, RI.BillNumber,\n                    0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)), 0,\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag = 'N'\n                AND RI.TotalAmount > 0\n                AND RI.StatusCode = (SELECT PickListNumber FROM picklistmaster WHERE Tablename ='RestaurantOrder' AND FieldName='StatusCode' AND picklistvalue='Paid')\n\n                UNION ALL\n\n                -- SALES RETURN\n                SELECT \n                    RI.InvoiceDate, ROD.DishId, RI.BillNumber,\n                    0, 0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)),\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag IN ('E', 'R')\n                AND RI.StatusCode = (SELECT PickListNumber FROM picklistmaster WHERE Tablename ='RestaurantOrder' AND FieldName='StatusCode' AND picklistvalue='Paid')\n\n                UNION ALL\n\n                -- STOCK LOCK\n                SELECT \n                    CONVERT(DATE, SL.stockdate + 1), SL.DishID, 'STOCKLOCK',\n                    0, 0, 0, 0,\n                    SL.stockdate\n                FROM stocklock SL\n            ),\n            DishTransactions AS (\n                -- Transactions in range for filtered dishes\n                SELECT \n                    v.DishId, v.TranDate, v.TranNo, v.PQty, v.PRQty, v.SQty, v.SRQty, v.Createdon\n                FROM AllMovements v\n                WHERE v.TranDate BETWEEN @start AND @end\n                AND v.DishId IN (\n                    SELECT dm.DishId \n                    FROM DishMaster dm\n                    INNER JOIN DishGroupMaster dgm ON dm.DishGroupId = dgm.DishGroupId\n                    INNER JOIN CategoryMaster cm ON dgm.CategoryId = cm.CategoryId\n                    WHERE 1=1\n                    AND REPLACE(cm.CategoryName, ' ', '') LIKE '%' + REPLACE(@category, ' ', '') + '%'\n                    AND REPLACE(dgm.DishGroupName, ' ', '') LIKE '%' + REPLACE(@dishGroup, ' ', '') + '%'\n                    AND REPLACE(dm.Name, ' ', '') LIKE '%' + REPLACE(@dishName, ' ', '') + '%'\n                    AND dm.IsActive = 1\n                )\n            )\n        \n                SELECT \n                    DM.Name,\n                    SUM(v.PQty) AS PQty,\n                    SUM(v.PRQty) AS PRQty,\n                    SUM(v.SQty) AS SQty,\n                    SUM(v.SRQty) AS SRQty,\n                    DM.DishCode AS Code,\n                    CM.CategoryName,\n                    DGM.DishGroupName,\n                    CM.CategoryId,\n                    DGM.DishGroupId,\n                    v.DishId AS ID,\n                    0 AS OpeningStock,\n                    SUM(v.PQty) - SUM(v.PRQty) - SUM(v.SQty) + SUM(v.SRQty) AS ClosingStock,\n                    MIN(v.TranDate) AS TranDate\n                FROM DishTransactions v\n                INNER JOIN DishMaster DM ON v.DishId = DM.DishId\n                INNER JOIN DishGroupMaster DGM ON DM.DishGroupId = DGM.DishGroupId\n                INNER JOIN CategoryMaster CM ON DGM.CategoryId = CM.CategoryId\n                WHERE (v.PQty <> 0 OR v.PRQty <> 0 OR v.SQty <> 0 OR v.SRQty <> 0)\n                GROUP BY DM.Name, DM.DishCode, CM.CategoryName, DGM.DishGroupName, CM.CategoryId, DGM.DishGroupId, v.DishId\n                ORDER BY CM.CategoryId, DGM.DishGroupId, v.DishId",
+          "execution_count": "4",
+          "avg_elapsed_ms": 3092.974,
+          "avg_logical_reads": "34442",
+          "avg_cpu_ms": 3091.432
+        },
+        {
+          "query_text": "UPDATE TableMaster SET CurrentOrderId = @oid, StartTime = ISNULL(StartTime, GETDATE()) WHERE TableId = @tid",
+          "execution_count": "64",
+          "avg_elapsed_ms": 2714.972,
+          "avg_logical_reads": "4",
+          "avg_cpu_ms": 0.228
+        },
+        {
+          "query_text": "WITH AllMovements AS (\n                -- PURCHASES\n                SELECT \n                    PH.Trandate as TranDate, PD.ItemID as DishId,\n                    CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)) as PQty, \n                    0 as PRQty, 0 as SQty, 0 as SRQty,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN purchaseHeader PH ON PD.TranId = PH.Tranid\n                WHERE PD.TranType = 'PURINV'\n\n                UNION ALL\n\n                -- PURCHASE RETURN\n                SELECT \n                    PH.Trandate as TranDate, PD.ItemID as DishId,\n                    0, CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN purchaseHeader PH ON PD.TranId = PH.Tranid\n                WHERE PD.TranType = 'PURRET'\n\n                UNION ALL\n\n                -- SALES\n                SELECT \n                    RI.InvoiceDate as TranDate, ROD.DishId,\n                    0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)), 0,\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag = 'N'\n                AND RI.TotalAmount > 0\n                AND RI.StatusCode = 5\n\n                UNION ALL\n\n                -- SALES RETURN\n                SELECT \n                    RI.InvoiceDate as TranDate, ROD.DishId,\n                    0, 0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)),\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, Createdon, StatusCode FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, Createdon, StatusCode FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag IN ('E', 'R')\n                AND RI.StatusCode = 5\n            ),\n            FilteredDishes AS (\n                SELECT dm.DishId, dm.Name, dm.DishCode, dgm.DishGroupName, cm.CategoryName, cm.CategoryId, dgm.DishGroupId\n                FROM DishMaster dm\n                INNER JOIN DishGroupMaster dgm ON dm.DishGroupId = dgm.DishGroupId\n                INNER JOIN CategoryMaster cm ON dgm.CategoryId = cm.CategoryId\n                WHERE 1=1\n                AND REPLACE(cm.CategoryName, ' ', '') LIKE '%' + REPLACE(@category, ' ', '') + '%'\n                AND REPLACE(dgm.DishGroupName, ' ', '') LIKE '%' + REPLACE(@dishGroup, ' ', '') + '%'\n                AND REPLACE(dm.Name, ' ', '') LIKE '%' + REPLACE(@dishName, ' ', '') + '%'\n                AND dm.IsActive = 1\n            ),\n            DailyMovements AS (\n                SELECT \n                    DishId, \n                    CAST(TranDate AS DATE) as GroupDate,\n                    SUM(PQty) as PQty,\n                    SUM(PRQty) as PRQty,\n                    SUM(SQty) as SQty,\n                    SUM(SRQty) as SRQty\n                FROM AllMovements\n                WHERE TranDate BETWEEN @start AND @end\n                GROUP BY DishId, CAST(TranDate AS DATE)\n            )\n            SELECT \n                fd.CategoryName as [Category Name],\n                fd.DishGroupName as [DishGroup Name],\n                fd.Name as [DishName],\n                CONVERT(VARCHAR(10), dm.GroupDate, 103) as [TranDate],\n                fd.CategoryId,\n                fd.DishGroupId,\n                fd.DishCode as Code,\n                -- Start at 0 for the selected range to match legacy relative movement\n                ISNULL(SUM(dm.PQty - dm.PRQty - dm.SQty + dm.SRQty) OVER (PARTITION BY dm.DishId ORDER BY dm.GroupDate ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) as [Opening Stock],\n                dm.PQty,\n                dm.PRQty,\n                dm.SQty,\n                dm.SRQty,\n                ISNULL(SUM(dm.PQty - dm.PRQty - dm.SQty + dm.SRQty) OVER (PARTITION BY dm.DishId ORDER BY dm.GroupDate ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 0) as [Closing Stock]\n            FROM DailyMovements dm\n            INNER JOIN FilteredDishes fd ON dm.DishId = fd.DishId\n            ORDER BY fd.CategoryId, fd.DishGroupId, fd.DishId, dm.GroupDate",
+          "execution_count": "14",
+          "avg_elapsed_ms": 2336.407,
+          "avg_logical_reads": "24153",
+          "avg_cpu_ms": 2334.032
+        },
+        {
+          "query_text": "UPDATE TableMaster SET Status = 2, ModifiedOn = GETDATE() WHERE TableId = @tid",
+          "execution_count": "37",
+          "avg_elapsed_ms": 2294.316,
+          "avg_logical_reads": "7",
+          "avg_cpu_ms": 0.23
+        },
+        {
+          "query_text": "SELECT CurrentOrderId FROM TableMaster WITH (UPDLOCK) WHERE TableId = @tid",
+          "execution_count": "524",
+          "avg_elapsed_ms": 1835.161,
+          "avg_logical_reads": "2",
+          "avg_cpu_ms": 0.132
+        }
+      ]
+    }
+  ],
+  "api": [
+    {
+      "endpoint": "Health check",
+      "path": "/health",
+      "avgMs": null,
+      "minMs": null,
+      "status": null,
+      "bytes": 0
+    },
+    {
+      "endpoint": "Tables (all)",
+      "path": "/api/tables/all",
+      "avgMs": null,
+      "minMs": null,
+      "status": null,
+      "bytes": 0
+    },
+    {
+      "endpoint": "Menu dishes (all)",
+      "path": "/api/menu/dishes/all",
+      "avgMs": null,
+      "minMs": null,
+      "status": null,
+      "bytes": 0
+    },
+    {
+      "endpoint": "Menu kitchens",
+      "path": "/api/menu/kitchens",
+      "avgMs": null,
+      "minMs": null,
+      "status": null,
+      "bytes": 0
+    },
+    {
+      "endpoint": "Sales report",
+      "path": "/api/sales/all",
+      "avgMs": null,
+      "minMs": null,
+      "status": null,
+      "bytes": 0
+    }
+  ],
+  "localSys": {
+    "cpuModel": "Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz",
+    "cpuCount": 8,
+    "loadAvg1m": 0,
+    "totalMemGB": 7.4,
+    "usedMemGB": 6.38,
+    "freeMemGB": 1.02,
+    "memUsedPct": 86.2,
+    "platform": "win32",
+    "uptime": 5
+  },
+  "pool": {
+    "concurrency": 20,
+    "successCount": 20,
+    "failureCount": 0,
+    "minMs": 98,
+    "maxMs": 618,
+    "avgMs": 446.1,
+    "throughputQps": 32.3
+  },
+  "sqlDmvs": {
+    "cpu": [
+      {
+        "sql_cpu_utilization": 0,
+        "combined": 92,
+        "total_cpu_utilization": 8
+      }
+    ],
+    "memory": [
+      {
+        "memory_used_mb": 5207.707031,
+        "page_fault_count": "5538469",
+        "memory_utilization_percentage": 100
+      }
+    ],
+    "slowQueries": [
+      {
+        "query_text": "select * from OpenRowset(TABLE TRCDATA, @traceid, @records)",
+        "execution_count": "4",
+        "avg_elapsed_ms": 18087.638,
+        "avg_logical_reads": "0",
+        "avg_cpu_ms": 17.394
+      },
+      {
+        "query_text": "WITH AllMovements AS (\n                -- PURCHASE\n                SELECT \n                    PH.TranDate, PD.ItemID AS DishId, CONVERT(VARCHAR(100), PD.TranNo) AS TranNo,\n                    CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)) AS PQty, 0 AS PRQty, 0 AS SQty, 0 AS SRQty,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN purchaseHeader PH ON PD.TranId = PH.Tranid\n                WHERE PD.TranType = 'PURINV'\n\n                UNION ALL\n\n                -- PURCHASE RETURN\n                SELECT \n                    PH.TranDate, PD.ItemID, CONVERT(VARCHAR(100), PD.TranNo), \n                    0, CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN purchaseHeader PH ON PD.TranId = PH.Tranid\n                WHERE PD.TranType = 'PURRET'\n\n                UNION ALL\n\n                -- SALES\n                SELECT \n                    CONVERT(DATE, pd.OrderDateTime), od.DishId, CONVERT(VARCHAR(100), pd.BillNumber),\n                    0, 0, CONVERT(DECIMAL(18,2), ISNULL(od.Quantity, 0)), 0,\n                    pd.OrderDateTime\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.vw_RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.vw_RestaurantOrderDetailCur\n                ) od\n                INNER JOIN (\n                    SELECT OrderId, OrderDateTime, BillNumber FROM dbo.vw_PaymentDetail\n                    UNION ALL\n                    SELECT OrderId, OrderDateTime, BillNumber FROM dbo.vw_PaymentDetailCur\n                ) pd ON CAST(od.OrderId AS VARCHAR(50)) = CAST(pd.OrderId AS VARCHAR(50))\n                WHERE od.Exflag = 'N'\n\n                UNION ALL\n\n                -- SALES RETURN\n                SELECT \n                    CONVERT(DATE, pd.OrderDateTime), od.DishId, CONVERT(VARCHAR(100), pd.BillNumber),\n                    0, 0, 0, CONVERT(DECIMAL(18,2), ISNULL(od.Quantity, 0)),\n                    pd.OrderDateTime\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.vw_RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.vw_RestaurantOrderDetailCur\n                ) od\n                INNER JOIN (\n                    SELECT OrderId, OrderDateTime, BillNumber FROM dbo.vw_PaymentDetail\n                    UNION ALL\n                    SELECT OrderId, OrderDateTime, BillNumber FROM dbo.vw_PaymentDetailCur\n                ) pd ON CAST(od.OrderId AS VARCHAR(50)) = CAST(pd.OrderId AS VARCHAR(50))\n                WHERE od.Exflag IN ('E', 'R')\n\n                UNION ALL\n\n                -- STOCK LOCK (as a base)\n                SELECT \n                    CONVERT(DATE, SL.stockdate + 1), SL.DishID, 'STOCKLOCK',\n                    0, 0, 0, 0,\n                    SL.stockdate\n                FROM stocklock SL\n            ),\n            DishOpening AS (\n                -- Calculate Opening Balance as of @start ONLY for the dishes we are interested in\n                SELECT \n                    v_hist.DishId,\n                    SUM(v_hist.PQty - v_hist.PRQty - v_hist.SQty + v_hist.SRQty) AS OpeningBalance\n                FROM AllMovements v_hist\n                WHERE v_hist.TranDate < @start\n                AND v_hist.DishId IN (\n                    SELECT dm.DishId \n                    FROM DishMaster dm\n                    INNER JOIN DishGroupMaster dgm ON dm.DishGroupId = dgm.DishGroupId\n                    INNER JOIN CategoryMaster cm ON dgm.CategoryId = cm.CategoryId\n                    WHERE 1=1\n                    \n                    \n                    \n                )\n                GROUP BY v_hist.DishId\n            ),\n            DishTransactions AS (\n                -- Transactions in range\n                SELECT \n                    DishId, TranDate, TranNo, PQty, PRQty, SQty, SRQty, Createdon\n                FROM AllMovements\n                WHERE TranDate BETWEEN @start AND @end\n                AND DishId IN (\n                    SELECT dm.DishId \n                    FROM DishMaster dm\n                    INNER JOIN DishGroupMaster dgm ON dm.DishGroupId = dgm.DishGroupId\n                    INNER JOIN CategoryMaster cm ON dgm.CategoryId = cm.CategoryId\n                    WHERE 1=1\n                    \n                    \n                    \n                )\n            )\n            SELECT \n                CM.CategoryName       AS [Category Name],\n                DGM.DishGroupName      AS [DishGroup Name],\n                DM.Name               AS [DishName],\n                CONVERT(VARCHAR(10), v.TranDate, 103) AS [TranDate],\n                -- Running Balance logic for Opening\n                ISNULL(o.OpeningBalance, 0) + ISNULL(SUM(v.PQty - v.PRQty - v.SQty + v.SRQty) OVER (PARTITION BY v.DishId ORDER BY v.TranDate, v.Createdon ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS [Opening Stock],\n                v.PQty,\n                v.PRQty,\n                v.SQty,\n                v.SRQty,\n                -- Running Balance logic for Closing\n                ISNULL(o.OpeningBalance, 0) + ISNULL(SUM(v.PQty - v.PRQty - v.SQty + v.SRQty) OVER (PARTITION BY v.DishId ORDER BY v.TranDate, v.Createdon ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 0) AS [Closing Stock]\n            FROM DishTransactions v\n            LEFT JOIN DishOpening o ON v.DishId = o.DishId\n            INNER JOIN DishMaster DM ON v.DishId = DM.DishId\n            INNER JOIN DishGroupMaster DGM ON DM.DishGroupId = DGM.DishGroupId\n            INNER JOIN CategoryMaster CM ON DGM.CategoryId = CM.CategoryId\n            ORDER BY v.TranDate, CM.CategoryName, DGM.DishGroupName, DM.Name, v.Createdon",
+        "execution_count": "3",
+        "avg_elapsed_ms": 13614.986,
+        "avg_logical_reads": "1482875",
+        "avg_cpu_ms": 13434.955
+      },
+      {
+        "query_text": "WITH AllMovements(TranDate, DishId, TranNo, PQty, PRQty, SQty, SRQty, Createdon) AS (\n                -- PURCHASES\n                SELECT \n                    PH.Trandate, PD.ItemID as DishId, PH.TranNo,\n                    CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN PurchaseHeader PH ON PD.TranId = PH.TranId\n                WHERE PD.TranType = 'PURINV'\n\n                UNION ALL\n\n                -- PURCHASE RETURN\n                SELECT \n                    PH.Trandate, PD.ItemID as DishId, PH.TranNo,\n                    0, CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN PurchaseHeader PH ON PD.TranId = PH.TranId\n                WHERE PD.TranType = 'PURRET'\n\n                UNION ALL\n\n                -- SALES\n                SELECT \n                    RI.InvoiceDate, ROD.DishId, RI.BillNumber,\n                    0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)), 0,\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag = 'N'\n                AND RI.TotalAmount > 0\n                AND RI.StatusCode = (SELECT PickListNumber FROM picklistmaster WHERE Tablename ='RestaurantOrder' AND FieldName='StatusCode' AND picklistvalue='Paid')\n\n                UNION ALL\n\n                -- SALES RETURN\n                SELECT \n                    RI.InvoiceDate, ROD.DishId, RI.BillNumber,\n                    0, 0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)),\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag IN ('E', 'R')\n                AND RI.StatusCode = (SELECT PickListNumber FROM picklistmaster WHERE Tablename ='RestaurantOrder' AND FieldName='StatusCode' AND picklistvalue='Paid')\n\n                UNION ALL\n\n                -- STOCK LOCK\n                SELECT \n                    CONVERT(DATE, SL.stockdate + 1), SL.DishID, 'STOCKLOCK',\n                    0, 0, 0, 0,\n                    SL.stockdate\n                FROM stocklock SL\n            ),\n            DishTransactions AS (\n                -- Transactions in range for filtered dishes\n                SELECT \n                    v.DishId, v.TranDate, v.TranNo, v.PQty, v.PRQty, v.SQty, v.SRQty, v.Createdon\n                FROM AllMovements v\n                WHERE v.TranDate BETWEEN @start AND @end\n                AND v.DishId IN (\n                    SELECT dm.DishId \n                    FROM DishMaster dm\n                    INNER JOIN DishGroupMaster dgm ON dm.DishGroupId = dgm.DishGroupId\n                    INNER JOIN CategoryMaster cm ON dgm.CategoryId = cm.CategoryId\n                    WHERE 1=1\n                    \n                    \n                    \n                    AND dm.IsActive = 1\n                )\n            )\n        \n                SELECT \n                    ISNULL(SUM(v.PQty - v.PRQty - v.SQty + v.SRQty) OVER (PARTITION BY v.DishId ORDER BY v.TranDate, v.Createdon ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS OpeningStock,\n                    DGM.DishGroupName,\n                    CM.CategoryName,\n                    v.TranDate,\n                    CM.CategoryId,\n                    DGM.DishGroupId,\n                    DM.DishCode AS Code,\n                    v.TranNo,\n                    DM.Name,\n                    v.PQty,\n                    v.PRQty,\n                    v.SQty,\n                    v.SRQty,\n                    ISNULL(SUM(v.PQty - v.PRQty - v.SQty + v.SRQty) OVER (PARTITION BY v.DishId ORDER BY v.TranDate, v.Createdon ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 0) AS ClosingStock\n                FROM DishTransactions v\n                INNER JOIN DishMaster DM ON v.DishId = DM.DishId\n                INNER JOIN DishGroupMaster DGM ON DM.DishGroupId = DGM.DishGroupId\n                INNER JOIN CategoryMaster CM ON DGM.CategoryId = CM.CategoryId\n                WHERE (v.PQty <> 0 OR v.PRQty <> 0 OR v.SQty <> 0 OR v.SRQty <> 0)\n                ORDER BY CM.CategoryId, DGM.DishGroupId, v.DishId, v.TranDate, v.Createdon",
+        "execution_count": "2",
+        "avg_elapsed_ms": 4541.74,
+        "avg_logical_reads": "62514",
+        "avg_cpu_ms": 4535.458
+      },
+      {
+        "query_text": "SELECT \n    D.*,\n\n    DG.DishGroupName,\n\n    (\n      SELECT I.ImageData\n      FROM ImageList I\n      WHERE D.ImageId = I.ImageId\n    ) AS ImageData\n\nFROM DishMaster D\n\nLEFT JOIN DishGroupMaster DG\nON D.DishGroupId = DG.DishGroupId\n\nORDER BY DG.DishGroupName ASC, D.Name ASC",
+        "execution_count": "75",
+        "avg_elapsed_ms": 3627.615,
+        "avg_logical_reads": "2158",
+        "avg_cpu_ms": 34.773
+      },
+      {
+        "query_text": "SELECT sd.DeptCode AS DepartmentCode,DeptName AS DepartmentName, SUM(sd.NetAmount) as Total  \r\nFROM tblInvDepartment d   \r\nINNER JOIN vw_POS_SalesDetail sd   \r\nON d.DeptCode=sd.DeptCode   \r\nINNER JOIN vw_POS_SalesHeader sh   \r\nON sd.InvoiceNo= sh.InvoiceNo   \r\nWHERE sh.InvoiceDate BETWEEN @FromDate AND @ToDate    \r\nGROUP BY sd.DeptCode, d.DeptName  \r\nORDER BY Total DESC",
+        "execution_count": "5",
+        "avg_elapsed_ms": 3300.448,
+        "avg_logical_reads": "263966",
+        "avg_cpu_ms": 2769.05
+      },
+      {
+        "query_text": "WITH AllMovements(TranDate, DishId, TranNo, PQty, PRQty, SQty, SRQty, Createdon) AS (\n                -- PURCHASES\n                SELECT \n                    PH.Trandate, PD.ItemID as DishId, PH.TranNo,\n                    CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN PurchaseHeader PH ON PD.TranId = PH.TranId\n                WHERE PD.TranType = 'PURINV'\n\n                UNION ALL\n\n                -- PURCHASE RETURN\n                SELECT \n                    PH.Trandate, PD.ItemID as DishId, PH.TranNo,\n                    0, CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN PurchaseHeader PH ON PD.TranId = PH.TranId\n                WHERE PD.TranType = 'PURRET'\n\n                UNION ALL\n\n                -- SALES\n                SELECT \n                    RI.InvoiceDate, ROD.DishId, RI.BillNumber,\n                    0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)), 0,\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag = 'N'\n                AND RI.TotalAmount > 0\n                AND RI.StatusCode = (SELECT PickListNumber FROM picklistmaster WHERE Tablename ='RestaurantOrder' AND FieldName='StatusCode' AND picklistvalue='Paid')\n\n                UNION ALL\n\n                -- SALES RETURN\n                SELECT \n                    RI.InvoiceDate, ROD.DishId, RI.BillNumber,\n                    0, 0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)),\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, BillNumber, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag IN ('E', 'R')\n                AND RI.StatusCode = (SELECT PickListNumber FROM picklistmaster WHERE Tablename ='RestaurantOrder' AND FieldName='StatusCode' AND picklistvalue='Paid')\n\n                UNION ALL\n\n                -- STOCK LOCK\n                SELECT \n                    CONVERT(DATE, SL.stockdate + 1), SL.DishID, 'STOCKLOCK',\n                    0, 0, 0, 0,\n                    SL.stockdate\n                FROM stocklock SL\n            ),\n            DishTransactions AS (\n                -- Transactions in range for filtered dishes\n                SELECT \n                    v.DishId, v.TranDate, v.TranNo, v.PQty, v.PRQty, v.SQty, v.SRQty, v.Createdon\n                FROM AllMovements v\n                WHERE v.TranDate BETWEEN @start AND @end\n                AND v.DishId IN (\n                    SELECT dm.DishId \n                    FROM DishMaster dm\n                    INNER JOIN DishGroupMaster dgm ON dm.DishGroupId = dgm.DishGroupId\n                    INNER JOIN CategoryMaster cm ON dgm.CategoryId = cm.CategoryId\n                    WHERE 1=1\n                    AND REPLACE(cm.CategoryName, ' ', '') LIKE '%' + REPLACE(@category, ' ', '') + '%'\n                    AND REPLACE(dgm.DishGroupName, ' ', '') LIKE '%' + REPLACE(@dishGroup, ' ', '') + '%'\n                    AND REPLACE(dm.Name, ' ', '') LIKE '%' + REPLACE(@dishName, ' ', '') + '%'\n                    AND dm.IsActive = 1\n                )\n            )\n        \n                SELECT \n                    DM.Name,\n                    SUM(v.PQty) AS PQty,\n                    SUM(v.PRQty) AS PRQty,\n                    SUM(v.SQty) AS SQty,\n                    SUM(v.SRQty) AS SRQty,\n                    DM.DishCode AS Code,\n                    CM.CategoryName,\n                    DGM.DishGroupName,\n                    CM.CategoryId,\n                    DGM.DishGroupId,\n                    v.DishId AS ID,\n                    0 AS OpeningStock,\n                    SUM(v.PQty) - SUM(v.PRQty) - SUM(v.SQty) + SUM(v.SRQty) AS ClosingStock,\n                    MIN(v.TranDate) AS TranDate\n                FROM DishTransactions v\n                INNER JOIN DishMaster DM ON v.DishId = DM.DishId\n                INNER JOIN DishGroupMaster DGM ON DM.DishGroupId = DGM.DishGroupId\n                INNER JOIN CategoryMaster CM ON DGM.CategoryId = CM.CategoryId\n                WHERE (v.PQty <> 0 OR v.PRQty <> 0 OR v.SQty <> 0 OR v.SRQty <> 0)\n                GROUP BY DM.Name, DM.DishCode, CM.CategoryName, DGM.DishGroupName, CM.CategoryId, DGM.DishGroupId, v.DishId\n                ORDER BY CM.CategoryId, DGM.DishGroupId, v.DishId",
+        "execution_count": "4",
+        "avg_elapsed_ms": 3092.974,
+        "avg_logical_reads": "34442",
+        "avg_cpu_ms": 3091.432
+      },
+      {
+        "query_text": "UPDATE TableMaster SET CurrentOrderId = @oid, StartTime = ISNULL(StartTime, GETDATE()) WHERE TableId = @tid",
+        "execution_count": "64",
+        "avg_elapsed_ms": 2714.972,
+        "avg_logical_reads": "4",
+        "avg_cpu_ms": 0.228
+      },
+      {
+        "query_text": "WITH AllMovements AS (\n                -- PURCHASES\n                SELECT \n                    PH.Trandate as TranDate, PD.ItemID as DishId,\n                    CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)) as PQty, \n                    0 as PRQty, 0 as SQty, 0 as SRQty,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN purchaseHeader PH ON PD.TranId = PH.Tranid\n                WHERE PD.TranType = 'PURINV'\n\n                UNION ALL\n\n                -- PURCHASE RETURN\n                SELECT \n                    PH.Trandate as TranDate, PD.ItemID as DishId,\n                    0, CONVERT(DECIMAL(18,2), ISNULL(PD.Qty, 0)), 0, 0,\n                    PH.Createdon\n                FROM Purchasedetail PD\n                INNER JOIN purchaseHeader PH ON PD.TranId = PH.Tranid\n                WHERE PD.TranType = 'PURRET'\n\n                UNION ALL\n\n                -- SALES\n                SELECT \n                    RI.InvoiceDate as TranDate, ROD.DishId,\n                    0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)), 0,\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, Createdon, StatusCode, TotalAmount FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag = 'N'\n                AND RI.TotalAmount > 0\n                AND RI.StatusCode = 5\n\n                UNION ALL\n\n                -- SALES RETURN\n                SELECT \n                    RI.InvoiceDate as TranDate, ROD.DishId,\n                    0, 0, 0, CONVERT(DECIMAL(18,2), ISNULL(ROD.Quantity, 0)),\n                    RI.Createdon\n                FROM (\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetail\n                    UNION ALL\n                    SELECT OrderId, DishId, Quantity, Exflag FROM dbo.RestaurantOrderDetailCur\n                ) ROD\n                INNER JOIN (\n                    SELECT OrderId, InvoiceDate, Createdon, StatusCode FROM dbo.RestaurantInvoice\n                    UNION ALL\n                    SELECT OrderId, InvoiceDate, Createdon, StatusCode FROM dbo.RestaurantInvoiceCur\n                ) RI ON CAST(ROD.OrderId AS VARCHAR(50)) = CAST(RI.OrderId AS VARCHAR(50))\n                WHERE ROD.Exflag IN ('E', 'R')\n                AND RI.StatusCode = 5\n            ),\n            FilteredDishes AS (\n                SELECT dm.DishId, dm.Name, dm.DishCode, dgm.DishGroupName, cm.CategoryName, cm.CategoryId, dgm.DishGroupId\n                FROM DishMaster dm\n                INNER JOIN DishGroupMaster dgm ON dm.DishGroupId = dgm.DishGroupId\n                INNER JOIN CategoryMaster cm ON dgm.CategoryId = cm.CategoryId\n                WHERE 1=1\n                AND REPLACE(cm.CategoryName, ' ', '') LIKE '%' + REPLACE(@category, ' ', '') + '%'\n                AND REPLACE(dgm.DishGroupName, ' ', '') LIKE '%' + REPLACE(@dishGroup, ' ', '') + '%'\n                AND REPLACE(dm.Name, ' ', '') LIKE '%' + REPLACE(@dishName, ' ', '') + '%'\n                AND dm.IsActive = 1\n            ),\n            DailyMovements AS (\n                SELECT \n                    DishId, \n                    CAST(TranDate AS DATE) as GroupDate,\n                    SUM(PQty) as PQty,\n                    SUM(PRQty) as PRQty,\n                    SUM(SQty) as SQty,\n                    SUM(SRQty) as SRQty\n                FROM AllMovements\n                WHERE TranDate BETWEEN @start AND @end\n                GROUP BY DishId, CAST(TranDate AS DATE)\n            )\n            SELECT \n                fd.CategoryName as [Category Name],\n                fd.DishGroupName as [DishGroup Name],\n                fd.Name as [DishName],\n                CONVERT(VARCHAR(10), dm.GroupDate, 103) as [TranDate],\n                fd.CategoryId,\n                fd.DishGroupId,\n                fd.DishCode as Code,\n                -- Start at 0 for the selected range to match legacy relative movement\n                ISNULL(SUM(dm.PQty - dm.PRQty - dm.SQty + dm.SRQty) OVER (PARTITION BY dm.DishId ORDER BY dm.GroupDate ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) as [Opening Stock],\n                dm.PQty,\n                dm.PRQty,\n                dm.SQty,\n                dm.SRQty,\n                ISNULL(SUM(dm.PQty - dm.PRQty - dm.SQty + dm.SRQty) OVER (PARTITION BY dm.DishId ORDER BY dm.GroupDate ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 0) as [Closing Stock]\n            FROM DailyMovements dm\n            INNER JOIN FilteredDishes fd ON dm.DishId = fd.DishId\n            ORDER BY fd.CategoryId, fd.DishGroupId, fd.DishId, dm.GroupDate",
+        "execution_count": "14",
+        "avg_elapsed_ms": 2336.407,
+        "avg_logical_reads": "24153",
+        "avg_cpu_ms": 2334.032
+      },
+      {
+        "query_text": "UPDATE TableMaster SET Status = 2, ModifiedOn = GETDATE() WHERE TableId = @tid",
+        "execution_count": "37",
+        "avg_elapsed_ms": 2294.316,
+        "avg_logical_reads": "7",
+        "avg_cpu_ms": 0.23
+      },
+      {
+        "query_text": "SELECT CurrentOrderId FROM TableMaster WITH (UPDLOCK) WHERE TableId = @tid",
+        "execution_count": "524",
+        "avg_elapsed_ms": 1835.161,
+        "avg_logical_reads": "2",
+        "avg_cpu_ms": 0.132
+      }
+    ]
+  },
+  "bottleneck": {
+    "ranked": [
+      {
+        "name": "Network Latency",
+        "score": 10,
+        "severity": "CRITICAL"
+      },
+      {
+        "name": "RAM Pressure",
+        "score": 8,
+        "severity": "CRITICAL"
+      },
+      {
+        "name": "SQL Execution Time",
+        "score": 2,
+        "severity": "MEDIUM"
+      },
+      {
+        "name": "Connection Pool",
+        "score": 2,
+        "severity": "MEDIUM"
+      },
+      {
+        "name": "CPU Pressure",
+        "score": 0,
+        "severity": "LOW"
+      },
+      {
+        "name": "Disk I/O",
+        "score": 0,
+        "severity": "LOW"
+      }
+    ],
+    "avgAPIMs": null
+  },
+  "recommendations": [
+    {
+      "rank": 1,
+      "action": "Add Redis Caching Layer",
+      "detail": "Cache menu, kitchens, company settings, and paymode lookups (TTL 60–300s). 40–80% reduction on repeated read queries. Currently every request hits SQL Server even for static data.",
+      "impactScore": 9,
+      "effort": "Medium (1–2 days)",
+      "gain": "HIGH — eliminates 60–80% of read queries to SQL Server"
+    },
+    {
+      "rank": 2,
+      "action": "Optimize SQL Queries + Add Indexes",
+      "detail": "10 slow queries detected (>200ms avg). Add covering indexes on SettlementHeader(LastSettlementDate), RestaurantOrderCur(isOrderClosed,Tableno), TableMaster(Status). Replace bare CAST in WHERE clauses (non-sargable) with indexed columns. The DB polling SELECT runs every 3 seconds — add an index on TableId+Status.",
+      "impactScore": 8,
+      "effort": "Low-Medium (few hours)",
+      "gain": "HIGH — 30–60% query time reduction"
+    },
+    {
+      "rank": 3,
+      "action": "Move Backend Closer to SQL Server",
+      "detail": "Current TCP: 943.89ms avg. Co-locating would reduce to <5ms (~99.47% latency cut). SQL Server is on dynamic DNS (myerpcloud.dyndns.org:9199) suggesting on-premise. If backend is on Railway (US/EU), each SQL round-trip adds 80–200ms+. Deploy backend on a VPS in the same datacenter/city as the SQL Server.",
+      "impactScore": 8,
+      "effort": "Medium (1 day to migrate to local VPS)",
+      "gain": "HIGH — eliminates network overhead on every query"
+    },
+    {
+      "rank": 4,
+      "action": "Upgrade SQL Server RAM",
+      "detail": "SQL Server memory in use: 100%. More RAM allows SQL Server to cache more data pages, reducing physical disk reads. Benefit is highest when RAM < buffer pool demand. Aim for minimum 16GB for a POS system with active reporting.",
+      "impactScore": 7,
+      "effort": "Low (hardware purchase + no code change)",
+      "gain": "HIGH — buffer pool full, disk I/O is spiking"
+    },
+    {
+      "rank": 5,
+      "action": "Upgrade SQL Server CPU",
+      "detail": "SQL Server CPU: 0%. CPU is generally NOT the bottleneck for OLTP POS workloads — it matters more for heavy reporting. Fix queries and indexes first; upgrade CPU only if > 70% sustained utilization persists after optimization.",
+      "impactScore": 2,
+      "effort": "High (hardware change, likely server downtime)",
+      "gain": "LOW — unlikely to be primary bottleneck"
+    }
+  ]
+}
