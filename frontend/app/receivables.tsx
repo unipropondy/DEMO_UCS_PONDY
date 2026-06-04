@@ -774,7 +774,7 @@ export default function ReceivablesScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  <ScrollView style={{ flex: 1, padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
+                  <ScrollView style={{ flex: 1, flexShrink: 1, padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
                     {ledgerTab === "LEDGER" ? (
                       /* --- Ledger transaction statement history --- */
                       <View style={{ paddingBottom: 20 }}>
@@ -784,10 +784,10 @@ export default function ReceivablesScreen() {
                           <View style={styles.ledgerTable}>
                             {/* Table Header */}
                             <View style={styles.ledgerRowHeader}>
-                              <Text style={[styles.ledgerColHeader, { flex: 1.1 }]}>DATE/TIME</Text>
-                              <Text style={[styles.ledgerColHeader, { flex: 1.2 }]}>REF/REMARKS</Text>
-                              <Text style={[styles.ledgerColHeader, { flex: 0.8, textAlign: "right" }]}>AMT</Text>
-                              <Text style={[styles.ledgerColHeader, { flex: 0.9, textAlign: "right" }]}>BAL</Text>
+                              <Text style={[styles.ledgerColHeader, { flex: 1.1 }]} numberOfLines={1} adjustsFontSizeToFit>DATE/TIME</Text>
+                              <Text style={[styles.ledgerColHeader, { flex: 1.2 }]} numberOfLines={1} adjustsFontSizeToFit>REF/REMARKS</Text>
+                              <Text style={[styles.ledgerColHeader, { flex: 0.8, textAlign: "right" }]} numberOfLines={1} adjustsFontSizeToFit>AMT</Text>
+                              <Text style={[styles.ledgerColHeader, { flex: 0.9, textAlign: "right" }]} numberOfLines={1} adjustsFontSizeToFit>BAL</Text>
                             </View>
 
                             {/* Table Rows */}
@@ -798,22 +798,22 @@ export default function ReceivablesScreen() {
                               
                               return (
                                 <View key={tx.TransactionId || idx} style={styles.ledgerRow}>
-                                  <Text style={[styles.ledgerCol, { flex: 1.1, fontSize: 10 }]}>{formattedDate}</Text>
-                                  <View style={{ flex: 1.2 }}>
-                                    <Text style={[styles.ledgerCol, { fontFamily: Fonts.bold, fontSize: 11 }]}>
+                                  <Text style={[styles.ledgerCol, { flex: 1.1, fontSize: 10 }]} numberOfLines={1} adjustsFontSizeToFit>{formattedDate}</Text>
+                                  <View style={{ flex: 1.2, paddingRight: 4 }}>
+                                    <Text style={[styles.ledgerCol, { fontFamily: Fonts.bold, fontSize: 11 }]} numberOfLines={1} adjustsFontSizeToFit>
                                       {tx.TransactionType} {tx.BillNo ? `#${tx.BillNo}` : ""}
                                     </Text>
                                     {tx.Remarks && (
-                                      <Text style={styles.ledgerRowRemarks} numberOfLines={1}>
+                                      <Text style={styles.ledgerRowRemarks} numberOfLines={1} adjustsFontSizeToFit>
                                         {tx.Remarks}
                                       </Text>
                                     )}
                                   </View>
-                                  <Text style={[styles.ledgerCol, { flex: 0.8, textAlign: "right", fontFamily: Fonts.bold, color: isDebit ? Theme.danger : Theme.success, fontSize: 11 }]}>
-                                    {isDebit ? "+" : "-"}{currencySymbol}{tx.Amount.toFixed(0)}
+                                  <Text style={[styles.ledgerCol, { flex: 0.8, textAlign: "right", fontFamily: Fonts.bold, color: isDebit ? Theme.danger : Theme.success, fontSize: 11 }]} numberOfLines={1} adjustsFontSizeToFit>
+                                    {isDebit ? "+" : "-"}{currencySymbol}{tx.Amount.toFixed(2)}
                                   </Text>
-                                  <Text style={[styles.ledgerCol, { flex: 0.9, textAlign: "right", fontFamily: Fonts.black, fontSize: 11 }]}>
-                                    {currencySymbol}{tx.runningBalance.toFixed(0)}
+                                  <Text style={[styles.ledgerCol, { flex: 0.9, textAlign: "right", fontFamily: Fonts.black, fontSize: 11 }]} numberOfLines={1} adjustsFontSizeToFit>
+                                    {currencySymbol}{tx.runningBalance.toFixed(2)}
                                   </Text>
                                 </View>
                               );
@@ -835,9 +835,9 @@ export default function ReceivablesScreen() {
                               return (
                                 <View key={bill.SettlementId} style={styles.billItemCard}>
                                   <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                                    <View>
-                                      <Text style={styles.billItemTitle}>Bill #{bill.BillNo}</Text>
-                                      <Text style={styles.billItemSub}>{formattedBillDate}</Text>
+                                    <View style={{ flex: 1, paddingRight: 8 }}>
+                                      <Text style={styles.billItemTitle} numberOfLines={1} adjustsFontSizeToFit>Bill #{bill.BillNo}</Text>
+                                      <Text style={styles.billItemSub} numberOfLines={1} adjustsFontSizeToFit>{formattedBillDate}</Text>
                                     </View>
                                     <View style={styles.billItemBadge}>
                                       <Text style={styles.billItemBadgeText}>DUE</Text>
@@ -845,17 +845,17 @@ export default function ReceivablesScreen() {
                                   </View>
                                   <View style={styles.billDivider} />
                                   <View style={styles.billBreakdown}>
-                                    <View>
-                                      <Text style={styles.billBreakLabel}>GROSS AMT</Text>
-                                      <Text style={styles.billBreakValue}>{currencySymbol}{bill.GrossAmount.toFixed(2)}</Text>
+                                    <View style={{ flex: 1 }}>
+                                      <Text style={styles.billBreakLabel} numberOfLines={1} adjustsFontSizeToFit>GROSS AMT</Text>
+                                      <Text style={styles.billBreakValue} numberOfLines={1} adjustsFontSizeToFit>{currencySymbol}{bill.GrossAmount.toFixed(2)}</Text>
                                     </View>
-                                    <View>
-                                      <Text style={styles.billBreakLabel}>PAID AMT</Text>
-                                      <Text style={[styles.billBreakValue, { color: Theme.success }]}>{currencySymbol}{bill.PaidAmount.toFixed(2)}</Text>
+                                    <View style={{ flex: 1, alignItems: "center", paddingHorizontal: 4 }}>
+                                      <Text style={styles.billBreakLabel} numberOfLines={1} adjustsFontSizeToFit>PAID AMT</Text>
+                                      <Text style={[styles.billBreakValue, { color: Theme.success }]} numberOfLines={1} adjustsFontSizeToFit>{currencySymbol}{bill.PaidAmount.toFixed(2)}</Text>
                                     </View>
-                                    <View style={{ alignItems: "flex-end" }}>
-                                      <Text style={styles.billBreakLabel}>OUTSTANDING</Text>
-                                      <Text style={[styles.billBreakValue, { color: Theme.danger, fontFamily: Fonts.black }]}>
+                                    <View style={{ flex: 1, alignItems: "flex-end" }}>
+                                      <Text style={styles.billBreakLabel} numberOfLines={1} adjustsFontSizeToFit>OUTSTANDING</Text>
+                                      <Text style={[styles.billBreakValue, { color: Theme.danger, fontFamily: Fonts.black }]} numberOfLines={1} adjustsFontSizeToFit>
                                         {currencySymbol}{bill.OutstandingAmount.toFixed(2)}
                                       </Text>
                                     </View>
@@ -937,7 +937,7 @@ export default function ReceivablesScreen() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flexShrink: 1, padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
                 {/* Collected Amount Input */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>COLLECTED AMOUNT ({currencySymbol})</Text>
@@ -1133,7 +1133,7 @@ const styles = StyleSheet.create({
 
   // Ledger sheets
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 10 },
-  ledgerSheet: { backgroundColor: Theme.bgCard, borderRadius: 24, width: "100%", maxWidth: 650, flex: 1, maxHeight: "90%", ...Theme.shadowLg, overflow: "hidden" },
+  ledgerSheet: { backgroundColor: Theme.bgCard, borderRadius: 24, width: "100%", maxWidth: 650, flex: 1, flexShrink: 1, maxHeight: "90%", ...Theme.shadowLg, overflow: "hidden" },
   sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1, borderBottomColor: Theme.border },
   sheetTitle: { color: Theme.textPrimary, fontSize: 20, fontFamily: Fonts.black },
   sheetSubtitle: { color: Theme.textSecondary, fontSize: 12, fontFamily: Fonts.medium, marginTop: 2 },
@@ -1172,7 +1172,7 @@ const styles = StyleSheet.create({
   actionButtonText: { fontSize: 13, fontFamily: Fonts.bold },
 
   // Collection modal
-  collectCard: { backgroundColor: Theme.bgCard, borderRadius: 24, width: "100%", maxWidth: 500, maxHeight: "90%", ...Theme.shadowLg, overflow: "hidden" },
+  collectCard: { backgroundColor: Theme.bgCard, borderRadius: 24, width: "100%", maxWidth: 500, flexShrink: 1, maxHeight: "90%", ...Theme.shadowLg, overflow: "hidden" },
   adjustModalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1, borderBottomColor: Theme.border },
   adjustModalTitle: { color: Theme.textPrimary, fontSize: 18, fontFamily: Fonts.black },
   inputGroup: { marginBottom: 16 },
