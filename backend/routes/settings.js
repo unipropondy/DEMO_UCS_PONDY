@@ -2,13 +2,13 @@ const express = require("express");
 const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
+const { getAppSettings, invalidateCache } = require("../utils/settingsCache");
 
 // 🔹 GET Settings
 router.get("/", async (req, res) => {
   try {
-    const pool = await poolPromise;
-    const result = await pool.request().query("SELECT TOP 1 * FROM AppSettings");
-    res.json(result.recordset[0] || {});
+    const settings = await getAppSettings();
+    res.json(settings || {});
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -54,6 +54,7 @@ router.post("/update", async (req, res) => {
         END
       `);
 
+    invalidateCache();
     res.json({ success: true, message: "Settings updated successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });

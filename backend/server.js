@@ -105,83 +105,89 @@ io.on("connection", (socket) => {
 const previousTablesState = new Map();
 const sectionMap = { "1": "SECTION_1", "2": "SECTION_2", "3": "SECTION_3", "4": "TAKEAWAY" };
 
-setInterval(async () => {
+async function pollTables() {
   try {
     const pool = await poolPromise;
-    if (!pool || !pool.connected) return;
+    if (pool && pool.connected) {
+      const holdMinutes = await getHoldOvertimeMinutes();
 
-    const holdMinutes = await getHoldOvertimeMinutes();
+      const result = await pool.request()
+        .input("holdMinutes", sql.Int, holdMinutes)
+        .query(`
+        SELECT 
+          TableId AS id, 
+          CAST(TableNumber AS VARCHAR(50)) AS label,
+          CAST(DiningSection AS VARCHAR(10)) AS DiningSection, 
+          LockedByName as lockedByName,
+          Status, 
+          CONVERT(VARCHAR, StartTime, 126) as StartTime, 
+          ISNULL(TotalAmount, 0) as totalAmount, 
+          CurrentOrderId as currentOrderId,
+          entry_status AS entryStatus,
+          CASE 
+            WHEN Status IN (1, 2, 3) AND StartTime IS NOT NULL AND StartTime > '2000-01-01' AND DATEDIFF(MINUTE, StartTime, GETDATE()) >= 60 THEN 1 
+            ELSE 0 
+          END AS isOvertime,
+          CASE 
+            WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= @holdMinutes THEN 1 
+            ELSE 0 
+          END AS isHoldOvertime,
+          CONVERT(VARCHAR, ModifiedOn, 126) as ModifiedOn
+        FROM TableMaster WITH (NOLOCK)
+      `);
 
-    const result = await pool.request()
-      .input("holdMinutes", sql.Int, holdMinutes)
-      .query(`
-      SELECT 
-        TableId AS id, 
-        CAST(TableNumber AS VARCHAR(50)) AS label,
-        CAST(DiningSection AS VARCHAR(10)) AS DiningSection, 
-        LockedByName as lockedByName,
-        Status, 
-        CONVERT(VARCHAR, StartTime, 126) as StartTime, 
-        ISNULL(TotalAmount, 0) as totalAmount, 
-        CurrentOrderId as currentOrderId,
-        entry_status AS entryStatus,
-        CASE 
-          WHEN Status IN (1, 2, 3) AND StartTime IS NOT NULL AND StartTime > '2000-01-01' AND DATEDIFF(MINUTE, StartTime, GETDATE()) >= 60 THEN 1 
-          ELSE 0 
-        END AS isOvertime,
-        CASE 
-          WHEN Status = 3 AND ModifiedOn IS NOT NULL AND DATEDIFF(MINUTE, ModifiedOn, GETDATE()) >= @holdMinutes THEN 1 
-          ELSE 0 
-        END AS isHoldOvertime,
-        CONVERT(VARCHAR, ModifiedOn, 126) as ModifiedOn
-      FROM TableMaster WITH (NOLOCK)
-    `);
+      const currentTables = result.recordset || [];
+      currentTables.forEach((table) => {
+        const tableId = String(table.id).toLowerCase();
+        const prevState = previousTablesState.get(tableId);
 
-    const currentTables = result.recordset || [];
-    currentTables.forEach((table) => {
-      const tableId = String(table.id).toLowerCase();
-      const prevState = previousTablesState.get(tableId);
+        const hasChanged = !prevState || 
+          prevState.status !== table.Status || 
+          prevState.entryStatus !== table.entryStatus ||
+          prevState.totalAmount !== table.totalAmount ||
+          prevState.lockedByName !== table.lockedByName;
 
-      const hasChanged = !prevState || 
-        prevState.status !== table.Status || 
-        prevState.entryStatus !== table.entryStatus ||
-        prevState.totalAmount !== table.totalAmount ||
-        prevState.lockedByName !== table.lockedByName;
-
-      if (hasChanged) {
-        // Update local memory state
-        previousTablesState.set(tableId, {
-          status: table.Status,
-          entryStatus: table.entryStatus,
-          totalAmount: table.totalAmount,
-          lockedByName: table.lockedByName
-        });
-
-        // Only emit if this is not the very first load/state initialization
-        if (prevState) {
-          io.emit("table_status_updated", {
-            tableId,
-            status: Number(table.Status),
-            totalAmount: Number(table.totalAmount) || 0,
-            startTime: table.StartTime,
-            tableNo: table.label,
-            section: sectionMap[String(table.DiningSection)] || table.DiningSection,
-            modifiedOn: table.ModifiedOn,
-            isOvertime: table.isOvertime || 0,
-            isHoldOvertime: table.isHoldOvertime || 0,
-            entryStatus: table.entryStatus || null
+        if (hasChanged) {
+          // Update local memory state
+          previousTablesState.set(tableId, {
+            status: table.Status,
+            entryStatus: table.entryStatus,
+            totalAmount: table.totalAmount,
+            lockedByName: table.lockedByName
           });
-          console.log(`🔌 [DB Poller Sync] Table ${table.label} updated -> Emit socket. Status: ${table.Status}, QR: ${table.entryStatus}`);
-        } else {
-          // Initialize memory state silently on startup
-          console.log(`🔌 [DB Poller Sync] Initialized table state for: ${table.label}`);
+
+          // Only emit if this is not the very first load/state initialization
+          if (prevState) {
+            io.emit("table_status_updated", {
+              tableId,
+              status: Number(table.Status),
+              totalAmount: Number(table.totalAmount) || 0,
+              startTime: table.StartTime,
+              tableNo: table.label,
+              section: sectionMap[String(table.DiningSection)] || table.DiningSection,
+              modifiedOn: table.ModifiedOn,
+              isOvertime: table.isOvertime || 0,
+              isHoldOvertime: table.isHoldOvertime || 0,
+              entryStatus: table.entryStatus || null
+            });
+            console.log(`🔌 [DB Poller Sync] Table ${table.label} updated -> Emit socket. Status: ${table.Status}, QR: ${table.entryStatus}`);
+          } else {
+            // Initialize memory state silently on startup
+            console.log(`🔌 [DB Poller Sync] Initialized table state for: ${table.label}`);
+          }
         }
-      }
-    });
+      });
+    }
   } catch (err) {
     console.error("🔄 [DB Poller Sync] Error:", err.message);
+  } finally {
+    // Schedule the next poll to execute 5 seconds after this one finished (prevents overlapping)
+    setTimeout(pollTables, 5000);
   }
-}, 3000); // Poll every 3 seconds
+}
+
+// Start the poller
+setTimeout(pollTables, 5000);
 
 // ✅ Global Middleware
 app.use(compression()); // Compress all responses

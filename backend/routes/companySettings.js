@@ -2,31 +2,15 @@ const express = require("express");
 const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
-const { invalidateCache } = require("../utils/settingsCache");
+const { getCompanySettings, invalidateCache } = require("../utils/settingsCache");
 
 
 // 🔹 GET Settings
 router.get("/:id", async (req, res) => {
   try {
-    const pool = await poolPromise;
-    
-    // 1. Try to get specific Master Settings (ID 1)
-    let result = await pool.request()
-      .query("SELECT * FROM CompanySettings WHERE Id = '1'");
-    
-    // 2. Fallback: If not found OR if the found record has NO NAME (empty shell)
-    if (result.recordset.length === 0 || !result.recordset[0].CompanyName || result.recordset[0].CompanyName.trim() === '') {
-      // Get the most recently updated record that ACTUALLY HAS A NAME
-      const fallbackResult = await pool.request()
-        .query("SELECT TOP 1 * FROM CompanySettings WHERE CompanyName IS NOT NULL AND CompanyName <> '' ORDER BY UpdatedOn DESC");
-      
-      if (fallbackResult.recordset.length > 0) {
-        result = fallbackResult;
-      }
-    }
-    
-    if (result.recordset.length > 0) {
-      res.json({ success: true, settings: result.recordset[0] });
+    const settings = await getCompanySettings();
+    if (settings) {
+      res.json({ success: true, settings });
     } else {
       res.status(404).json({ success: false, message: "Settings not found" });
     }

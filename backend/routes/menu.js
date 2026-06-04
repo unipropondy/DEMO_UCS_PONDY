@@ -8,12 +8,17 @@ const CACHE_TTL = 300000; // 5 minutes
 
 function getCached(key) {
   const item = cache.get(key);
-  if (item && (Date.now() - item.time < CACHE_TTL)) return item.data;
+  if (item && (Date.now() - item.time < CACHE_TTL)) {
+    console.log(`⚡ [MenuCache] Cache HIT: ${key}`);
+    return item.data;
+  }
+  console.log(`⚡ [MenuCache] Cache MISS: ${key}`);
   return null;
 }
 
 function setCache(key, data) {
   cache.set(key, { data, time: Date.now() });
+  console.log(`⚡ [MenuCache] Cache STORED: ${key}`);
 }
 
 /* ================= KITCHENS / CATEGORIES ================= */
@@ -39,10 +44,15 @@ router.get("/kitchens", async (req, res) => {
 
 router.get("/dishgroups/:CategoryId", async (req, res) => {
   try {
+    const categoryId = req.params.CategoryId;
+    const cacheKey = `dishgroups_${categoryId}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     const pool = await poolPromise;
     const result = await pool
       .request()
-      .input("CategoryId", req.params.CategoryId).query(`
+      .input("CategoryId", categoryId).query(`
         SELECT DISTINCT
               a.DishGroupId,
               a.DishGroupName
@@ -57,6 +67,7 @@ router.get("/dishgroups/:CategoryId", async (req, res) => {
                 OR dkt.KitchenTypeName = cm.CategoryName
           )
       `);
+    setCache(cacheKey, result.recordset);
     res.json(result.recordset);
   } catch (err) {
     res.status(500).send(err.message);
@@ -66,7 +77,8 @@ router.get("/dishgroups/:CategoryId", async (req, res) => {
 /* ================= DISHES ================= */
 router.get("/dishes/all", async (req, res) => {
   try {
-    const cached = getCached("dishes_all");
+    const cacheKey = "dishes_all";
+    const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
     const pool = await poolPromise;
@@ -89,7 +101,7 @@ router.get("/dishes/all", async (req, res) => {
       ) pm ON CAST(ckt.KitchenTypeCode AS INT) = pm.KitchenTypeValue AND pm.rn = 1
       WHERE d.IsActive = 1 ORDER BY d.Name ASC
     `);
-    setCache("dishes_all", result.recordset);
+    setCache(cacheKey, result.recordset);
     res.json(result.recordset);
   } catch (err) {
     res.status(500).send(err.message);
@@ -98,10 +110,15 @@ router.get("/dishes/all", async (req, res) => {
 
 router.get("/dishes/group/:DishGroupId", async (req, res) => {
   try {
+    const dishGroupId = req.params.DishGroupId;
+    const cacheKey = `dishes_group_${dishGroupId}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     const pool = await poolPromise;
     const result = await pool
       .request()
-      .input("DishGroupId", req.params.DishGroupId).query(`
+      .input("DishGroupId", dishGroupId).query(`
       SELECT DISTINCT
               d.DishId,
               d.Name,
@@ -149,6 +166,7 @@ router.get("/dishes/group/:DishGroupId", async (req, res) => {
  
           ORDER BY d.Name ASC
       `);
+    setCache(cacheKey, result.recordset);
     res.json(result.recordset);
   } catch (err) {
     res.status(500).send(err.message);
@@ -164,10 +182,12 @@ router.get("/image/:imageId", async (req, res) => {
     
     // Serve from cache if available
     if (imageCache.has(imageId)) {
+      console.log(`⚡ [ImageCache] Cache HIT: ${imageId}`);
       res.set("Cache-Control", "public, max-age=86400");
       return res.type("image/jpeg").send(imageCache.get(imageId));
     }
 
+    console.log(`⚡ [ImageCache] Cache MISS: ${imageId}`);
     const pool = await poolPromise;
     const result = await pool
       .request()
@@ -231,6 +251,12 @@ router.get("/modifiers/group/:DishGroupId", async (req, res) => {
   }
 });
 
-// Unused menu endpoints removed (modifiers/validate, ordershare, order/add)
+router.post("/clear-cache", (req, res) => {
+  cache.clear();
+  console.log("⚡ [MenuCache] Cache INVALIDATION: All menu cache cleared");
+  imageCache.clear();
+  console.log("⚡ [ImageCache] Cache INVALIDATION: All image cache cleared");
+  res.json({ success: true, message: "Menu and image cache cleared successfully" });
+});
 
 module.exports = router;
