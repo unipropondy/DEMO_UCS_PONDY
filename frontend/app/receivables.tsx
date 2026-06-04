@@ -723,7 +723,17 @@ export default function ReceivablesScreen() {
           }}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.ledgerSheet, isMobile && { height: "85%", maxHeight: "85%", borderRadius: 16 }]}>
+            <View style={[
+              styles.ledgerSheet,
+              isMobile && {
+                flexGrow: 0,
+                flexShrink: 1,
+                height: "auto",
+                maxHeight: "80%",
+                borderRadius: 16,
+                width: "95%",
+              }
+            ]}>
               {/* Header */}
               <View style={styles.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -753,7 +763,7 @@ export default function ReceivablesScreen() {
                   </Text>
                 </View>
               ) : (
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
                   {/* Ledger navigation tabs */}
                   <View style={styles.ledgerTabs}>
                     <TouchableOpacity
@@ -926,7 +936,17 @@ export default function ReceivablesScreen() {
           onRequestClose={() => setShowCollectModal(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.collectCard, isMobile && { width: "100%", height: "85%", maxHeight: "85%", borderRadius: 16 }]}>
+            <View style={[
+              styles.collectCard,
+              isMobile && {
+                flexGrow: 0,
+                flexShrink: 1,
+                height: "auto",
+                maxHeight: "80%",
+                borderRadius: 16,
+                width: "95%",
+              }
+            ]}>
               <View style={styles.adjustModalHeader}>
                 <View>
                   <Text style={styles.adjustModalTitle}>Collect Payment</Text>
@@ -1132,7 +1152,15 @@ const styles = StyleSheet.create({
   agingGridValue: { fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary, marginTop: 4 },
 
   // Ledger sheets
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 10 },
+  modalOverlay: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 10,
+  },
   ledgerSheet: { backgroundColor: Theme.bgCard, borderRadius: 24, width: "100%", maxWidth: 650, flex: 1, flexShrink: 1, maxHeight: "90%", ...Theme.shadowLg, overflow: "hidden" },
   sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1, borderBottomColor: Theme.border },
   sheetTitle: { color: Theme.textPrimary, fontSize: 20, fontFamily: Fonts.black },
