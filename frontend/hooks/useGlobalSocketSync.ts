@@ -145,6 +145,16 @@ export function useGlobalSocketSync() {
       console.log("🛒 [Socket-Global] Cart updated (DB Sync) for Table:", data.tableId);
       const currentOrder = useOrderContextStore.getState().currentOrder;
       if (data.tableId && data.tableId === currentOrder?.tableId) {
+        const cartStore = useCartStore.getState();
+        const contextId = cartStore.currentContextId;
+        if (contextId) {
+          const lastLocal = cartStore.lastLocalUpdate[contextId] || 0;
+          const lastSync = cartStore.lastServerSync[contextId] || 0;
+          if (lastLocal > 0 && lastSync >= lastLocal) {
+            console.log(`🛡️ [Socket-Global] Skipping redundant cart fetch for Table: ${data.tableId}. Local client is already synchronized.`);
+            return;
+          }
+        }
         // Lower priority than cart_change relay
         throttledFetch(data.tableId, 2000); 
       }

@@ -221,6 +221,15 @@ const DishCardWrapper = React.memo(
       />
     );
   },
+  (prevProps, nextProps) => {
+    return (
+      (prevProps.item.DishId || prevProps.item.id) === (nextProps.item.DishId || nextProps.item.id) &&
+      prevProps.width === nextProps.width &&
+      prevProps.isPhone === nextProps.isPhone &&
+      prevProps.isTablet === nextProps.isTablet &&
+      prevProps.isLandscape === nextProps.isLandscape
+    );
+  }
 );
 
 const DishGridSkeleton = ({ cardWidth, columns, gap, isPhone }: any) => {

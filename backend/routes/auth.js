@@ -178,14 +178,31 @@ router.post("/verify", async (req, res) => {
   }
 });
 
+// 🚀 PERMISSIONS CACHE (5-minute TTL)
+const permissionCache = new Map();
+const PERM_CACHE_TTL = 5 * 60 * 1000;
+
 /* ================= AUTH - PERMISSIONS ================= */
 router.get("/permissions/:userGroupCode", async (req, res) => {
   try {
-    const pool = await poolPromise;
     const { userGroupCode } = req.params;
+    const cacheKey = (userGroupCode || "").trim().toUpperCase();
 
+    if (!cacheKey) {
+      return res.status(400).json({ error: "Invalid user group code" });
+    }
+
+    // Check memory cache
+    const cached = permissionCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < PERM_CACHE_TTL)) {
+      console.log(`⚡ [Permissions Cache] Hit for group: ${cacheKey}`);
+      return res.json(cached.data);
+    }
+
+    console.log(`🔎 [Permissions Cache] Miss for group: ${cacheKey}. Fetching from DB...`);
+    const pool = await poolPromise;
     const result = await pool.request()
-      .input("UserGroupCode", userGroupCode.trim())
+      .input("UserGroupCode", cacheKey)
       .query(`
         SELECT 
           LTRIM(RTRIM(FormCode)) AS FormCode,
@@ -208,6 +225,13 @@ router.get("/permissions/:userGroupCode", async (req, res) => {
         };
       }
     }
+
+    // Save to cache
+    permissionCache.set(cacheKey, {
+      data: permMap,
+      timestamp: Date.now()
+    });
+
     res.json(permMap);
   } catch (err) {
     console.error("PERMISSIONS FETCH ERROR:", err);

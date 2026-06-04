@@ -939,6 +939,16 @@ export const useCartStore = create<CartState>()(
         }
         
         const timeout = setTimeout(async () => {
+          const currentState = get();
+          const lastLocal = currentState.lastLocalUpdate[contextId] || 0;
+          const lastSync = currentState.lastServerSync[contextId] || 0;
+
+          if (lastLocal > 0 && lastSync >= lastLocal) {
+            console.log(`🛡️ [CartStore] Skipping redundant save-cart sync for ${contextId}. Local: ${lastLocal}, Sync: ${lastSync}`);
+            set({ pendingSync: false, _syncTimeout: null });
+            return;
+          }
+
           const syncStartTime = Date.now();
           set({ pendingSync: true });
 
@@ -951,7 +961,6 @@ export const useCartStore = create<CartState>()(
           console.log(`💾 [CartStore] SYNC START for ${contextId}...`);
 
           try {
-            const currentState = get();
             const items = currentState.carts[contextId] || [];
             const orderId = currentState.tableOrderIds[tableId] || null;
             
