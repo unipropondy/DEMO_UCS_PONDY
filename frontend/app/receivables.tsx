@@ -726,9 +726,7 @@ export default function ReceivablesScreen() {
             <View style={[
               styles.ledgerSheet,
               isMobile && {
-                flexGrow: 0,
-                flexShrink: 1,
-                height: "auto",
+                height: "80%",
                 maxHeight: "80%",
                 borderRadius: 16,
                 width: "95%",
@@ -939,9 +937,7 @@ export default function ReceivablesScreen() {
             <View style={[
               styles.collectCard,
               isMobile && {
-                flexGrow: 0,
-                flexShrink: 1,
-                height: "auto",
+                height: "80%",
                 maxHeight: "80%",
                 borderRadius: 16,
                 width: "95%",
