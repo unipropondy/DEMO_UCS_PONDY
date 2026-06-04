@@ -58,8 +58,9 @@ function resolveItemTakeaway(item = {}) {
  * Get or Generate Order ID for a table
  * Returns existing ID if table is active, otherwise generates a new one.
  */
-async function getOrGenerateOrderId(req, tableId) {
+async function getOrGenerateOrderId(req, tableId, transaction = null) {
   const pool = await poolPromise;
+  const runner = transaction || pool;
   const isTakeaway = !tableId || tableId === "undefined" || tableId === "null" || String(tableId).startsWith("TAKEAWAY");
   
   if (isTakeaway) {
@@ -74,24 +75,19 @@ async function getOrGenerateOrderId(req, tableId) {
       let dailySequence = 1;
 
       // ATOMIC ATTEMPT: Use MERGE or Transaction for Sequence
-      const seqResult = await pool
+      const useTxSql = !transaction;
+      const seqResult = await runner
         .request()
         .input("RestId", sql.UniqueIdentifier, String(currentBizId))
         .input("Today", sql.Date, todayStr).query(`
-          BEGIN TRY
-            BEGIN TRANSACTION;
-            IF NOT EXISTS (SELECT 1 FROM OrderSequences WITH (UPDLOCK, HOLDLOCK) WHERE RestaurantId = @RestId AND SequenceDate = @Today)
-            BEGIN
-                INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
-            END
-            UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
-            WHERE RestaurantId = @RestId AND SequenceDate = @Today;
-            COMMIT TRANSACTION;
-          END TRY
-          BEGIN CATCH
-            IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-            THROW;
-          END CATCH
+          ${useTxSql ? 'BEGIN TRY BEGIN TRANSACTION;' : ''}
+          IF NOT EXISTS (SELECT 1 FROM OrderSequences WITH (UPDLOCK, HOLDLOCK) WHERE RestaurantId = @RestId AND SequenceDate = @Today)
+          BEGIN
+              INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
+          END
+          UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
+          WHERE RestaurantId = @RestId AND SequenceDate = @Today;
+          ${useTxSql ? 'COMMIT TRANSACTION; END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; THROW; END CATCH' : ''}
         `);
 
       dailySequence = seqResult.recordset[0]?.LastNumber || 1;
@@ -100,7 +96,7 @@ async function getOrGenerateOrderId(req, tableId) {
       console.error("🔥 [Critical] Takeaway OrderID Generation Failed:", err.message);
       const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
       const datePrefix = istDate.toISOString().split("T")[0].replace(/-/g, "");
-      const countRes = await pool
+      const countRes = await runner
         .request()
         .query(
           `SELECT (COUNT(*) + 1) as LastNumber FROM RestaurantOrderCur WHERE OrderNumber LIKE '${datePrefix}%'`,
@@ -119,7 +115,7 @@ async function getOrGenerateOrderId(req, tableId) {
     // 1. GHOST CLEANUP: Force close any stale open orders for this table first
     // 🛡️ Fail-safe: Wrap in nested try to prevent crashing if DB is busy
     try {
-      await pool.request().input("tid", sql.UniqueIdentifier, cleanId).query(`
+      await runner.request().input("tid", sql.UniqueIdentifier, cleanId).query(`
           DECLARE @TableNo VARCHAR(20), @CurrentOID NVARCHAR(50);
           SELECT @TableNo = TableNumber, @CurrentOID = CurrentOrderId FROM TableMaster WHERE TableId = @tid;
 
@@ -140,7 +136,7 @@ async function getOrGenerateOrderId(req, tableId) {
     }
 
     // 2. Instant check for existing ID
-    const quickCheck = await pool
+    const quickCheck = await runner
       .request()
       .input("tid", sql.UniqueIdentifier, cleanId)
       .query("SELECT CurrentOrderId FROM TableMaster WHERE TableId = @tid");
@@ -167,24 +163,19 @@ async function getOrGenerateOrderId(req, tableId) {
     let dailySequence = 1;
 
     // 3. ATOMIC ATTEMPT: Use MERGE or Transaction for Sequence
-    const seqResult = await pool
+    const useTxSql = !transaction;
+    const seqResult = await runner
       .request()
       .input("RestId", sql.UniqueIdentifier, String(currentBizId))
       .input("Today", sql.Date, todayStr).query(`
-        BEGIN TRY
-          BEGIN TRANSACTION;
-          IF NOT EXISTS (SELECT 1 FROM OrderSequences WITH (UPDLOCK, HOLDLOCK) WHERE RestaurantId = @RestId AND SequenceDate = @Today)
-          BEGIN
-              INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
-          END
-          UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
-          WHERE RestaurantId = @RestId AND SequenceDate = @Today;
-          COMMIT TRANSACTION;
-        END TRY
-        BEGIN CATCH
-          IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-          THROW;
-        END CATCH
+        ${useTxSql ? 'BEGIN TRY BEGIN TRANSACTION;' : ''}
+        IF NOT EXISTS (SELECT 1 FROM OrderSequences WITH (UPDLOCK, HOLDLOCK) WHERE RestaurantId = @RestId AND SequenceDate = @Today)
+        BEGIN
+            INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
+        END
+        UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
+        WHERE RestaurantId = @RestId AND SequenceDate = @Today;
+        ${useTxSql ? 'COMMIT TRANSACTION; END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; THROW; END CATCH' : ''}
       `);
 
     dailySequence = seqResult.recordset[0]?.LastNumber || 1;
@@ -192,7 +183,7 @@ async function getOrGenerateOrderId(req, tableId) {
     const displayOrderId = `${datePrefix}-${String(dailySequence).padStart(4, "0")}`;
 
     // 4. Atomic Update of Table Status
-    await pool
+    await runner
       .request()
       .input("tid", sql.VarChar(50), cleanId)
       .input("oid", sql.NVarChar(50), displayOrderId)
@@ -206,7 +197,7 @@ async function getOrGenerateOrderId(req, tableId) {
     // FALLBACK: Use count as emergency instead of returning "NEW"
     const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
     const datePrefix = istDate.toISOString().split("T")[0].replace(/-/g, "");
-    const countRes = await pool
+    const countRes = await runner
       .request()
       .query(
         `SELECT (COUNT(*) + 1) as LastNumber FROM RestaurantOrderCur WHERE OrderNumber LIKE '${datePrefix}%'`,
@@ -765,7 +756,7 @@ router.post("/send", async (req, res) => {
         .query("SELECT CurrentOrderId FROM TableMaster WITH (UPDLOCK) WHERE TableId = @tid");
 
       // 1. 🚀 GENERATE PROFESSIONAL ID NOW (At the moment of sending)
-      finalOrderId = await getOrGenerateOrderId(req, cleanId);
+      finalOrderId = await getOrGenerateOrderId(req, cleanId, transaction);
 
       // 2. FORCE SENT STATUS — use items from client, or fall back to DB items
       let clientItems = items || [];
