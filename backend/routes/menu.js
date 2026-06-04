@@ -190,6 +190,10 @@ router.get("/image/:imageId", async (req, res) => {
 /* ================= MODIFIERS ================= */
 router.get("/modifiers/:dishId", async (req, res) => {
   try {
+    const cacheKey = `modifiers_${req.params.dishId}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     const pool = await poolPromise;
     const result = await pool.request().input("dishId", req.params.dishId)
       .query(`
@@ -198,6 +202,7 @@ router.get("/modifiers/:dishId", async (req, res) => {
         INNER JOIN ModifierMaster m ON dm.ModifierId = m.ModifierId
         WHERE dm.DishId = @dishId ORDER BY m.ModifierName ASC
       `);
+    setCache(cacheKey, result.recordset);
     res.json(result.recordset);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -206,6 +211,10 @@ router.get("/modifiers/:dishId", async (req, res) => {
 
 router.get("/modifiers/group/:DishGroupId", async (req, res) => {
   try {
+    const cacheKey = `modifiers_group_${req.params.DishGroupId}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     const pool = await poolPromise;
     const result = await pool.request().input("DishGroupId", req.params.DishGroupId)
       .query(`
@@ -215,6 +224,7 @@ router.get("/modifiers/group/:DishGroupId", async (req, res) => {
         INNER JOIN DishMaster d ON dm.DishId = d.DishId
         WHERE d.DishGroupId = @DishGroupId ORDER BY m.ModifierName ASC
       `);
+    setCache(cacheKey, result.recordset);
     res.json(result.recordset);
   } catch (err) {
     res.status(500).json({ error: err.message });

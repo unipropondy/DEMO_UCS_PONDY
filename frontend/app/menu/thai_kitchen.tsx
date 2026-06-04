@@ -800,8 +800,6 @@ export default function MenuScreen() {
 
   const openModifiers = React.useCallback(
     async (dish: any) => {
-      console.log("Dish Clicked", dish);
-
       if (isAdding) return;
 
       const currentKitchen = kitchens.find(
@@ -823,7 +821,6 @@ export default function MenuScreen() {
         });
       };
 
-      // 🚀 SPEED BOOST: Instant add if we know there are no modifiers from GLOBAL cache
       const cachedData = modifierCache[dish.DishId];
       if (cachedData) {
         if (cachedData.length > 0) {
@@ -838,8 +835,6 @@ export default function MenuScreen() {
         return;
       }
 
-      // If not in cache, fallback to quick fetch (only happens if background pre-fetch failed)
-      if (isAdding) return;
       setIsAdding(true);
       setLoadingModifiers(true);
       setSelectedDish(dish);
@@ -849,7 +844,7 @@ export default function MenuScreen() {
       try {
         const res = await fetch(`${API_URL}/api/menu/modifiers/${dish.DishId}`);
         const data = await res.json();
-
+        
         if (Array.isArray(data) && data.length > 0) {
           setModifiers(data);
           setShowModifier(true);
@@ -857,8 +852,7 @@ export default function MenuScreen() {
           addToCartSimple();
         }
       } catch (err) {
-        console.error("Modifier Fetch Error:", err);
-        addToCartSimple(); // Add anyway on error
+        addToCartSimple();
       } finally {
         setIsAdding(false);
         setLoadingModifiers(false);
