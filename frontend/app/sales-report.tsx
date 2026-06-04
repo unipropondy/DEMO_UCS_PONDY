@@ -1940,8 +1940,32 @@ export default function SalesReport() {
       {/* Breakdown */}
       <View style={styles.breakdownCard}>
         <View style={styles.chartCardHeader}>
-          <Text style={styles.cardTitle}>PAYMENT BREAKDOWN</Text>
-          <Ionicons name="wallet-outline" size={14} color={Theme.primary} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={styles.cardTitle}>PAYMENT BREAKDOWN</Text>
+            <Ionicons name="wallet-outline" size={14} color={Theme.primary} />
+          </View>
+          {activePaymentModes.length < 8 && (
+            <TouchableOpacity
+              onPress={() => {
+                if (Platform.OS !== "web") {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+                setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER", "CREDIT"]);
+              }}
+              style={{
+                backgroundColor: Theme.primary + "15",
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: Theme.primary + "30",
+              }}
+            >
+              <Text style={{ color: Theme.primary, fontFamily: Fonts.black, fontSize: 10, letterSpacing: 0.5 }}>
+                SHOW ALL
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={[
           styles.breakdownRow, 
