@@ -140,6 +140,13 @@ function validateRecipientEmail(raw: string): EmailValidationResult {
   };
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export default function SalesReport() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -164,6 +171,7 @@ export default function SalesReport() {
     "UPI",
     "VOID",
     "MEMBER",
+    "CREDIT",
   ]);
   const [activeOrderTypes, setActiveOrderTypes] = useState<string[]>([
     "DINE-IN",
@@ -860,6 +868,7 @@ export default function SalesReport() {
         else if (mode === "PAYNOW") acc.PayNow += s.SysAmount;
         else if (isUpi) acc.Upi += s.SysAmount;
         else if (mode === "MEMBER") acc.Member += s.SysAmount;
+        else if (mode === "CREDIT") acc.Credit += s.SysAmount;
 
         return acc;
       },
@@ -873,6 +882,7 @@ export default function SalesReport() {
         PayNow: 0,
         Upi: 0,
         Member: 0,
+        Credit: 0,
         TotalVoids: 0,
         TotalVoidAmount: 0,
         CancelledCount: 0,
@@ -886,35 +896,90 @@ export default function SalesReport() {
     return filteredMetrics.TotalSales / filteredMetrics.TotalTransactions;
   }, [filteredMetrics]);
 
+  const paymentBreakdownMetrics = useMemo(() => {
+    const filteredByTypes = dateScopedSales.filter((s) => {
+      const typeMatch =
+        activeOrderTypes.length === 2 ||
+        (s.OrderType
+          ? activeOrderTypes.includes(s.OrderType?.trim()) || s.OrderType?.trim() === 'LEDGER'
+          : activeOrderTypes.includes("DINE-IN"));
+      return typeMatch;
+    });
+
+    return filteredByTypes.reduce(
+      (acc, s) => {
+        if (s.IsCancelled) {
+          return acc;
+        }
+
+        const mode = s.PayMode?.trim().toUpperCase() || "";
+        const isUpi = mode.includes("UPI") || mode.includes("GPAY");
+        if (mode === "CASH") acc.Cash += s.SysAmount;
+        else if (mode === "CARD") acc.Card += s.SysAmount;
+        else if (mode === "NETS") acc.Nets += s.SysAmount;
+        else if (mode === "PAYNOW") acc.PayNow += s.SysAmount;
+        else if (isUpi) acc.Upi += s.SysAmount;
+        else if (mode === "MEMBER") acc.Member += s.SysAmount;
+        else if (mode === "CREDIT") acc.Credit += s.SysAmount;
+
+        return acc;
+      },
+      {
+        Cash: 0,
+        Card: 0,
+        Nets: 0,
+        PayNow: 0,
+        Upi: 0,
+        Member: 0,
+        Credit: 0,
+      }
+    );
+  }, [dateScopedSales, activeOrderTypes]);
+
+  const paymentBreakdownTotal = useMemo(() => {
+    return (
+      paymentBreakdownMetrics.Cash +
+      paymentBreakdownMetrics.Card +
+      paymentBreakdownMetrics.Nets +
+      paymentBreakdownMetrics.PayNow +
+      paymentBreakdownMetrics.Upi +
+      paymentBreakdownMetrics.Member +
+      paymentBreakdownMetrics.Credit
+    );
+  }, [paymentBreakdownMetrics]);
+
   const paymentMix = useMemo(() => {
-    if (!filteredMetrics.TotalSales)
-      return { cash: 0, card: 0, nets: 0, paynow: 0, upi: 0, member: 0 };
+    if (!paymentBreakdownTotal)
+      return { cash: 0, card: 0, nets: 0, paynow: 0, upi: 0, member: 0, credit: 0 };
     return {
-      cash: (filteredMetrics.Cash / filteredMetrics.TotalSales) * 100,
-      card: (filteredMetrics.Card / filteredMetrics.TotalSales) * 100,
-      nets: (filteredMetrics.Nets / filteredMetrics.TotalSales) * 100,
-      paynow: (filteredMetrics.PayNow / filteredMetrics.TotalSales) * 100,
-      upi: (filteredMetrics.Upi / filteredMetrics.TotalSales) * 100,
-      member: (filteredMetrics.Member / filteredMetrics.TotalSales) * 100,
+      cash: (paymentBreakdownMetrics.Cash / paymentBreakdownTotal) * 100,
+      card: (paymentBreakdownMetrics.Card / paymentBreakdownTotal) * 100,
+      nets: (paymentBreakdownMetrics.Nets / paymentBreakdownTotal) * 100,
+      paynow: (paymentBreakdownMetrics.PayNow / paymentBreakdownTotal) * 100,
+      upi: (paymentBreakdownMetrics.Upi / paymentBreakdownTotal) * 100,
+      member: (paymentBreakdownMetrics.Member / paymentBreakdownTotal) * 100,
+      credit: (paymentBreakdownMetrics.Credit / paymentBreakdownTotal) * 100,
     };
-  }, [filteredMetrics]);
+  }, [paymentBreakdownMetrics, paymentBreakdownTotal]);
 
   const paymentMixCenterRows = useMemo(() => {
     const rows: { key: string; pct: number; color: string }[] = [];
-    if (filteredMetrics.Cash > 0)
+    if (paymentBreakdownMetrics.Cash > 0)
       rows.push({ key: "CASH", pct: paymentMix.cash, color: "#22c55e" });
-    if (filteredMetrics.Card > 0)
+    if (paymentBreakdownMetrics.Card > 0)
       rows.push({ key: "CARD", pct: paymentMix.card, color: "#818cf8" });
-    if (filteredMetrics.Nets > 0)
+    if (paymentBreakdownMetrics.Nets > 0)
       rows.push({ key: "NETS", pct: paymentMix.nets, color: "#3b82f6" });
-    if (filteredMetrics.PayNow > 0)
+    if (paymentBreakdownMetrics.PayNow > 0)
       rows.push({ key: "DIGITAL", pct: paymentMix.paynow, color: "#f59e0b" });
-    if (filteredMetrics.Upi > 0)
+    if (paymentBreakdownMetrics.Upi > 0)
       rows.push({ key: "UPI", pct: paymentMix.upi, color: "#a855f7" });
-    if (filteredMetrics.Member > 0)
+    if (paymentBreakdownMetrics.Member > 0)
       rows.push({ key: "MEMBER", pct: paymentMix.member, color: "#ec4899" });
+    if (paymentBreakdownMetrics.Credit > 0)
+      rows.push({ key: "CREDIT", pct: paymentMix.credit, color: "#e11d48" });
     return rows.sort((a, b) => b.pct - a.pct);
-  }, [filteredMetrics, paymentMix]);
+  }, [paymentBreakdownMetrics, paymentMix]);
 
   const togglePaymentMode = (mode: string) => {
     if (Platform.OS !== "web") {
@@ -923,6 +988,19 @@ export default function SalesReport() {
     setActivePaymentModes((prev) =>
       prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode],
     );
+  };
+
+  const handleBreakdownPress = (label: string) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    const modeKey = label === "DIGITAL" ? "PAYNOW" : label;
+    const isOnlyActive = activePaymentModes.length === 1 && activePaymentModes[0] === modeKey;
+    if (isOnlyActive) {
+      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER", "CREDIT"]);
+    } else {
+      setActivePaymentModes([modeKey]);
+    }
   };
 
   const toggleOrderType = (type: string) => {
@@ -1668,37 +1746,42 @@ export default function SalesReport() {
               <Ionicons name="pie-chart" size={14} color={Theme.primary} />
             </View>
             <View style={styles.chartContainer}>
-              {filteredMetrics.TotalSales > 0 ? (
+              {paymentBreakdownTotal > 0 ? (
                 <View style={styles.pieChartWrapper}>
                   <PieChart
                     data={[
                       {
-                        value: filteredMetrics.Cash,
+                        value: paymentBreakdownMetrics.Cash,
                         color: "#22c55e",
                         label: "CASH",
                       },
                       {
-                        value: filteredMetrics.Card,
+                        value: paymentBreakdownMetrics.Card,
                         color: "#818cf8",
                         label: "CARD",
                       },
                       {
-                        value: filteredMetrics.Nets,
+                        value: paymentBreakdownMetrics.Nets,
                         color: "#3b82f6",
                         label: "NETS",
                       },
                       {
-                        value: filteredMetrics.PayNow,
+                        value: paymentBreakdownMetrics.PayNow,
                         color: "#f59e0b",
                         label: "DIGITAL",
                       },
                       {
-                        value: filteredMetrics.Member,
+                        value: paymentBreakdownMetrics.Member,
                         color: "#ec4899",
                         label: "MEMBER",
                       },
                       {
-                        value: filteredMetrics.Upi,
+                        value: paymentBreakdownMetrics.Credit,
+                        color: "#e11d48",
+                        label: "CREDIT",
+                      },
+                      {
+                        value: paymentBreakdownMetrics.Upi,
                         color: "#a855f7",
                         label: "UPI",
                       },
@@ -1872,46 +1955,75 @@ export default function SalesReport() {
           {[
             {
               label: "CASH",
-              val: filteredMetrics.Cash,
+              val: paymentBreakdownMetrics.Cash,
               icon: "💵",
               color: "#22c55e",
             },
             {
               label: "CARD",
-              val: filteredMetrics.Card,
+              val: paymentBreakdownMetrics.Card,
               icon: "💳",
               color: "#818cf8",
             },
             {
               label: "NETS",
-              val: filteredMetrics.Nets,
+              val: paymentBreakdownMetrics.Nets,
               icon: "🔳",
               color: "#3b82f6",
             },
             {
               label: "DIGITAL",
-              val: filteredMetrics.PayNow,
+              val: paymentBreakdownMetrics.PayNow,
               icon: "📱",
               color: "#f59e0b",
             },
             {
               label: "UPI",
-              val: filteredMetrics.Upi,
+              val: paymentBreakdownMetrics.Upi,
               icon: "⚡",
               color: "#a855f7",
             },
             {
               label: "MEMBER",
-              val: filteredMetrics.Member,
+              val: paymentBreakdownMetrics.Member,
               icon: "👤",
               color: "#ec4899",
+            },
+            {
+              label: "CREDIT",
+              val: paymentBreakdownMetrics.Credit,
+              icon: "🏷️",
+              color: "#e11d48",
             },
           ].map((item, idx) => {
             const layoutStyle = SCREEN_W > 768 
               ? { flex: 1, minWidth: 0 } 
               : { width: (SCREEN_W - 88) / 3 - 8 }; // Perfectly calculated column width for 3x2 mobile grid
+
+            const modeKey = item.label === "DIGITAL" ? "PAYNOW" : item.label;
+            const isSomeFilterApplied = activePaymentModes.length < 8;
+            const isThisActive = activePaymentModes.includes(modeKey);
+            const isActive = isSomeFilterApplied && isThisActive;
+            const isInactive = isSomeFilterApplied && !isThisActive;
+
             return (
-              <View key={idx} style={[styles.breakdownItem, layoutStyle]}>
+              <TouchableOpacity
+                key={idx}
+                activeOpacity={0.7}
+                onPress={() => handleBreakdownPress(item.label)}
+                style={[
+                  styles.breakdownItem,
+                  layoutStyle,
+                  isActive && {
+                    borderColor: item.color,
+                    borderWidth: 1.5,
+                    backgroundColor: hexToRgba(item.color, 0.08),
+                  },
+                  isInactive && {
+                    opacity: 0.4,
+                  }
+                ]}
+              >
                 <Text style={styles.breakdownIcon}>{item.icon}</Text>
                 <Text style={styles.breakdownLabel}>{item.label}</Text>
                 <Text 
@@ -1921,7 +2033,7 @@ export default function SalesReport() {
                 >
                   {formatCurrency(item.val)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -2461,7 +2573,7 @@ export default function SalesReport() {
                   <View style={styles.sidebarSection}>
                     <Text style={styles.sectionLabel}>PAYMENT MODES</Text>
                     <View style={styles.chipRow}>
-                      {["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER"].map((m) => (
+                      {["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER", "CREDIT"].map((m) => (
                         <TouchableOpacity
                           key={m}
                           onPress={() => togglePaymentMode(m)}
@@ -2576,7 +2688,7 @@ export default function SalesReport() {
                 <View style={styles.sidebarFooter}>
                   <TouchableOpacity
                     onPress={() => {
-                      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER"]);
+                      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER", "CREDIT"]);
                       setActiveOrderTypes(["DINE-IN", "TAKEAWAY"]);
                       setSortOrder("NEWEST");
                       setShowCancelledOrders(true);

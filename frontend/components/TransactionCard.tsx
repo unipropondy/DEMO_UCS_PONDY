@@ -51,6 +51,8 @@ const TransactionCard = React.memo(
                 ? "cash-outline"
                 : item.PayMode === "MEMBER"
                 ? "person-outline"
+                : item.PayMode === "CREDIT"
+                ? "pricetag-outline"
                 : isUpi
                 ? "flash-outline"
                 : isPayNow
@@ -65,6 +67,8 @@ const TransactionCard = React.memo(
                 ? "#22c55e"
                 : item.PayMode === "MEMBER"
                 ? "#ec4899"
+                : item.PayMode === "CREDIT"
+                ? "#e11d48"
                 : isUpi
                 ? "#a855f7"
                 : isPayNow
@@ -83,8 +87,36 @@ const TransactionCard = React.memo(
           </Text>
           <Text style={styles.txSmall} numberOfLines={1}>
             {item.OrderType === "LEDGER"
-              ? "💳 Ledger Settle"
-              : (item.OrderType === "TAKEAWAY" ? "🛍️ Takeaway" : `🪑 Table ${item.TableNo || "N/A"}`)}
+              ? `${
+                  item.PayMode === "CASH"
+                    ? "💵"
+                    : item.PayMode === "MEMBER"
+                    ? "👤"
+                    : item.PayMode === "CREDIT"
+                    ? "🏷️"
+                    : isUpi
+                    ? "⚡"
+                    : isPayNow
+                    ? "📱"
+                    : isNets
+                    ? "🔳"
+                    : "💳"
+                } Ledger Settle`
+              : `${item.OrderType === "TAKEAWAY" ? "🛍️ Takeaway" : `🪑 Table ${item.TableNo || "N/A"}`} • ${
+                  item.PayMode === "CASH"
+                    ? "Cash"
+                    : item.PayMode === "MEMBER"
+                    ? "Member"
+                    : item.PayMode === "CREDIT"
+                    ? "Credit"
+                    : isUpi
+                    ? "UPI"
+                    : isPayNow
+                    ? "PayNow"
+                    : isNets
+                    ? "NETS"
+                    : item.PayMode || "Other"
+                }`}
             {item.SER_NAME && item.OrderType !== "LEDGER" ? ` • ${item.SER_NAME}` : ""}
           </Text>
           {(item.isMerged || item.isSplit) && (
