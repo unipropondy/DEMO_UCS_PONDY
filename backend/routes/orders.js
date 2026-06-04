@@ -74,20 +74,19 @@ async function getOrGenerateOrderId(req, tableId, transaction = null) {
 
       let dailySequence = 1;
 
-      // ATOMIC ATTEMPT: Use MERGE or Transaction for Sequence
-      const useTxSql = !transaction;
+      // ATOMIC ATTEMPT: Use atomic MERGE statement for Sequence to prevent transaction leaks
       const seqResult = await runner
         .request()
         .input("RestId", sql.UniqueIdentifier, String(currentBizId))
         .input("Today", sql.Date, todayStr).query(`
-          ${useTxSql ? 'BEGIN TRY BEGIN TRANSACTION;' : ''}
-          IF NOT EXISTS (SELECT 1 FROM OrderSequences WITH (UPDLOCK, HOLDLOCK) WHERE RestaurantId = @RestId AND SequenceDate = @Today)
-          BEGIN
-              INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
-          END
-          UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
-          WHERE RestaurantId = @RestId AND SequenceDate = @Today;
-          ${useTxSql ? 'COMMIT TRANSACTION; END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; THROW; END CATCH' : ''}
+          MERGE INTO OrderSequences WITH (HOLDLOCK) AS target
+          USING (SELECT @RestId AS RestaurantId, @Today AS SequenceDate) AS source
+          ON (target.RestaurantId = source.RestaurantId AND target.SequenceDate = source.SequenceDate)
+          WHEN MATCHED THEN
+              UPDATE SET LastNumber = target.LastNumber + 1
+          WHEN NOT MATCHED THEN
+              INSERT (RestaurantId, SequenceDate, LastNumber) VALUES (source.RestaurantId, source.SequenceDate, 1)
+          OUTPUT INSERTED.LastNumber;
         `);
 
       dailySequence = seqResult.recordset[0]?.LastNumber || 1;
@@ -162,20 +161,19 @@ async function getOrGenerateOrderId(req, tableId, transaction = null) {
 
     let dailySequence = 1;
 
-    // 3. ATOMIC ATTEMPT: Use MERGE or Transaction for Sequence
-    const useTxSql = !transaction;
+    // 3. ATOMIC ATTEMPT: Use atomic MERGE statement for Sequence to prevent transaction leaks
     const seqResult = await runner
       .request()
       .input("RestId", sql.UniqueIdentifier, String(currentBizId))
       .input("Today", sql.Date, todayStr).query(`
-        ${useTxSql ? 'BEGIN TRY BEGIN TRANSACTION;' : ''}
-        IF NOT EXISTS (SELECT 1 FROM OrderSequences WITH (UPDLOCK, HOLDLOCK) WHERE RestaurantId = @RestId AND SequenceDate = @Today)
-        BEGIN
-            INSERT INTO OrderSequences (RestaurantId, SequenceDate, LastNumber) VALUES (@RestId, @Today, 0);
-        END
-        UPDATE OrderSequences SET LastNumber = LastNumber + 1 OUTPUT INSERTED.LastNumber
-        WHERE RestaurantId = @RestId AND SequenceDate = @Today;
-        ${useTxSql ? 'COMMIT TRANSACTION; END TRY BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; THROW; END CATCH' : ''}
+        MERGE INTO OrderSequences WITH (HOLDLOCK) AS target
+        USING (SELECT @RestId AS RestaurantId, @Today AS SequenceDate) AS source
+        ON (target.RestaurantId = source.RestaurantId AND target.SequenceDate = source.SequenceDate)
+        WHEN MATCHED THEN
+            UPDATE SET LastNumber = target.LastNumber + 1
+        WHEN NOT MATCHED THEN
+            INSERT (RestaurantId, SequenceDate, LastNumber) VALUES (source.RestaurantId, source.SequenceDate, 1)
+        OUTPUT INSERTED.LastNumber;
       `);
 
     dailySequence = seqResult.recordset[0]?.LastNumber || 1;
