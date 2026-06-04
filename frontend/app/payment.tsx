@@ -553,10 +553,11 @@ export default function PaymentScreen() {
     
     if (mUpper === "MEMBER" || mUpper === "CREDIT") {
       if (!selectedMember) {
+        // No member chosen yet — open modal to search and select one
         setShowMemberModal(true);
         return;
       }
-      
+      // Member already selected — proceed to Complement Settlement
       const isLimitExceeded = (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0);
       if (isLimitExceeded) {
         const isAdminOrManager = user?.role === "ADMIN" || user?.role === "MANAGER";
@@ -569,12 +570,13 @@ export default function PaymentScreen() {
               { text: "Authorize & Complete", onPress: () => executeFinalPayment() }
             ]
           );
-          return;
         } else {
           showToast({ type: "error", message: "Credit Limit Exceeded", subtitle: "Manager approval required to override" });
-          return;
         }
+      } else {
+        executeFinalPayment();
       }
+      return;
     }
 
     if (mUpper.includes("UPI") && settings.upiId) { setIsUPIVisible(true); return; }
@@ -1388,7 +1390,11 @@ export default function PaymentScreen() {
                           ) : (
                             <>
                               <Ionicons name="checkmark-circle" size={24} color="#fff" />
-                              <Text style={styles.completeBtnText}>Complete Settlement</Text>
+                              <Text style={styles.completeBtnText}>
+                                {(method.trim().toUpperCase() === "MEMBER" || method.trim().toUpperCase() === "CREDIT") && selectedMember
+                                  ? "Complement Settlement"
+                                  : "Complete Settlement"}
+                              </Text>
                             </>
                           )}
                         </TouchableOpacity>
@@ -1762,25 +1768,8 @@ export default function PaymentScreen() {
                                     showToast({ type: "warning", message: "Inactive Member", subtitle: "Cannot select inactive member" });
                                     return;
                                   }
+                                  // Select member only — payment is completed via "Complement Settlement" button below
                                   setSelectedMember(item);
-                                  
-                                  // Auto-confirm payment on click
-                                  setShowMemberModal(false);
-                                  if (!isSplitActive) {
-                                    const isLimitExceeded = (item.CurrentBalance || 0) + total > (item.CreditLimit || 0);
-                                    if (isLimitExceeded) {
-                                      Alert.alert(
-                                        "Credit Limit Exceeded",
-                                        `Outstanding will be ${currencySymbol}${((item.CurrentBalance || 0) + total).toFixed(2)} exceeding limit of ${currencySymbol}${(item.CreditLimit || 0).toFixed(2)}. Authorize credit purchase?`,
-                                        [
-                                          { text: "Cancel", style: "cancel" },
-                                          { text: "Authorize & Confirm", onPress: () => executeFinalPayment(undefined, item) }
-                                        ]
-                                      );
-                                    } else {
-                                      executeFinalPayment(undefined, item);
-                                    }
-                                  }
                                 }}
                               >
                                 <View style={{ flex: 1 }}>
@@ -1834,35 +1823,18 @@ export default function PaymentScreen() {
                         <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowMemberModal(false)}>
                           <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.bold }}>Cancel</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[
-                            styles.confirmBtn,
-                            (!selectedMember || (((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0)) && !(user?.role === "ADMIN" || user?.role === "MANAGER"))) && { backgroundColor: Theme.border, opacity: 0.7 }
-                          ]}
-                          disabled={!selectedMember || (((selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0)) && !(user?.role === "ADMIN" || user?.role === "MANAGER"))}
-                          onPress={() => {
-                            setShowMemberModal(false);
-                            if (!isSplitActive) {
-                              const isLimitExceeded = (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0);
-                              if (isLimitExceeded) {
-                                Alert.alert(
-                                  "Credit Limit Exceeded",
-                                  `Outstanding will be ${currencySymbol}${((selectedMember.CurrentBalance || 0) + total).toFixed(2)} exceeding limit of ${currencySymbol}${(selectedMember.CreditLimit || 0).toFixed(2)}. Authorize credit purchase?`,
-                                  [
-                                    { text: "Cancel", style: "cancel" },
-                                    { text: "Authorize & Confirm", onPress: () => executeFinalPayment() }
-                                  ]
-                                );
-                              } else {
-                                executeFinalPayment();
-                              }
-                            }
-                          }}
-                        >
-                          <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>
-                            {selectedMember && (selectedMember.CurrentBalance || 0) + total > (selectedMember.CreditLimit || 0) ? "Authorize & Confirm" : "Confirm Credit Payment"}
-                          </Text>
-                        </TouchableOpacity>
+                        {selectedMember && (
+                          <TouchableOpacity
+                            style={styles.confirmBtn}
+                            onPress={() => {
+                              // Only close the modal and confirm member selection.
+                              // Payment is finalized by pressing "Complement Settlement" on the payment screen.
+                              setShowMemberModal(false);
+                            }}
+                          >
+                            <Text style={{ color: '#fff', fontFamily: Fonts.bold }}>Confirm</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </>
                   )}
