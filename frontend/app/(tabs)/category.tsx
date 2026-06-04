@@ -1195,6 +1195,30 @@ export default function Category() {
 
             {/* Menu Options */}
             <ScrollView showsVerticalScrollIndicator={false}>
+              {canAccessLockTables() && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setIsMenuVisible(false);
+                    router.push("/locked-tables");
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.menuIconContainer,
+                      { backgroundColor: Theme.warning + "10" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={18}
+                      color={Theme.warning}
+                    />
+                  </View>
+                  <Text style={styles.menuItemText}>Locked Tables</Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
@@ -1444,29 +1468,6 @@ export default function Category() {
                 </>
               )}
 
-              {canAccessLockTables() && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setIsMenuVisible(false);
-                    router.push("/locked-tables");
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.warning + "10" },
-                    ]}
-                  >
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={18}
-                      color={Theme.warning}
-                    />
-                  </View>
-                  <Text style={styles.menuItemText}>Locked Tables</Text>
-                </TouchableOpacity>
-              )}
 
               {/* Legend in Menu for Mobile */}
               {!isTablet && (
