@@ -1793,30 +1793,51 @@ export default function SalesReport() {
                     strokeColor={Theme.bgCard}
                     strokeWidth={2}
                     centerLabelComponent={() => (
-                      <View style={styles.pieDonutCenter}>
-                        {paymentMixCenterRows.map((row) => (
-                          <Text
-                            key={row.key}
-                            style={styles.pieDonutCenterLine}
-                            numberOfLines={1}
-                          >
-                            <Text
-                              style={[
-                                styles.pieDonutCenterPct,
-                                { color: row.color },
-                              ]}
-                            >
-                              {row.pct.toFixed(0)}%
-                            </Text>
-                            <Text style={styles.pieDonutCenterTag}>
-                              {" "}
-                              {row.key}
-                            </Text>
-                          </Text>
-                        ))}
+                      <View style={{ alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ fontSize: 9, fontFamily: Fonts.bold, color: Theme.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                          Total
+                        </Text>
+                        <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary, marginTop: 2 }}>
+                          {formatCurrency(paymentBreakdownTotal)}
+                        </Text>
                       </View>
                     )}
                   />
+                  
+                  {/* Legend below the chart */}
+                  <View style={{ 
+                    flexDirection: "row", 
+                    flexWrap: "wrap", 
+                    justifyContent: "center", 
+                    gap: 6, 
+                    marginTop: 16, 
+                    paddingHorizontal: 4 
+                  }}>
+                    {paymentMixCenterRows.map((row) => (
+                      <View 
+                        key={row.key} 
+                        style={{ 
+                          flexDirection: "row", 
+                          alignItems: "center", 
+                          backgroundColor: Theme.bgMuted, 
+                          paddingHorizontal: 8, 
+                          paddingVertical: 4, 
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: Theme.border,
+                          gap: 4
+                        }}
+                      >
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: row.color }} />
+                        <Text style={{ fontSize: 9, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                          {row.key}
+                        </Text>
+                        <Text style={{ fontSize: 9, fontFamily: Fonts.medium, color: row.color }}>
+                          {row.pct.toFixed(0)}%
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
               ) : (
                 <View style={styles.emptyChartPlaceholder}>
