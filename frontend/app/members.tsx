@@ -326,11 +326,7 @@ export default function MembersScreen() {
         <View style={styles.headerBar}>
           <TouchableOpacity
             onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/(tabs)/category");
-              }
+              router.replace("/(tabs)/category" as any);
             }}
             style={styles.circularBack}
           >

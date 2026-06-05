@@ -74,8 +74,12 @@ export default function ReceivablesScreen() {
   const isFocused = useIsFocused();
   const settingsStore = useCompanySettingsStore((state) => state.settings);
   const currencySymbol = settingsStore?.currencySymbol || "$";
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const isMobile = screenWidth < 768;
+
+  // Diagnostics states
+  const [sheetDiagHeight, setSheetDiagHeight] = useState<number>(0);
+  const [footerDiagHeight, setFooterDiagHeight] = useState<number>(0);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<"DASHBOARD" | "AGING">("DASHBOARD");
@@ -90,7 +94,14 @@ export default function ReceivablesScreen() {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerAgingType | null>(null);
   const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [ledgerTab, setLedgerTab] = useState<"LEDGER" | "BILLS">("LEDGER");
-  
+
+  // Runtime diagnostics logging
+  useEffect(() => {
+    if (showLedgerModal) {
+      console.log(`[DIAGNOSTICS] showLedgerModal=true. Screen dims: ${screenWidth}x${screenHeight}. isMobile: ${isMobile}. sheetHeight: ${sheetDiagHeight}, footerHeight: ${footerDiagHeight}`);
+    }
+  }, [showLedgerModal, screenWidth, screenHeight, isMobile, sheetDiagHeight, footerDiagHeight]);
+
   // Ledger and Outstanding details
   const [transactions, setTransactions] = useState<CreditTransactionType[]>([]);
   const [outstandingBills, setOutstandingBills] = useState<OutstandingBillType[]>([]);
@@ -570,15 +581,17 @@ export default function ReceivablesScreen() {
           }}
         >
           <View style={styles.modalOverlay}>
-            <View style={[
-              styles.ledgerSheet,
-              isMobile && {
-                height: "80%",
-                maxHeight: "80%",
-                borderRadius: 16,
-                width: "95%",
-              }
-            ]}>
+            <View 
+              onLayout={(e) => setSheetDiagHeight(e.nativeEvent.layout.height)}
+              style={[
+                styles.ledgerSheet,
+                isMobile && {
+                  maxHeight: "85%",
+                  borderRadius: 16,
+                  width: "95%",
+                }
+              ]}
+            >
               {/* Header */}
               <View style={styles.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -608,7 +621,8 @@ export default function ReceivablesScreen() {
                   </Text>
                 </View>
               ) : (
-                <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+                /* ── scrollable body: tabs + content ── flex:1 so footer stays below ── */
+                <View style={{ flex: 1, minHeight: 0 }}>
                   {/* Ledger navigation tabs */}
                   <View style={styles.ledgerTabs}>
                     <TouchableOpacity
@@ -629,7 +643,7 @@ export default function ReceivablesScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  <ScrollView style={{ flex: 1, flexShrink: 1, padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
+                  <ScrollView style={{ flex: 1, padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
                     {ledgerTab === "LEDGER" ? (
                       /* --- Ledger transaction statement history --- */
                       <View style={{ paddingBottom: 20 }}>
@@ -650,7 +664,6 @@ export default function ReceivablesScreen() {
                               const d = new Date(tx.CreatedDate);
                               const formattedDate = d.toLocaleDateString([], { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
                               const isDebit = tx.TransactionType === "DEBIT" || (tx.TransactionType === "ADJUSTMENT" && tx.Amount > 0);
-                              
                               return (
                                 <View key={tx.TransactionId || idx} style={styles.ledgerRow}>
                                   <Text style={[styles.ledgerCol, { flex: 1.1, fontSize: 10 }]} numberOfLines={1} adjustsFontSizeToFit>{formattedDate}</Text>
@@ -686,7 +699,6 @@ export default function ReceivablesScreen() {
                             {outstandingBills.map((bill) => {
                               const bd = new Date(bill.InvoiceDate);
                               const formattedBillDate = bd.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
-                              
                               return (
                                 <View key={bill.SettlementId} style={styles.billItemCard}>
                                   <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
@@ -723,51 +735,56 @@ export default function ReceivablesScreen() {
                       </View>
                     )}
                   </ScrollView>
+                </View>
+              )}
 
-                  {/* Actions footer */}
-                  <View style={[styles.ledgerActions, isMobile && { flexDirection: "column", gap: 10, padding: 12 }]}>
-                    <TouchableOpacity
-                      onPress={handleSendWhatsAppReminder}
-                      style={[
-                        styles.actionButton,
-                        { backgroundColor: Theme.bgInput, borderWidth: 1, borderColor: Theme.border },
-                        isMobile && { flex: 0, width: "100%" }
-                      ]}
+              {/* ── sticky action footer: direct child of ledgerSheet, NEVER clipped ── */}
+              {!loadingDetails && (
+                <View 
+                  onLayout={(e) => setFooterDiagHeight(e.nativeEvent.layout.height)}
+                  style={styles.ledgerActions}
+                >
+                  <TouchableOpacity
+                    onPress={handleSendWhatsAppReminder}
+                    style={[styles.actionButton, { backgroundColor: Theme.bgInput, borderWidth: 1, borderColor: Theme.border }]}
+                  >
+                    <Ionicons name="logo-whatsapp" size={20} color={Theme.success} />
+                    <Text 
+                      style={[styles.actionButtonText, { color: Theme.textPrimary }, isMobile && { fontSize: 11 }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
                     >
-                      <Ionicons name="logo-whatsapp" size={20} color={Theme.success} />
-                      <Text style={[styles.actionButtonText, { color: Theme.textPrimary }]}>
-                        Send WhatsApp Reminder
-                      </Text>
-                    </TouchableOpacity>
+                      WhatsApp Reminder
+                    </Text>
+                  </TouchableOpacity>
 
-                    <TouchableOpacity
-                      onPress={() => {
-                        if (!selectedCustomer) return;
-                        setShowLedgerModal(false);
-                        router.push({
-                          pathname: "/payment",
-                          params: {
-                            memberId: selectedCustomer.MemberId,
-                            collectAmount: String(Math.max(0, selectedCustomer.OutstandingBalance || 0)),
-                            memberName: selectedCustomer.Name,
-                            memberPhone: selectedCustomer.Phone,
-                            isMember: "false"
-                          }
-                        });
-                      }}
-                      style={[
-                        styles.actionButton,
-                        { backgroundColor: Theme.primary },
-                        isMobile && { flex: 0, width: "100%" }
-                      ]}
-                      disabled={!selectedCustomer || selectedCustomer.OutstandingBalance <= 0.01}
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (!selectedCustomer) return;
+                      setShowLedgerModal(false);
+                      router.push({
+                        pathname: "/payment",
+                        params: {
+                          memberId: selectedCustomer.MemberId,
+                          collectAmount: String(Math.max(0, selectedCustomer.OutstandingBalance || 0)),
+                          memberName: selectedCustomer.Name,
+                          memberPhone: selectedCustomer.Phone,
+                          isMember: "false"
+                        }
+                      });
+                    }}
+                    style={[styles.actionButton, { backgroundColor: Theme.primary }]}
+                    disabled={!selectedCustomer || selectedCustomer.OutstandingBalance <= 0.01}
+                  >
+                    <Ionicons name="wallet-outline" size={20} color="#fff" />
+                    <Text 
+                      style={[styles.actionButtonText, { color: "#fff" }, isMobile && { fontSize: 11 }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
                     >
-                      <Ionicons name="wallet-outline" size={20} color="#fff" />
-                      <Text style={[styles.actionButtonText, { color: "#fff" }]}>
-                        Record Collection
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                      Record Collection
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -880,8 +897,30 @@ const styles = StyleSheet.create({
   billBreakValue: { fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary },
   
   // Ledger action footer
-  ledgerActions: { flexDirection: "row", padding: 20, borderTopWidth: 1, borderTopColor: Theme.border, gap: 12 },
-  actionButton: { flex: 1, height: 50, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  ledgerActions: {
+    flexDirection: "row",
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: Theme.border,
+    gap: 12,
+    backgroundColor: Theme.bgCard,
+    // Ensure footer is always visible and never clipped
+    flexShrink: 0,
+    minHeight: 72,
+    zIndex: 10,
+  },
+  actionButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    // Explicit min dimensions so production builds can't collapse them
+    minWidth: 120,
+    minHeight: 52,
+  },
   actionButtonText: { fontSize: 13, fontFamily: Fonts.bold },
 
   // Collection modal
