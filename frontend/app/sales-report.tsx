@@ -156,7 +156,6 @@ export default function SalesReport() {
   const todayDate = new Date().toLocaleDateString("en-CA");
   const [selectedDate, setSelectedDate] = useState(todayDate);
   const [selectedFilter, setSelectedFilter] = useState<FilterType>("DAILY");
-  const [activeMainFilter, setActiveMainFilter] = useState<"ALL_SALES" | "CASH" | "CARD" | "UPI" | "CREDIT" | "MEMBER_PAYMENTS" | "CREDIT_PAYMENTS">("ALL_SALES");
   const [, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -837,34 +836,16 @@ export default function SalesReport() {
       const modeUpper = s.PayMode?.toUpperCase().trim() || "";
       const isUpiMode = modeUpper.includes("UPI") || modeUpper.includes("GPAY");
       
-      let mainFilterMatch = false;
-      if (activeMainFilter === "ALL_SALES") {
-        mainFilterMatch = s.OrderType !== 'LEDGER';
-      } else if (activeMainFilter === "CASH") {
-        mainFilterMatch = s.OrderType !== 'LEDGER' && modeUpper === "CASH";
-      } else if (activeMainFilter === "CARD") {
-        mainFilterMatch = s.OrderType !== 'LEDGER' && modeUpper === "CARD";
-      } else if (activeMainFilter === "UPI") {
-        mainFilterMatch = s.OrderType !== 'LEDGER' && isUpiMode;
-      } else if (activeMainFilter === "CREDIT") {
-        mainFilterMatch = s.OrderType !== 'LEDGER' && (modeUpper === "CREDIT" || modeUpper === "MEMBER");
-      } else if (activeMainFilter === "MEMBER_PAYMENTS") {
-        mainFilterMatch = s.OrderType === 'LEDGER' && s.OrderId === 'Member Payment Collected';
-      } else if (activeMainFilter === "CREDIT_PAYMENTS") {
-        mainFilterMatch = s.OrderType === 'LEDGER' && s.OrderId === 'Credit Payment Collected';
-      }
-
-      if (!mainFilterMatch) return false;
-
-      const modeMatch = activeMainFilter === "MEMBER_PAYMENTS" || 
-                       activeMainFilter === "CREDIT_PAYMENTS" || 
-                       activePaymentModes.includes(s.PayMode?.trim()) || 
-                       (activePaymentModes.includes("UPI") && isUpiMode) ||
-                       (showCancelledOrders && s.IsCancelled);
+      const modeMatch =
+        activePaymentModes.includes(s.PayMode?.trim()) ||
+        (activePaymentModes.includes("UPI") && isUpiMode) ||
+        (showCancelledOrders && s.IsCancelled) ||
+        s.OrderType === 'LEDGER';
       const typeMatch =
+        s.OrderType === 'LEDGER' ||
         activeOrderTypes.length === 2 ||
         (s.OrderType
-          ? activeOrderTypes.includes(s.OrderType?.trim()) || s.OrderType?.trim() === 'LEDGER'
+          ? activeOrderTypes.includes(s.OrderType?.trim())
           : activeOrderTypes.includes("DINE-IN"));
       return modeMatch && typeMatch;
     });
@@ -872,7 +853,6 @@ export default function SalesReport() {
     dateScopedSales,
     activePaymentModes,
     activeOrderTypes,
-    activeMainFilter,
     showCancelledOrders,
   ]);
 
@@ -1666,46 +1646,7 @@ export default function SalesReport() {
         </View>
       )}
 
-      {/* Main List Filters */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.mainFilterBar}
-        style={{ marginBottom: 12 }}
-      >
-        {[
-          { id: "ALL_SALES", label: "All Sales" },
-          { id: "CASH", label: "Cash" },
-          { id: "CARD", label: "Card" },
-          { id: "UPI", label: "UPI" },
-          { id: "CREDIT", label: "Credit Sales" },
-          { id: "MEMBER_PAYMENTS", label: "Member Payments" },
-          { id: "CREDIT_PAYMENTS", label: "Credit Payments" }
-        ].map((opt) => (
-          <TouchableOpacity
-            key={opt.id}
-            onPress={() => {
-              if (Platform.OS !== "web") {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-              setActiveMainFilter(opt.id as any);
-            }}
-            style={[
-              styles.mainFilterBtn,
-              activeMainFilter === opt.id && styles.activeMainFilterBtn,
-            ]}
-          >
-            <Text
-              style={[
-                styles.mainFilterText,
-                activeMainFilter === opt.id && styles.activeMainFilterText,
-              ]}
-            >
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+
 
       {/* Metrics Grid */}
       <View style={styles.metricsGrid}>
@@ -1734,14 +1675,8 @@ export default function SalesReport() {
           "#22c55e",
         )}
         {renderMetricTile(
-          "Avg Check",
-          formatCurrency(avgOrder),
-          "analytics-outline",
-          Theme.primary,
-        )}
-        {renderMetricTile(
           "Total Orders",
-          filteredMetrics.TotalTransactions,
+          filteredMetrics.TotalTransactions + filteredMetrics.CancelledCount,
           "receipt-outline",
           Theme.warning,
         )}
@@ -2013,6 +1948,12 @@ export default function SalesReport() {
               />
             </View>
             <View style={styles.metricsStats}>
+              <View style={styles.metricRow}>
+                <Text style={styles.metricLabel}>Avg Check</Text>
+                <Text style={styles.metricValueSmall}>
+                  {formatCurrency(avgOrder)}
+                </Text>
+              </View>
               <View style={styles.metricRow}>
                 <Text style={styles.metricLabel}>Conversion</Text>
                 <Text style={styles.metricValueSmall}>
