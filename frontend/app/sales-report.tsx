@@ -21,6 +21,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -1591,15 +1592,16 @@ export default function SalesReport() {
       <View style={styles.filterBar}>
         {(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"] as FilterType[]).map(
           (f) => (
-            <TouchableOpacity
+            <Pressable
               key={f}
               onPress={() => {
                 setSelectedFilter(f as FilterType);
-                setPickerMode("SINGLE");
+                setPickerMode('SINGLE');
               }}
-              style={[
+              style={({ pressed }) => [
                 styles.filterBtn,
                 selectedFilter === f && styles.activeFilterBtn,
+                pressed && { opacity: 0.6 },
               ]}
             >
               <Text
@@ -1610,7 +1612,7 @@ export default function SalesReport() {
               >
                 {f}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           ),
         )}
       </View>
