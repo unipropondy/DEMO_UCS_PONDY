@@ -399,12 +399,12 @@ async function initDB(pool) {
 }
 
 // ============================================================
-// 🔄 AUTO-SYNC: Detect active kitchens → ensure PrintMaster rows
+// 🔄 AUTO-SYNC: Detect ALL active kitchens → ensure PrintMaster rows
 // ============================================================
-// This runs on startup AND every few minutes (via server.js polling).
-// Even on a fresh DB copy or new kitchen added from backoffice,
-// it will auto-create the PrintMaster entry (PrinterType=2) so that
-// smart kitchen routing always works without manual configuration.
+// KEY FIX: Categories with no KitchenTypeCode (like Lebanon) are now
+// auto-assigned a new unique code in CategoryKitchenType, then given
+// their own PrintMaster row. No kitchen is ever missed or deduplicated.
+// Runs on startup + every 3 minutes via server.js.
 // ============================================================
 async function syncKitchensToPrintMaster(pool) {
   try {
@@ -430,18 +430,24 @@ async function syncKitchensToPrintMaster(pool) {
     const taCheck = await pool.request()
       .query("SELECT COUNT(*) as cnt FROM PrintMaster WHERE PrinterType = 3 AND IsActive = 1");
     if (taCheck.recordset[0].cnt === 0) {
-      await pool.request().query(`
-        INSERT INTO PrintMaster (PrinterId, PrinterName, PrinterPath, PrinterIP, PrinterType, PrintSection, KitchenTypeName, KitchenTypeValue, IsActive, PrintCopy)
-        VALUES (NEWID(), 'TakeAway', '192.168.0.20', '192.168.0.20', 3, 1, 'TakeAway', 6, 1, 1)
-      `);
+      // Find a safe code for TakeAway that doesn't clash with kitchen codes
+      const maxCodeRes = await pool.request().query("SELECT ISNULL(MAX(KitchenTypeValue), 0) + 1 AS nextCode FROM PrintMaster WHERE PrinterType IN (2, 3)");
+      const taCode = maxCodeRes.recordset[0].nextCode;
+      await pool.request()
+        .input("code", sql.Int, taCode)
+        .query(`
+          INSERT INTO PrintMaster (PrinterId, PrinterName, PrinterPath, PrinterIP, PrinterType, PrintSection, KitchenTypeName, KitchenTypeValue, IsActive, PrintCopy)
+          VALUES (NEWID(), 'TakeAway', '192.168.0.20', '192.168.0.20', 3, 1, 'TakeAway', @code, 1, 1)
+        `);
       console.log("🛠️ [KitchenSync] Auto-created default TakeAway Printer in PrintMaster.");
     }
 
-    // --- 3. Read all active kitchens from CategoryMaster + CategoryKitchenType ---
+    // --- 3. Fetch ALL active categories with their current KitchenTypeCode ---
     const activeCatsResult = await pool.request().query(`
-      SELECT DISTINCT
+      SELECT
+        cm.CategoryId,
         cm.CategoryName AS KitchenTypeName,
-        ISNULL(ckt.KitchenTypeCode, '2') AS KitchenTypeCode
+        ckt.KitchenTypeCode
       FROM CategoryMaster cm
       LEFT JOIN CategoryKitchenType ckt ON cm.CategoryId = ckt.CategoryId
       WHERE cm.IsActive = 1
@@ -449,30 +455,78 @@ async function syncKitchensToPrintMaster(pool) {
         AND cm.CategoryName <> ''
         AND cm.CategoryName NOT LIKE '%TEST%'
     `);
-
     const activeCats = activeCatsResult.recordset;
 
-    // Deduplicate by KitchenTypeCode
-    const seenCodes = new Map(); // code -> name
+    // --- 4. Get all codes currently used across ALL PrintMaster rows (any type)
+    //        to avoid assigning a new code that clashes with something already there ---
+    const allCodesRes = await pool.request().query("SELECT KitchenTypeValue FROM PrintMaster");
+    const allUsedCodes = new Set(allCodesRes.recordset.map(r => r.KitchenTypeValue));
+
+    // --- 5. For categories with NO KitchenTypeCode → auto-assign a fresh unique code
+    //        and insert into CategoryKitchenType so routing works ---
+    let nextCode = Math.max(...Array.from(allUsedCodes), 0) + 1;
+
     for (const cat of activeCats) {
-      const code = parseInt(cat.KitchenTypeCode || "2");
-      if (!seenCodes.has(code)) {
-        seenCodes.set(code, cat.KitchenTypeName);
+      if (cat.KitchenTypeCode === null || cat.KitchenTypeCode === undefined || cat.KitchenTypeCode === '') {
+        // Pick next available code not already in use
+        while (allUsedCodes.has(nextCode)) nextCode++;
+
+        console.log(`🔧 [KitchenSync] Assigning new code ${nextCode} to kitchen "${cat.KitchenTypeName}" (CategoryId=${cat.CategoryId})`);
+
+        // Check if a row already exists in CategoryKitchenType for this CategoryId
+        const existsCKT = await pool.request()
+          .input("catId", sql.UniqueIdentifier, cat.CategoryId)
+          .query("SELECT COUNT(*) as cnt FROM CategoryKitchenType WHERE CategoryId = @catId");
+
+        if (existsCKT.recordset[0].cnt === 0) {
+          // Insert new mapping row
+          await pool.request()
+            .input("catId", sql.UniqueIdentifier, cat.CategoryId)
+            .input("code", sql.NVarChar, String(nextCode))
+            .input("name", sql.NVarChar, cat.KitchenTypeName)
+            .query(`
+              INSERT INTO CategoryKitchenType (CategoryId, KitchenTypeCode, KitchenTypeName)
+              VALUES (@catId, @code, @name)
+            `);
+        } else {
+          // Update existing row that has null code
+          await pool.request()
+            .input("catId", sql.UniqueIdentifier, cat.CategoryId)
+            .input("code", sql.NVarChar, String(nextCode))
+            .query(`
+              UPDATE CategoryKitchenType SET KitchenTypeCode = @code
+              WHERE CategoryId = @catId AND (KitchenTypeCode IS NULL OR KitchenTypeCode = '')
+            `);
+        }
+
+        // Mark this code as used and advance
+        cat.KitchenTypeCode = String(nextCode);
+        allUsedCodes.add(nextCode);
+        nextCode++;
       }
     }
 
-    // --- 4. Fetch existing kitchen printers (PrinterType=2) from PrintMaster ---
-    const existingResult = await pool.request().query(
-      "SELECT KitchenTypeValue FROM PrintMaster WHERE PrinterType = 2"
-    );
-    const existingCodes = new Set(existingResult.recordset.map(r => r.KitchenTypeValue));
+    // --- 6. Now build a deduplicated map of code → name from the updated category list ---
+    const kitchenMap = new Map(); // code (int) → name
+    for (const cat of activeCats) {
+      const code = parseInt(cat.KitchenTypeCode);
+      if (!isNaN(code) && !kitchenMap.has(code)) {
+        kitchenMap.set(code, cat.KitchenTypeName);
+      }
+    }
 
-    // --- 5. Insert missing kitchen printers ---
+    // --- 7. Fetch existing kitchen printers (PrinterType=2) from PrintMaster ---
+    const existingResult = await pool.request().query(
+      "SELECT KitchenTypeValue, IsActive FROM PrintMaster WHERE PrinterType = 2"
+    );
+    const existingMap = new Map(existingResult.recordset.map(r => [r.KitchenTypeValue, r.IsActive]));
+
+    // --- 8. Insert missing / reactivate soft-deleted kitchen printers ---
     let inserted = 0;
     let reactivated = 0;
-    for (const [code, name] of seenCodes) {
-      if (!existingCodes.has(code)) {
-        // Brand new: insert with empty IP (admin sets it in Receipt Settings)
+    for (const [code, name] of kitchenMap) {
+      if (!existingMap.has(code)) {
+        // Brand new — insert with empty IP (admin fills it in Receipt Settings)
         await pool.request()
           .input("name", sql.NVarChar, name)
           .input("code", sql.Int, code)
@@ -488,32 +542,27 @@ async function syncKitchensToPrintMaster(pool) {
             )
           `);
         inserted++;
-        console.log(`🍳 [KitchenSync] Auto-added kitchen to PrintMaster: "${name}" (code=${code})`);
-      } else {
-        // Exists but may be soft-deleted — reactivate if inactive
-        const reactivateResult = await pool.request()
+        console.log(`🍳 [KitchenSync] Auto-added "${name}" to PrintMaster (code=${code})`);
+      } else if (existingMap.get(code) === false || existingMap.get(code) === 0) {
+        // Soft-deleted but kitchen is still active → reactivate
+        await pool.request()
           .input("code", sql.Int, code)
           .query(`
-            UPDATE PrintMaster
-            SET IsActive = 1
-            WHERE PrinterType = 2
-              AND KitchenTypeValue = @code
-              AND IsActive = 0
+            UPDATE PrintMaster SET IsActive = 1
+            WHERE PrinterType = 2 AND KitchenTypeValue = @code AND IsActive = 0
           `);
-        if (reactivateResult.rowsAffected[0] > 0) {
-          reactivated++;
-          console.log(`♻️ [KitchenSync] Reactivated kitchen in PrintMaster: code=${code}`);
-        }
+        reactivated++;
+        console.log(`♻️ [KitchenSync] Reactivated kitchen "${name}" in PrintMaster (code=${code})`);
       }
     }
 
     if (inserted === 0 && reactivated === 0) {
-      console.log(`✅ [KitchenSync] All ${seenCodes.size} active kitchen(s) already present in PrintMaster.`);
+      console.log(`✅ [KitchenSync] All ${kitchenMap.size} active kitchen(s) already in PrintMaster. No changes needed.`);
     } else {
-      console.log(`✅ [KitchenSync] Sync complete. Inserted: ${inserted}, Reactivated: ${reactivated}`);
+      console.log(`✅ [KitchenSync] Done. Inserted: ${inserted}, Reactivated: ${reactivated}`);
     }
   } catch (err) {
-    console.error("❌ [KitchenSync] Failed to sync kitchens to PrintMaster:", err.message);
+    console.error("❌ [KitchenSync] Failed:", err.message);
   }
 }
 
