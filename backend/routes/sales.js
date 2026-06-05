@@ -78,6 +78,14 @@ const getReportDateWhereSql = (filter = "daily", saleDateColumn = "sh.LastSettle
   }
 };
 
+const getReportDateWhereSqlForRange = (startDateStr, endDateStr, saleDateColumn = "sh.LastSettlementDate") => {
+  const targetStart = `'${startDateStr}'`;
+  const targetEnd = `'${endDateStr}'`;
+  const istStart = `DATEADD(MINUTE, 168, CAST(${targetStart} AS DATETIME))`;
+  const istEnd = `DATEADD(MINUTE, 168, DATEADD(DAY, 1, CAST(${targetEnd} AS DATETIME)))`;
+  return `${saleDateColumn} >= ${istStart} AND ${saleDateColumn} < ${istEnd}`;
+};
+
 const normalizeReportFilter = (filter = "daily") => {
   const normalized = String(filter || "daily").toLowerCase();
   return ["daily", "weekly", "monthly", "yearly"].includes(normalized) ? normalized : "daily";
@@ -643,7 +651,10 @@ router.get("/day-end-summary", async (req, res) => {
     const start = startDate || today;
     const end = endDate || today;
     
-    console.log(`[DAY-END DEBUG] Fetching summary from ${start} to ${end}`);
+    const whereSql = getReportDateWhereSqlForRange(start, end, "sh.LastSettlementDate");
+    const ptdWhereSql = getReportDateWhereSqlForRange(start, end, "ptd.CreatedDate");
+
+    console.log(`[DAY-END DEBUG] Fetching summary from ${start} to ${end}. SQL filter: ${whereSql}`);
     
     const pool = await poolPromise;
 
@@ -662,8 +673,6 @@ router.get("/day-end-summary", async (req, res) => {
 
     // A. Paymode Detail (Aggregate all settlements in range)
     const paymodeRes = await pool.request()
-      .input("start", sql.VarChar, start)
-      .input("end", sql.VarChar, end)
       .query(`
         SELECT 
           Paymode,
@@ -689,8 +698,7 @@ router.get("/day-end-summary", async (req, res) => {
             ISNULL(sd.ReceiptCount, 0) as Count
           FROM SettlementHeader sh
           INNER JOIN SettlementDetail sd ON sh.SettlementID = sd.SettlementId
-          WHERE CAST(sh.LastSettlementDate AS DATE) >= @start
-            AND CAST(sh.LastSettlementDate AS DATE) <= @end
+          WHERE ${whereSql}
         ) RawData
         GROUP BY Paymode
       `);
@@ -701,26 +709,23 @@ router.get("/day-end-summary", async (req, res) => {
 
     // B. Detailed Sales Analysis & Void Detail
     const analysisRes = await pool.request()
-      .input("start", sql.VarChar, start)
-      .input("end", sql.VarChar, end)
       .query(`
         SELECT 
-          SUM(ISNULL(SubTotal, 0)) as BaseSales,
-          SUM(ISNULL(SysAmount, 0)) as TotalSales,
-          SUM(ISNULL(TotalTax, 0)) as TotalTax,
-          SUM(ISNULL(DiscountAmount, 0)) as TotalDiscount,
-          SUM(ISNULL(ServiceCharge, 0)) as TotalServiceCharge,
-          SUM(ISNULL(RoundedBy, 0)) as TotalRoundOff,
-          COUNT(SettlementID) as TotalBills,
-          SUM(ISNULL(VoidItemQty, 0)) as VoidQty,
-          SUM(ISNULL(VoidItemAmount, 0)) as VoidAmount,
-          SUM(CASE WHEN IsCancelled = 1 THEN 1 ELSE 0 END) as CancelledCount,
-          SUM(CASE WHEN IsCancelled = 1 THEN ISNULL(VoidItemAmount, 0) ELSE 0 END) as CancelledAmount,
-          MAX(TerminalCode) as TerminalCode,
-          MAX(RefNo) as RefNo
-        FROM SettlementHeader
-        WHERE CAST(LastSettlementDate AS DATE) >= @start
-          AND CAST(LastSettlementDate AS DATE) <= @end
+          SUM(ISNULL(sh.SubTotal, 0)) as BaseSales,
+          SUM(ISNULL(sh.SysAmount, 0)) as TotalSales,
+          SUM(ISNULL(sh.TotalTax, 0)) as TotalTax,
+          SUM(ISNULL(sh.DiscountAmount, 0)) as TotalDiscount,
+          SUM(ISNULL(sh.ServiceCharge, 0)) as TotalServiceCharge,
+          SUM(ISNULL(sh.RoundedBy, 0)) as TotalRoundOff,
+          COUNT(sh.SettlementID) as TotalBills,
+          SUM(ISNULL(sh.VoidItemQty, 0)) as VoidQty,
+          SUM(ISNULL(sh.VoidItemAmount, 0)) as VoidAmount,
+          SUM(CASE WHEN sh.IsCancelled = 1 THEN 1 ELSE 0 END) as CancelledCount,
+          SUM(CASE WHEN sh.IsCancelled = 1 THEN ISNULL(sh.VoidItemAmount, 0) ELSE 0 END) as CancelledAmount,
+          MAX(sh.TerminalCode) as TerminalCode,
+          MAX(sh.RefNo) as RefNo
+        FROM SettlementHeader sh
+        WHERE ${whereSql}
       `);
  
     const analysis = analysisRes.recordset[0] || { 
@@ -738,8 +743,6 @@ router.get("/day-end-summary", async (req, res) => {
     // and log the offending SettlementHeader rows for deeper inspection.
     if (Math.abs(diff) > 0.05) {
       const unrecordedRes = await pool.request()
-        .input("start", sql.VarChar, start)
-        .input("end", sql.VarChar, end)
         .query(`
           SELECT TOP 50
             sh.SettlementID,
@@ -751,8 +754,7 @@ router.get("/day-end-summary", async (req, res) => {
             sh.ServiceCharge,
             sh.RoundedBy
           FROM SettlementHeader sh 
-          WHERE CAST(sh.LastSettlementDate AS DATE) >= @start 
-            AND CAST(sh.LastSettlementDate AS DATE) <= @end 
+          WHERE ${whereSql}
             AND NOT EXISTS (SELECT 1 FROM SettlementDetail sd WHERE sd.SettlementId = sh.SettlementID)
           ORDER BY sh.LastSettlementDate DESC
         `);
@@ -789,8 +791,6 @@ router.get("/day-end-summary", async (req, res) => {
 
     // Fetch Credit Customer Payments (ReferenceType = 'MEMBER')
     const creditPaymentsRes = await pool.request()
-      .input("start", sql.VarChar, start)
-      .input("end", sql.VarChar, end)
       .query(`
         SELECT 
           'CREDIT PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' as Paymode,
@@ -799,8 +799,7 @@ router.get("/day-end-summary", async (req, res) => {
         FROM PaymentTransactionDetails ptd
         INNER JOIN Paymode pm ON pm.Position = ptd.PayModeId
         WHERE ptd.ReferenceType = 'MEMBER'
-          AND CAST(ptd.CreatedDate AS DATE) >= @start
-          AND CAST(ptd.CreatedDate AS DATE) <= @end
+          AND ${ptdWhereSql}
         GROUP BY pm.Description
       `);
 
@@ -820,8 +819,6 @@ router.get("/day-end-summary", async (req, res) => {
     // C. Settlement Paymode Breakdown
     console.log(`[DAY-END DEBUG] Fetching settlement breakdown...`);
     const settlementRes = await pool.request()
-      .input("start", sql.VarChar, start)
-      .input("end", sql.VarChar, end)
       .query(`
         SELECT 
           ISNULL((SELECT TOP 1 LTRIM(RTRIM(Description)) FROM Paymode pm WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(sd.Paymode))), sd.Paymode) as Paymode,
@@ -831,16 +828,13 @@ router.get("/day-end-summary", async (req, res) => {
           CAST(SUM(ISNULL(sd.ReceiptCount, 0)) AS INT) as ReceiptCount
         FROM SettlementHeader sh
         INNER JOIN SettlementDetail sd ON sh.SettlementID = sd.SettlementId
-        WHERE CAST(sh.LastSettlementDate AS DATE) >= @start
-          AND CAST(sh.LastSettlementDate AS DATE) <= @end
+        WHERE ${whereSql}
         GROUP BY sd.Paymode
         ORDER BY SysAmount DESC
       `);
 
     // D. Cancelled Orders List
     const cancelledOrdersRes = await pool.request()
-      .input("start", sql.VarChar, start)
-      .input("end", sql.VarChar, end)
       .query(`
         SELECT 
           sh.BillNo, 
@@ -850,8 +844,7 @@ router.get("/day-end-summary", async (req, res) => {
           sh.SubTotal as OriginalAmount,
           sh.VoidItemQty
         FROM SettlementHeader sh
-        WHERE CAST(sh.LastSettlementDate AS DATE) >= @start
-          AND CAST(sh.LastSettlementDate AS DATE) <= @end
+        WHERE ${whereSql}
           AND sh.IsCancelled = 1
         ORDER BY sh.LastSettlementDate DESC
       `);
