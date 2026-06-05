@@ -458,7 +458,7 @@ export default function AIChatScreen() {
   const renderMessageItem = ({ item }: { item: Message }) => {
     const isUser = item.sender === "USER";
     return (
-      <View style={[styles.messageWrapper, isUser ? styles.userWrapper : styles.assistantWrapper]}>
+      <View style={[styles.messageRow, isUser ? styles.userRow : styles.assistantRow]}>
         {!isUser && (
           <View style={styles.assistantAvatar}>
             <Ionicons name="sparkles" size={14} color="#fff" />
@@ -699,20 +699,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   listContent: {
-    padding: 16,
-    gap: 20,
+    padding: 12,
+    gap: 16,
   },
-  messageWrapper: {
+  // Row wrapper for each message — user rows right-align, assistant rows use full width
+  messageRow: {
     flexDirection: "row",
-    maxWidth: "85%",
-    gap: 10,
+    gap: 8,
     alignItems: "flex-start",
+    width: "100%",
   },
-  userWrapper: {
-    alignSelf: "flex-end",
+  userRow: {
+    justifyContent: "flex-end",
   },
-  assistantWrapper: {
-    alignSelf: "flex-start",
+  assistantRow: {
+    justifyContent: "flex-start",
+    // Allow full-width so analytics cards get all available space
   },
   assistantAvatar: {
     width: 24,
@@ -724,19 +726,22 @@ const styles = StyleSheet.create({
   },
   bubble: {
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderWidth: 1,
   },
   userBubble: {
     backgroundColor: "#4C6EF5",
     borderColor: "#4C6EF5",
     borderBottomRightRadius: 2,
+    maxWidth: "80%",        // User messages stay capped at 80%
   },
   assistantBubble: {
     backgroundColor: "#fff",
     borderColor: "#E9ECEF",
     borderBottomLeftRadius: 2,
+    flex: 1,               // Assistant bubbles take up all remaining space in the row
+    minWidth: 0,           // Allow flex to shrink below content width (RN web fix)
   },
   messageText: {
     fontSize: 13,
@@ -759,6 +764,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignSelf: "flex-start",
     gap: 8,
+    width: "100%",
   },
   loadingBubble: {
     flexDirection: "row",

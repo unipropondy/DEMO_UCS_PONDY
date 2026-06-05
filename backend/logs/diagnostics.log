@@ -145,3 +145,31 @@ DB Pool: Used=0, Free=1, PendingAcquires=0, PendingCreates=0
 Sockets: ActiveSockets=0, ActiveRooms=0
 Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
 --------------------------------------------------------------------------------
+[DIAGNOSTICS] [2026-06-05T09:58:30.242Z] [Interval]
+Memory: RSS=21.12 MB, HeapTotal=44.04 MB, HeapUsed=35.86 MB (Usage: 81.43%)
+Transactions: ActiveCount=0
+DB Pool: Used=0, Free=1, PendingAcquires=0, PendingCreates=0
+Sockets: ActiveSockets=0, ActiveRooms=0
+Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
+--------------------------------------------------------------------------------
+[DIAGNOSTICS] [2026-06-05T10:03:30.235Z] [Interval]
+Memory: RSS=27.09 MB, HeapTotal=44.04 MB, HeapUsed=39.31 MB (Usage: 89.26%)
+Transactions: ActiveCount=0
+DB Pool: Used=0, Free=1, PendingAcquires=0, PendingCreates=0
+Sockets: ActiveSockets=0, ActiveRooms=0
+Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
+--------------------------------------------------------------------------------
+[DIAGNOSTICS] [2026-06-05T10:08:30.246Z] [Interval]
+Memory: RSS=48.10 MB, HeapTotal=45.04 MB, HeapUsed=32.86 MB (Usage: 72.98%)
+Transactions: ActiveCount=0
+DB Pool: Used=0, Free=1, PendingAcquires=0, PendingCreates=0
+Sockets: ActiveSockets=0, ActiveRooms=0
+Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
+--------------------------------------------------------------------------------
+[DIAGNOSTICS] [2026-06-05T10:13:30.263Z] [Interval]
+Memory: RSS=22.39 MB, HeapTotal=44.04 MB, HeapUsed=36.22 MB (Usage: 82.26%)
+Transactions: ActiveCount=0
+DB Pool: Used=0, Free=1, PendingAcquires=0, PendingCreates=0
+Sockets: ActiveSockets=0, ActiveRooms=0
+Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
+--------------------------------------------------------------------------------
