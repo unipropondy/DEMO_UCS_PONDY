@@ -11,3 +11,24 @@ DB Pool: Used=1, Free=0, PendingAcquires=1, PendingCreates=1
 Sockets: ActiveSockets=0, ActiveRooms=0
 Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
 --------------------------------------------------------------------------------
+[DIAGNOSTICS] [2026-06-05T04:19:18.246Z] [Startup]
+Memory: RSS=124.86 MB, HeapTotal=102.34 MB, HeapUsed=44.44 MB (Usage: 43.42%)
+Transactions: ActiveCount=0
+DB Pool: Used=1, Free=0, PendingAcquires=1, PendingCreates=1
+Sockets: ActiveSockets=0, ActiveRooms=0
+Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
+--------------------------------------------------------------------------------
+[DIAGNOSTICS] [2026-06-05T04:24:13.252Z] [Interval]
+Memory: RSS=101.04 MB, HeapTotal=43.09 MB, HeapUsed=41.11 MB (Usage: 95.41%)
+Transactions: ActiveCount=0
+DB Pool: Used=0, Free=1, PendingAcquires=0, PendingCreates=0
+Sockets: ActiveSockets=0, ActiveRooms=0
+Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
+--------------------------------------------------------------------------------
+[DIAGNOSTICS] [2026-06-05T04:29:13.253Z] [Interval]
+Memory: RSS=104.07 MB, HeapTotal=46.34 MB, HeapUsed=37.98 MB (Usage: 81.95%)
+Transactions: ActiveCount=0
+DB Pool: Used=0, Free=1, PendingAcquires=0, PendingCreates=0
+Sockets: ActiveSockets=0, ActiveRooms=0
+Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
+--------------------------------------------------------------------------------

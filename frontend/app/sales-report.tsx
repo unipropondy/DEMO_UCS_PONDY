@@ -2507,33 +2507,52 @@ export default function SalesReport() {
                 {/* Bill-level breakdown: Subtotal → Discount → Total */}
                 <View style={{ backgroundColor: Theme.primary + "05", padding: 12, borderRadius: 12, marginBottom: 16, gap: 6 }}>
                   {/* Show subtotal + discount rows only when a bill discount was applied */}
+                  {/* Show subtotal row when discount, service charge, or tax is applied */}
+                  {(selectedOrder?.DiscountAmount > 0 || Number(selectedOrder?.ServiceCharge) > 0 || Number(selectedOrder?.TotalTax) > 0) && (
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.textSecondary }}>Subtotal</Text>
+                      <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                        {formatCurrency(selectedOrder?.SubTotal)}
+                      </Text>
+                    </View>
+                  )}
                   {selectedOrder?.DiscountAmount > 0 && (
-                    <>
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                        <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.textSecondary }}>Subtotal</Text>
-                        <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
-                          {formatCurrency(selectedOrder?.SubTotal)}
-                        </Text>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.success }}>Discount</Text>
+                        {selectedOrder?.DiscountType && (
+                          <View style={{ backgroundColor: Theme.success + "15", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                            <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: Theme.success }}>
+                              {selectedOrder.DiscountType === "percentage"
+                                ? `${selectedOrder.DiscountAmount}%`
+                                : "FIXED"}
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.success }}>Discount</Text>
-                          {selectedOrder?.DiscountType && (
-                            <View style={{ backgroundColor: Theme.success + "15", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                              <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: Theme.success }}>
-                                {selectedOrder.DiscountType === "percentage"
-                                  ? `${selectedOrder.DiscountAmount}%`
-                                  : "FIXED"}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.success }}>
-                          -{formatCurrency(selectedOrder?.DiscountAmount)}
-                        </Text>
-                      </View>
-                      <View style={{ height: 1, backgroundColor: Theme.border + "50", marginVertical: 2 }} />
-                    </>
+                      <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.success }}>
+                        -{formatCurrency(selectedOrder?.DiscountAmount)}
+                      </Text>
+                    </View>
+                  )}
+                  {Number(selectedOrder?.ServiceCharge) > 0 && (
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.textSecondary }}>Service Charge</Text>
+                      <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                        {formatCurrency(selectedOrder?.ServiceCharge)}
+                      </Text>
+                    </View>
+                  )}
+                  {Number(selectedOrder?.TotalTax) > 0 && (
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.textSecondary }}>GST</Text>
+                      <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                        {formatCurrency(selectedOrder?.TotalTax)}
+                      </Text>
+                    </View>
+                  )}
+                  {(selectedOrder?.DiscountAmount > 0 || Number(selectedOrder?.ServiceCharge) > 0 || Number(selectedOrder?.TotalTax) > 0) && (
+                    <View style={{ height: 1, backgroundColor: Theme.border + "50", marginVertical: 2 }} />
                   )}
                   {/* Final total + paid badge */}
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
