@@ -5,3 +5,10 @@ DB Pool: Used=0, Free=1, PendingAcquires=0, PendingCreates=0
 Sockets: ActiveSockets=0, ActiveRooms=0
 Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
 --------------------------------------------------------------------------------
+[DIAGNOSTICS] [2026-06-05T07:49:26.232Z] [Interval]
+Memory: RSS=22.29 MB, HeapTotal=46.23 MB, HeapUsed=41.46 MB (Usage: 89.68%)
+Transactions: ActiveCount=0
+DB Pool: Used=0, Free=1, PendingAcquires=0, PendingCreates=0
+Sockets: ActiveSockets=0, ActiveRooms=0
+Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
+--------------------------------------------------------------------------------
