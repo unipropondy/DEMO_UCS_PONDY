@@ -47,11 +47,11 @@ const TransactionCard = React.memo(
         <View style={styles.txIconWrap}>
           <Ionicons
             name={
-              item.PayMode === "CASH"
+              modeUpper === "CASH"
                 ? "cash-outline"
-                : item.PayMode === "MEMBER"
+                : modeUpper === "MEMBER"
                 ? "person-outline"
-                : item.PayMode === "CREDIT"
+                : modeUpper === "CREDIT"
                 ? "pricetag-outline"
                 : isUpi
                 ? "flash-outline"
@@ -63,11 +63,11 @@ const TransactionCard = React.memo(
             }
             size={16}
             color={
-              item.PayMode === "CASH"
+              modeUpper === "CASH"
                 ? "#22c55e"
-                : item.PayMode === "MEMBER"
+                : modeUpper === "MEMBER"
                 ? "#ec4899"
-                : item.PayMode === "CREDIT"
+                : modeUpper === "CREDIT"
                 ? "#e11d48"
                 : isUpi
                 ? "#a855f7"
@@ -88,11 +88,11 @@ const TransactionCard = React.memo(
           <Text style={styles.txSmall} numberOfLines={1}>
             {item.OrderType === "LEDGER"
               ? `${
-                  item.PayMode === "CASH"
+                  modeUpper === "CASH"
                     ? "💵"
-                    : item.PayMode === "MEMBER"
+                    : modeUpper === "MEMBER"
                     ? "👤"
-                    : item.PayMode === "CREDIT"
+                    : modeUpper === "CREDIT"
                     ? "🏷️"
                     : isUpi
                     ? "⚡"
@@ -103,11 +103,11 @@ const TransactionCard = React.memo(
                     : "💳"
                 } Member Account Settlement`
               : `${item.OrderType === "TAKEAWAY" ? "🛍️ Takeaway" : `🪑 Table ${item.TableNo || "N/A"}`} • ${
-                  item.PayMode === "CASH"
+                  modeUpper === "CASH"
                     ? "Cash"
-                    : item.PayMode === "MEMBER"
+                    : modeUpper === "MEMBER"
                     ? "Member"
-                    : item.PayMode === "CREDIT"
+                    : modeUpper === "CREDIT"
                     ? "Credit"
                     : isUpi
                     ? "UPI"

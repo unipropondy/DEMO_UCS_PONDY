@@ -848,17 +848,22 @@ export default function SalesReport() {
     return dateScopedSales.filter((s) => {
       const modeUpper = s.PayMode?.toUpperCase().trim() || "";
       const isUpiMode = modeUpper.includes("UPI") || modeUpper.includes("GPAY");
+      const typeUpper = s.OrderType?.toUpperCase().trim() || "";
       
       const modeMatch =
-        activePaymentModes.includes(s.PayMode?.trim()) ||
+        activePaymentModes.includes(modeUpper) ||
         (activePaymentModes.includes("UPI") && isUpiMode) ||
         (showCancelledOrders && s.IsCancelled) ||
-        s.OrderType === 'LEDGER';
+        (typeUpper === 'LEDGER' && (
+          activePaymentModes.includes(modeUpper) ||
+          (s.OrderId?.toLowerCase().includes("member") && activePaymentModes.includes("MEMBER")) ||
+          (s.OrderId?.toLowerCase().includes("credit") && activePaymentModes.includes("CREDIT"))
+        ));
       const typeMatch =
-        s.OrderType === 'LEDGER' ||
+        typeUpper === 'LEDGER' ||
         activeOrderTypes.length === 2 ||
         (s.OrderType
-          ? activeOrderTypes.includes(s.OrderType?.trim())
+          ? activeOrderTypes.includes(typeUpper)
           : activeOrderTypes.includes("DINE-IN"));
       return modeMatch && typeMatch;
     });
@@ -949,10 +954,11 @@ export default function SalesReport() {
 
   const paymentBreakdownMetrics = useMemo(() => {
     const filteredByTypes = dateScopedSales.filter((s) => {
+      const typeUpper = s.OrderType?.toUpperCase().trim() || "";
       const typeMatch =
         activeOrderTypes.length === 2 ||
         (s.OrderType
-          ? activeOrderTypes.includes(s.OrderType?.trim()) || s.OrderType?.trim() === 'LEDGER'
+          ? activeOrderTypes.includes(typeUpper) || typeUpper === 'LEDGER'
           : activeOrderTypes.includes("DINE-IN"));
       return typeMatch;
     });
