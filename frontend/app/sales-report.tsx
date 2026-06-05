@@ -408,7 +408,27 @@ export default function SalesReport() {
 
   const fetchSales = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/sales/all`, {
+      const end = new Date(selectedDate);
+      const start = new Date(selectedDate);
+
+      if (selectedFilter === "WEEKLY") {
+        start.setDate(start.getDate() - 6);
+      } else if (selectedFilter === "MONTHLY") {
+        start.setDate(1);
+        end.setMonth(end.getMonth() + 1);
+        end.setDate(0);
+      } else if (selectedFilter === "YEARLY") {
+        start.setMonth(0, 1);
+        end.setMonth(11, 31);
+      } else if (selectedFilter === "CUSTOM" && rangeStart && rangeEnd) {
+        start.setTime(new Date(rangeStart).getTime());
+        end.setTime(new Date(rangeEnd).getTime());
+      }
+
+      const startStr = start.toLocaleDateString("en-CA");
+      const endStr = end.toLocaleDateString("en-CA");
+
+      const response = await fetch(`${API_URL}/api/sales/all?startDate=${startStr}&endDate=${endStr}`, {
         headers: { "Content-Type": "application/json" },
       });
       if (!response.ok) throw new Error("Failed to fetch sales");
@@ -761,7 +781,8 @@ export default function SalesReport() {
   const changeDate = (days: number) => {
     const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() + days);
-    setSelectedDate(newDate.toISOString().split("T")[0]);
+    // Preserve the local date without converting to UTC
+    setSelectedDate(newDate.toLocaleDateString('en-CA'));
   };
 
 
