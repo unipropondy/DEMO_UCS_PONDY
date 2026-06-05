@@ -289,6 +289,9 @@ class SunmiPrinterService {
       const printItems = (saleData.items || []).filter(
         (i: any) => i.status !== "VOIDED",
       );
+      const activeItems = (saleData.items || []).filter((i: any) => i.status !== "VOIDED" && i.statusCode !== 0);
+      const allItemsHaveSC = activeItems.length > 0 && activeItems.every((item: any) => Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
+
       for (const item of printItems) {
         const itemName = (
           item.name ||
@@ -316,7 +319,7 @@ class SunmiPrinterService {
         }
 
         const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
-        if (isSC) {
+        if (isSC && !allItemsHaveSC) {
           await this.left(`    [Service Charge ${companySettings.serviceChargePercentage}%]`);
         }
 
@@ -462,7 +465,7 @@ class SunmiPrinterService {
 
       if (hasSC) {
         await this.twoCols(
-          "Item Service Charge:",
+          allItemsHaveSC ? "Service Charge:" : "Item Service Charge:",
           `${symbol}${serviceChargeAmount.toFixed(2)}`,
         );
       }

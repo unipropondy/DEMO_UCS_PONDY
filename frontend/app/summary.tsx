@@ -604,6 +604,10 @@ export default function SummaryScreen() {
   }, [cart]);
 
   const subtotal = useMemo(() => grossTotal - totalItemDiscount, [grossTotal, totalItemDiscount]);
+  const allItemsHaveSC = useMemo(() => {
+    const activeItems = cart.filter((i: any) => i.status !== "VOIDED" && i.statusCode !== 0);
+    return activeItems.length > 0 && activeItems.every((item: any) => Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
+  }, [cart]);
 
   const discountAmount = useMemo(() => {
     if (!discountInfo?.applied) return 0;
@@ -853,9 +857,10 @@ export default function SummaryScreen() {
                   <View style={[
                     styles.row,
                     isSC && {
-                      borderWidth: 2,
-                      borderColor: Theme.danger,
+                      borderWidth: 1.5,
+                      borderColor: Theme.dangerBorder,
                       borderLeftColor: Theme.danger,
+                      backgroundColor: Theme.dangerBg,
                     }
                   ]}>
                   <View style={styles.qtyBadge}>
@@ -1136,7 +1141,7 @@ export default function SummaryScreen() {
                         isPhone && !isLandscape && { fontSize: 13 },
                       ]}
                     >
-                      Item Service Charge ({settings.serviceChargePercentage}%)
+                      {allItemsHaveSC ? "Service Charge" : "Item Service Charge"} ({settings.serviceChargePercentage}%)
                     </Text>
                     <Text
                       style={[

@@ -106,8 +106,9 @@ const DishCard = React.memo(
           { width, padding: isPhone ? 8 : isTablet ? 12 : 10 },
           isLandscape && !isTablet && { maxHeight: 135 },
           isSC && {
-            borderWidth: 2,
-            borderColor: Theme.danger,
+            borderWidth: 1.5,
+            borderColor: Theme.dangerBorder,
+            backgroundColor: Theme.dangerBg,
           },
           pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
         ]}

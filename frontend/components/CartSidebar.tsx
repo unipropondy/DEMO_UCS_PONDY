@@ -510,10 +510,9 @@ const CartItemRow = React.memo(
       <View style={[
         styles.itemContainer,
         isSC && {
-          borderWidth: 2,
-          borderColor: Theme.danger,
-          borderBottomWidth: 2,
-          borderBottomColor: Theme.danger,
+          borderWidth: 1.5,
+          borderColor: Theme.dangerBorder,
+          backgroundColor: Theme.dangerBg,
         }
       ]}>
         <View
@@ -1077,6 +1076,10 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
 
   const subtotal = grossTotal - totalDiscount;
   const serviceChargeAmt = scEligibleSubtotal * scRate;
+  const allItemsHaveSC = useMemo(() => {
+    const activeItems = displayItems.filter((i: any) => i.status !== "VOIDED" && i.statusCode !== 0);
+    return activeItems.length > 0 && activeItems.every((item: any) => Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
+  }, [displayItems]);
   const taxableAmt = subtotal + serviceChargeAmt;
   const taxAmountRaw = taxableAmt * gstRate;
   // ✅ FIX: Round GST for display so it matches the payable total
@@ -1610,7 +1613,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
               {serviceChargeAmt > 0 && (
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>
-                    Item Service Charge ({settings.serviceChargePercentage}%)
+                    {allItemsHaveSC ? "Service Charge" : "Item Service Charge"} ({settings.serviceChargePercentage}%)
                   </Text>
                   <Text style={styles.summaryValue}>
                     {currencySymbol}

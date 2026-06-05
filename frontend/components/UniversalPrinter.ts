@@ -1060,6 +1060,9 @@ class UniversalPrinter {
     const printItems = (saleData.items || []).filter(
       (i: any) => i.status !== "VOIDED",
     );
+    const activeItems = (saleData.items || []).filter((i: any) => i.status !== "VOIDED" && i.statusCode !== 0);
+    const allItemsHaveSC = activeItems.length > 0 && activeItems.every((item: any) => Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
+
     printItems.forEach((item: any) => {
       // 🛡️ Robust field mapping
       const name = (item.name || item.DishName || item.ProductName || "")
@@ -1084,7 +1087,7 @@ class UniversalPrinter {
       }
 
       const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
-      if (isSC) {
+      if (isSC && !allItemsHaveSC) {
         text += `[L]   [Service Charge ${company.serviceChargePercentage}%]\n`;
       }
 
@@ -1245,7 +1248,7 @@ class UniversalPrinter {
     }
 
     if (hasSC) {
-      text += this.formatTwoCols48("Item Service Charge:", `${symbol}${serviceChargeAmount.toFixed(2)}`);
+      text += this.formatTwoCols48(allItemsHaveSC ? "Service Charge:" : "Item Service Charge:", `${symbol}${serviceChargeAmount.toFixed(2)}`);
     }
 
     if (hasGST) {

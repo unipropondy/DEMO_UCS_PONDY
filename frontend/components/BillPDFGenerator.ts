@@ -349,11 +349,12 @@ private static escapeHtml(str: string): string {
     const hasAnyDiscount = totalItemDiscount > 0 || hasOrderDiscount;
     const originalSubTotal = grossTotal;
 
-    // Service Charge & GST: SC on net-after-discount, GST on (net + SC)
+    const activeItems = (saleData.items || []).filter((i: any) => i.status !== 'VOIDED' && i.statusCode !== 0);
+    const allItemsHaveSC = activeItems.length > 0 && activeItems.every((item: any) => Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
+
     const scPercentage = company.serviceChargePercentage || 0;
-    // For reprints, prefer the stored serviceCharge dollar amount; else calculate fresh
     const savedServiceCharge = saleData.serviceCharge != null ? parseFloat(String(saleData.serviceCharge)) : null;
-    
+
     let serviceChargeAmount = 0;
     if (savedServiceCharge !== null) {
       serviceChargeAmount = savedServiceCharge;
@@ -441,7 +442,7 @@ private static escapeHtml(str: string): string {
             <tr>
                 <td class="item-name">
                     ${item.name}
-                    ${Number(item.isServiceCharge) === 1 || item.isServiceCharge === true ? `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">[Service Charge ${company.serviceChargePercentage}%]</div>` : ''}
+                    ${(Number(item.isServiceCharge) === 1 || item.isServiceCharge === true) && !allItemsHaveSC ? `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">[Service Charge ${company.serviceChargePercentage}%]</div>` : ''}
                     ${modifiersHTML}
                     ${(() => {
                       const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
@@ -812,7 +813,7 @@ private static escapeHtml(str: string): string {
             
              ${hasSC ? `
              <div class="total-row">
-               <span>Item Service Charge:</span>
+               <span>${allItemsHaveSC ? 'Service Charge' : 'Item Service Charge'}:</span>
                <span>${currencySymbol}${serviceChargeAmount.toFixed(2)}</span>
              </div>
              ` : ''}

@@ -394,6 +394,93 @@ export default function PaymentScreen() {
     };
   }, [isFocused, pathname, context, finalItems, discount, settingsStore.gstPercentage, roundOff, displayOrderId, method]);
 
+  const { subtotal, grossTotal: payGrossTotal, totalItemDiscount: payItemDiscount, scEligibleSubtotal } = useMemo(() => {
+    if (isLedgerCollection) {
+      return { grossTotal: collectAmount || 0, totalItemDiscount: 0, subtotal: collectAmount || 0, scEligibleSubtotal: 0 };
+    }
+    const nonVoided = finalItems.filter((i: any) => i.status !== "VOIDED");
+    return nonVoided.reduce((acc: any, item: any) => {
+      const baseTotal = (item.price || 0) * (item.qty || 0);
+      let itemDiscount = 0;
+      const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+      const discType = item.discountType || 'percentage';
+      if (discAmt > 0) {
+        if (discType === 'percentage') {
+          itemDiscount = baseTotal * (discAmt / 100);
+        } else {
+          itemDiscount = discAmt * (item.qty || 0);
+        }
+      }
+      const itemSubtotal = baseTotal - itemDiscount;
+      const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
+      return {
+        grossTotal: acc.grossTotal + baseTotal,
+        totalItemDiscount: acc.totalItemDiscount + itemDiscount,
+        subtotal: acc.subtotal + itemSubtotal,
+        scEligibleSubtotal: acc.scEligibleSubtotal + (isSC ? itemSubtotal : 0),
+      };
+    }, { grossTotal: 0, totalItemDiscount: 0, subtotal: 0, scEligibleSubtotal: 0 });
+  }, [finalItems, isLedgerCollection, collectAmount]);
+
+  const allItemsHaveSC = useMemo(() => {
+    const activeItems = finalItems.filter((i: any) => i.status !== "VOIDED" && i.statusCode !== 0);
+    return activeItems.length > 0 && activeItems.every((item: any) => Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
+  }, [finalItems]);
+
+  const discountAmount = useMemo(() => {
+    if (isLedgerCollection) return 0;
+    if (!discount?.applied) return 0;
+    if (discount.type === "percentage") return (subtotal * discount.value) / 100;
+    return splitItems ? 0 : discount.value;
+  }, [discount, subtotal, splitItems, isLedgerCollection]);
+
+  // Service Charge & GST: SC on net, GST on (net + SC)
+  const netAfterDiscount = isLedgerCollection ? (collectAmount || 0) : (subtotal - discountAmount);
+
+  // Pro-rate the bill-level discount to service-charge-eligible items
+  const scEligibleNet = useMemo(() => {
+    if (isLedgerCollection || subtotal <= 0) return 0;
+    const proportion = scEligibleSubtotal / subtotal;
+    return Math.max(0, scEligibleSubtotal - proportion * discountAmount);
+  }, [scEligibleSubtotal, subtotal, discountAmount, isLedgerCollection]);
+
+  const serviceChargeAmt = isLedgerCollection ? 0 : (scEligibleNet * scRate);
+  const taxableAmount = netAfterDiscount + serviceChargeAmt;
+  const tax = isLedgerCollection ? 0 : (taxableAmount * gstRate);
+  const baseTotal = taxableAmount + tax;
+
+  useEffect(() => {
+    if (isLedgerCollection) {
+      setRoundOff(0);
+      setRoundType(null);
+      return;
+    }
+    if (!isCashMethod(method)) {
+      setRoundOff(0);
+      setRoundType(null);
+      return;
+    }
+    if (roundType === "whole") setRoundOff(Math.round(baseTotal) - baseTotal);
+    else if (roundType === "five") setRoundOff(Math.round(baseTotal * 20) / 20 - baseTotal);
+    else if (roundType === "ten") setRoundOff(Math.round(baseTotal * 10) / 10 - baseTotal);
+  }, [baseTotal, roundType, method, isLedgerCollection]);
+
+  const total = isLedgerCollection
+    ? (collectAmount || 0)
+    : Math.max(0, Math.round((baseTotal + roundOff) * 100) / 100);
+  const displayedTax = isLedgerCollection ? 0 : Math.round(tax * 100) / 100;
+  const displayedServiceCharge = isLedgerCollection ? 0 : Math.round(serviceChargeAmt * 100) / 100;
+  const netAmountForDisplay = netAfterDiscount;
+  // ✅ FIX: Compute round-off from raw (unrounded) total vs rounded-display components.
+  // Previously this produced a phantom -$0.01 "Rounding" line when GST had a .5-cent fraction
+  // because displayedTax was rounded up but total was the raw float sum.
+  const displayedRoundOff = roundOff !== 0
+    ? parseFloat((total - (netAmountForDisplay + displayedServiceCharge + displayedTax)).toFixed(2))
+    : 0;
+  const paidNum = isCashMethod(method) ? (parseFloat(cashInput) || 0) : total;
+  const change = Math.max(0, paidNum - total);
+  const quickCash = [20, 50, 100, 200, 500, 1000];
+
   const fetchPaymentMethods = async () => {
     try {
       const res = await fetch(`${API_URL}/api/sales/payment-methods`);
@@ -478,88 +565,6 @@ export default function PaymentScreen() {
     }
     fetchPaymentDetail(m.payMode, m);
   };
-
-  const { subtotal, grossTotal: payGrossTotal, totalItemDiscount: payItemDiscount, scEligibleSubtotal } = useMemo(() => {
-    if (isLedgerCollection) {
-      return { grossTotal: collectAmount || 0, totalItemDiscount: 0, subtotal: collectAmount || 0, scEligibleSubtotal: 0 };
-    }
-    const nonVoided = finalItems.filter((i: any) => i.status !== "VOIDED");
-    return nonVoided.reduce((acc: any, item: any) => {
-      const baseTotal = (item.price || 0) * (item.qty || 0);
-      let itemDiscount = 0;
-      const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
-      const discType = item.discountType || 'percentage';
-      if (discAmt > 0) {
-        if (discType === 'percentage') {
-          itemDiscount = baseTotal * (discAmt / 100);
-        } else {
-          itemDiscount = discAmt * (item.qty || 0);
-        }
-      }
-      const itemSubtotal = baseTotal - itemDiscount;
-      const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
-      return {
-        grossTotal: acc.grossTotal + baseTotal,
-        totalItemDiscount: acc.totalItemDiscount + itemDiscount,
-        subtotal: acc.subtotal + itemSubtotal,
-        scEligibleSubtotal: acc.scEligibleSubtotal + (isSC ? itemSubtotal : 0),
-      };
-    }, { grossTotal: 0, totalItemDiscount: 0, subtotal: 0, scEligibleSubtotal: 0 });
-  }, [finalItems, isLedgerCollection, collectAmount]);
-
-  const discountAmount = useMemo(() => {
-    if (isLedgerCollection) return 0;
-    if (!discount?.applied) return 0;
-    if (discount.type === "percentage") return (subtotal * discount.value) / 100;
-    return splitItems ? 0 : discount.value;
-  }, [discount, subtotal, splitItems, isLedgerCollection]);
-
-  // Service Charge & GST: SC on net, GST on (net + SC)
-  const netAfterDiscount = isLedgerCollection ? (collectAmount || 0) : (subtotal - discountAmount);
-
-  // Pro-rate the bill-level discount to service-charge-eligible items
-  const scEligibleNet = useMemo(() => {
-    if (isLedgerCollection || subtotal <= 0) return 0;
-    const proportion = scEligibleSubtotal / subtotal;
-    return Math.max(0, scEligibleSubtotal - proportion * discountAmount);
-  }, [scEligibleSubtotal, subtotal, discountAmount, isLedgerCollection]);
-
-  const serviceChargeAmt = isLedgerCollection ? 0 : (scEligibleNet * scRate);
-  const taxableAmount = netAfterDiscount + serviceChargeAmt;
-  const tax = isLedgerCollection ? 0 : (taxableAmount * gstRate);
-  const baseTotal = taxableAmount + tax;
-
-  useEffect(() => {
-    if (isLedgerCollection) {
-      setRoundOff(0);
-      setRoundType(null);
-      return;
-    }
-    if (!isCashMethod(method)) {
-      setRoundOff(0);
-      setRoundType(null);
-      return;
-    }
-    if (roundType === "whole") setRoundOff(Math.round(baseTotal) - baseTotal);
-    else if (roundType === "five") setRoundOff(Math.round(baseTotal * 20) / 20 - baseTotal);
-    else if (roundType === "ten") setRoundOff(Math.round(baseTotal * 10) / 10 - baseTotal);
-  }, [baseTotal, roundType, method, isLedgerCollection]);
-
-  const total = isLedgerCollection
-    ? (collectAmount || 0)
-    : Math.max(0, Math.round((baseTotal + roundOff) * 100) / 100);
-  const displayedTax = isLedgerCollection ? 0 : Math.round(tax * 100) / 100;
-  const displayedServiceCharge = isLedgerCollection ? 0 : Math.round(serviceChargeAmt * 100) / 100;
-  const netAmountForDisplay = netAfterDiscount;
-  // ✅ FIX: Compute round-off from raw (unrounded) total vs rounded-display components.
-  // Previously this produced a phantom -$0.01 "Rounding" line when GST had a .5-cent fraction
-  // because displayedTax was rounded up but total was the raw float sum.
-  const displayedRoundOff = roundOff !== 0
-    ? parseFloat((total - (netAmountForDisplay + displayedServiceCharge + displayedTax)).toFixed(2))
-    : 0;
-  const paidNum = isCashMethod(method) ? (parseFloat(cashInput) || 0) : total;
-  const change = Math.max(0, paidNum - total);
-  const quickCash = [20, 50, 100, 200, 500, 1000];
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 60000);
@@ -1043,8 +1048,9 @@ export default function PaymentScreen() {
       <View style={[
         styles.itemRow,
         isSC && {
-          borderWidth: 2,
-          borderColor: Theme.danger,
+          borderWidth: 1.5,
+          borderColor: Theme.dangerBorder,
+          backgroundColor: Theme.dangerBg,
           borderRadius: 8,
           marginVertical: 4,
           paddingHorizontal: 8,
@@ -1161,7 +1167,7 @@ export default function PaymentScreen() {
               ) : (
                 context?.orderType === 'DINE_IN' && (
                   <View style={styles.tableBadge}>
-                     <Text style={styles.tableBadgeText}>{formatSection(context.section || "")} • T{context.tableNo}</Text>
+                     <Text style={styles.tableBadgeText}>{formatSection(context?.section || "")} • T{context?.tableNo}</Text>
                   </View>
                 )
               )}
@@ -1482,7 +1488,7 @@ export default function PaymentScreen() {
 
                         {displayedServiceCharge > 0 && (
                           <View style={styles.breakRow}>
-                            <Text style={styles.breakLabel}>Item Service Charge ({settingsStore.serviceChargePercentage || 0}%)</Text>
+                            <Text style={styles.breakLabel}>{allItemsHaveSC ? "Service Charge" : "Item Service Charge"} ({settingsStore.serviceChargePercentage || 0}%)</Text>
                             <Text style={styles.breakValue}>{currencySymbol}{displayedServiceCharge.toFixed(2)}</Text>
                           </View>
                         )}
