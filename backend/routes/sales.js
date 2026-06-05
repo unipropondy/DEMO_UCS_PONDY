@@ -793,19 +793,23 @@ router.get("/day-end-summary", async (req, res) => {
     // Fetch Credit Customer Payments (ReferenceType = 'MEMBER')
     const creditPaymentsRes = await pool.request()
       .query(`
+        WITH RawCollections AS (
+          SELECT 
+            CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER' ELSE 'CREDIT' END AS CustomerType,
+            UPPER(ISNULL(pm.Description, 'CASH')) AS PaymodeName,
+            ptd.Amount
+          FROM PaymentTransactionDetails ptd
+          INNER JOIN Paymode pm ON pm.Position = ptd.PayModeId
+          LEFT JOIN MemberMaster mm ON ptd.ReferenceId = mm.MemberId
+          WHERE ptd.ReferenceType = 'MEMBER'
+            AND ${ptdWhereSql}
+        )
         SELECT 
-          CASE WHEN (CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER' ELSE 'CREDIT' END) = 'MEMBER' 
-               THEN 'MEMBER PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' 
-               ELSE 'CREDIT PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' 
-          END as Paymode,
-          SUM(ptd.Amount) as Amount,
-          COUNT(ptd.PaymentTransactionId) as Count
-        FROM PaymentTransactionDetails ptd
-        INNER JOIN Paymode pm ON pm.Position = ptd.PayModeId
-        LEFT JOIN MemberMaster mm ON ptd.ReferenceId = mm.MemberId
-        WHERE ptd.ReferenceType = 'MEMBER'
-          AND ${ptdWhereSql}
-        GROUP BY pm.Description, CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER' ELSE 'CREDIT' END
+          CustomerType + ' PAYMENT (' + PaymodeName + ')' AS Paymode,
+          SUM(Amount) AS Amount,
+          COUNT(*) AS Count
+        FROM RawCollections
+        GROUP BY CustomerType, PaymodeName
       `);
 
     const creditPayments = creditPaymentsRes.recordset || [];
