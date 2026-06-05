@@ -810,12 +810,12 @@ private static escapeHtml(str: string): string {
             </div>
             `}
             
-            ${hasSC ? `
+             ${hasSC ? `
              <div class="total-row">
-               <span>Item Service Charge (${effectiveSCPercentage}%):</span>
+               <span>Item Service Charge:</span>
                <span>${currencySymbol}${serviceChargeAmount.toFixed(2)}</span>
              </div>
-            ` : ''}
+             ` : ''}
             ${hasGST ? `
             <div class="total-row">
               <span>GST (${gstRate}%):</span>

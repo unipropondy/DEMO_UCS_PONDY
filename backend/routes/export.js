@@ -96,7 +96,7 @@ const generatePdfDocDefinition = (data) => {
     { text: (data.netSales || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
   ]);
   tableBody.push([
-    { text: 'Service Charge', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
+    { text: 'Item Service Charge', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
     { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
     { text: (data.serviceCharge || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
   ]);

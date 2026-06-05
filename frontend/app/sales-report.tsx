@@ -2582,7 +2582,7 @@ export default function SalesReport() {
                   )}
                   {Number(selectedOrder?.ServiceCharge) > 0 && (
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                      <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.textSecondary }}>Service Charge</Text>
+                      <Text style={{ fontSize: 12, fontFamily: Fonts.semiBold, color: Theme.textSecondary }}>Item Service Charge</Text>
                       <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
                         {formatCurrency(selectedOrder?.ServiceCharge)}
                       </Text>

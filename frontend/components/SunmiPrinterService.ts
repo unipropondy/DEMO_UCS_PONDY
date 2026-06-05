@@ -462,7 +462,7 @@ class SunmiPrinterService {
 
       if (hasSC) {
         await this.twoCols(
-          `Item Service Charge (${effectiveSCPercentage}%):`,
+          "Item Service Charge:",
           `${symbol}${serviceChargeAmount.toFixed(2)}`,
         );
       }

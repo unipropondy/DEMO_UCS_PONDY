@@ -119,7 +119,7 @@ const generateSalesReportPdf = (reportData) => {
   ]);
 
   mainTable.push([
-    { text: 'Service Charge', fontSize: 10, fillColor: '#fff', border: [1, 1, 1, 1], margin: [8, 6, 8, 6] },
+    { text: 'Item Service Charge', fontSize: 10, fillColor: '#fff', border: [1, 1, 1, 1], margin: [8, 6, 8, 6] },
     { text: `${currencySymbol}${Number(serviceCharge).toFixed(2)}`, fontSize: 10, alignment: 'right', fillColor: '#fff', border: [1, 1, 1, 1], margin: [8, 6, 8, 6] }
   ]);
 
@@ -166,7 +166,7 @@ const generateSalesReportPdf = (reportData) => {
   ]);
 
   mainTable.push([
-    { text: 'Service Charge', fontSize: 10, fillColor: '#ecf0f1', border: [1, 1, 1, 1], margin: [8, 6, 8, 6] },
+    { text: 'Item Service Charge', fontSize: 10, fillColor: '#ecf0f1', border: [1, 1, 1, 1], margin: [8, 6, 8, 6] },
     { text: `${currencySymbol}${Number(serviceCharge).toFixed(2)}`, fontSize: 10, alignment: 'right', fillColor: '#ecf0f1', border: [1, 1, 1, 1], margin: [8, 6, 8, 6] }
   ]);
 

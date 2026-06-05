@@ -1245,7 +1245,7 @@ class UniversalPrinter {
     }
 
     if (hasSC) {
-      text += this.formatTwoCols48(`Item Service Charge (${effectiveSCPercentage}%):`, `${symbol}${serviceChargeAmount.toFixed(2)}`);
+      text += this.formatTwoCols48("Item Service Charge:", `${symbol}${serviceChargeAmount.toFixed(2)}`);
     }
 
     if (hasGST) {
