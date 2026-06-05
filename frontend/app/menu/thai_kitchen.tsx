@@ -100,7 +100,11 @@ const NavRail = () => {
 
 const DishCard = React.memo(
   ({ dish, width, cartQty, onPress, isPhone, isTablet, isLandscape }: any) => {
-    const isSC = Number(dish.isServiceCharge) === 1 || dish.isServiceCharge === true;
+    const isServiceChargeVal = dish.isServiceCharge !== undefined ? dish.isServiceCharge : dish.IsServiceCharge;
+    const isSC = Number(isServiceChargeVal) === 1 || 
+                 isServiceChargeVal === true || 
+                 isServiceChargeVal === 'true' || 
+                 isServiceChargeVal === '1';
     return (
       <Pressable
         style={({ pressed }: { pressed: boolean }) => [
@@ -196,8 +200,13 @@ const DishCard = React.memo(
             isPhone ? { fontSize: 12 } : isTablet ? { fontSize: 14 } : null,
           ]}
         >
-          ${(dish.Price || 0).toFixed(2)}
+          {(Number(dish.IsOpenItem) === 1 || dish.IsOpenItem === true || dish.IsOpenItem === 'true' || dish.IsOpenItem === '1') ? "Open Price" : `$${(dish.Price || 0).toFixed(2)}`}
         </Text>
+        {(Number(dish.IsOpenItem) === 1 || dish.IsOpenItem === true || dish.IsOpenItem === 'true' || dish.IsOpenItem === '1') ? (
+          <View style={{ backgroundColor: "#F59E0B22", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginTop: 2, borderWidth: 1, borderColor: "#F59E0B44", alignSelf: "center" }}>
+            <Text style={{ fontSize: 9, color: "#B45309", fontFamily: Fonts.bold }}>OPEN</Text>
+          </View>
+        ) : null}
       </Pressable>
     );
   },
@@ -377,6 +386,12 @@ export default function MenuScreen() {
   const [selectedDish, setSelectedDish] = useState<any | null>(null);
   const [selectedModifierIds, setSelectedModifierIds] = useState<string[]>([]);
   const [loadingModifiers, setLoadingModifiers] = useState(false);
+
+  // Open Item modal state
+  const [showOpenItemModal, setShowOpenItemModal] = useState(false);
+  const [openItemDish, setOpenItemDish] = useState<any | null>(null);
+  const [openItemPrice, setOpenItemPrice] = useState("");
+  const [openItemError, setOpenItemError] = useState("");
 
   // Custom Item Submodal (Screenshot Flow)
   const [showCustomModal, setShowCustomModal] = useState(false);
@@ -850,18 +865,33 @@ export default function MenuScreen() {
       const currentKitchenCode =
         currentKitchen?.KitchenTypeCode || String(selectedKitchenId || "0");
 
-      const addToCartSimple = () => {
+      const addToCartSimple = (overridePrice?: number) => {
         addToCartGlobal({
           id: dish.DishId,
           name: dish.Name,
-          price: dish.Price || 0,
+          price: overridePrice !== undefined ? overridePrice : (dish.Price || 0),
           categoryName: currentKitchenName,
           KitchenTypeName: dish.KitchenTypeName || currentKitchenName,
           PrinterIP: dish.PrinterIP,
           KitchenTypeCode: dish.KitchenTypeCode || currentKitchenCode,
           isServiceCharge: dish.isServiceCharge,
+          IsOpenItem: dish.IsOpenItem,
         });
       };
+
+      // OPEN ITEM: Prompt for custom price before doing anything else
+      const isItOpenItem = Number(dish.IsOpenItem) === 1 || dish.IsOpenItem === true || dish.IsOpenItem === 'true' || dish.IsOpenItem === '1';
+      if (isItOpenItem) {
+        setOpenItemDish({
+          ...dish,
+          _kitchenName: currentKitchenName,
+          _kitchenCode: currentKitchenCode,
+        });
+        setOpenItemPrice(dish.Price > 0 ? String(dish.Price) : "");
+        setOpenItemError("");
+        setShowOpenItemModal(true);
+        return; // Wait for user to confirm price
+      }
 
       const cachedData = modifierCache[dish.DishId];
       if (cachedData) {
@@ -996,6 +1026,46 @@ export default function MenuScreen() {
       // addToCartGlobal handles both local state and database sync
     }
     setShowModifier(false);
+  };
+
+  // OPEN ITEM: Validate and add to cart at custom price
+  const confirmOpenItemPrice = () => {
+    const trimmed = openItemPrice.trim();
+    if (!trimmed || trimmed === "") {
+      setOpenItemError("Please enter a price.");
+      return;
+    }
+    const parsed = parseFloat(trimmed);
+    if (isNaN(parsed) || parsed < 0) {
+      setOpenItemError("Enter a valid non-negative number.");
+      return;
+    }
+    if (parsed === 0) {
+      setOpenItemError("Price cannot be zero.");
+      return;
+    }
+
+    const dish = openItemDish;
+    if (!dish) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    addToCartGlobal({
+      id: dish.DishId,
+      name: dish.Name,
+      price: parsed,
+      categoryName: dish._kitchenName,
+      KitchenTypeName: dish.KitchenTypeName || dish._kitchenName,
+      PrinterIP: dish.PrinterIP,
+      KitchenTypeCode: dish.KitchenTypeCode || dish._kitchenCode,
+      IsOpenItem: dish.IsOpenItem,
+      isServiceCharge: dish.isServiceCharge,
+    });
+
+    // Reset
+    setShowOpenItemModal(false);
+    setOpenItemDish(null);
+    setOpenItemPrice("");
+    setOpenItemError("");
   };
 
   if (!orderContext) return null;
@@ -1509,6 +1579,109 @@ export default function MenuScreen() {
                   </View>
                   <Text style={styles.reprintText}>Bill Reprint</Text>
                 </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* OPEN ITEM PRICE MODAL */}
+      <Modal
+        transparent
+        visible={showOpenItemModal}
+        animationType="fade"
+        onRequestClose={() => setShowOpenItemModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowOpenItemModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.customItemModal}>
+                {/* Header */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 6,
+                  }}
+                >
+                  <Text style={styles.customModalTitle}>Enter Price</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowOpenItemModal(false)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close" size={22} color={Theme.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Dish name */}
+                <Text
+                  style={{
+                    fontFamily: Fonts.medium,
+                    fontSize: 13,
+                    color: Theme.textSecondary,
+                    marginBottom: 16,
+                  }}
+                  numberOfLines={2}
+                >
+                  {openItemDish?.Name}
+                </Text>
+
+                {/* Price input */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Custom Price *</Text>
+                  <TextInput
+                    style={[
+                      styles.customInput,
+                      openItemError
+                        ? { borderColor: Theme.danger, borderWidth: 1.5 }
+                        : {},
+                    ]}
+                    placeholder={
+                      openItemDish?.Price > 0
+                        ? `Default: ${openItemDish.Price}`
+                        : "Enter price"
+                    }
+                    placeholderTextColor="#999"
+                    keyboardType="decimal-pad"
+                    value={openItemPrice}
+                    onChangeText={(t) => {
+                      setOpenItemPrice(t);
+                      setOpenItemError("");
+                    }}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={confirmOpenItemPrice}
+                  />
+                  {openItemError ? (
+                    <Text
+                      style={{
+                        color: Theme.danger,
+                        fontSize: 11,
+                        fontFamily: Fonts.medium,
+                        marginTop: 4,
+                      }}
+                    >
+                      {openItemError}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {/* Actions */}
+                <View style={styles.customModalActions}>
+                  <TouchableOpacity
+                    style={styles.customBtnCancel}
+                    onPress={() => setShowOpenItemModal(false)}
+                  >
+                    <Text style={styles.customBtnTextCancel}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.customBtnAdd}
+                    onPress={confirmOpenItemPrice}
+                  >
+                    <Text style={styles.customBtnTextAdd}>Add to Cart</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </TouchableWithoutFeedback>
           </View>

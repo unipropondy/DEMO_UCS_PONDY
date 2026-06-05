@@ -130,6 +130,7 @@ router.get("/dishes/group/:DishGroupId", async (req, res) => {
               d.Imageid AS Image,
               CASE WHEN d.Imageid IS NOT NULL THEN 1 ELSE 0 END AS HasImage,
               ISNULL(d.isServiceCharge, 0) AS isServiceCharge,
+              ISNULL(d.IsOpenItem, 0) AS IsOpenItem,
               ISNULL(ckt.KitchenTypeCode, '2') AS KitchenTypeCode,
               ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') AS KitchenTypeName,
               pm.PrinterPath AS PrinterIP
