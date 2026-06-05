@@ -408,7 +408,27 @@ export default function SalesReport() {
 
   const fetchSales = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/sales/all`, {
+      const end = new Date(selectedDate);
+      const start = new Date(selectedDate);
+
+      if (selectedFilter === "WEEKLY") {
+        start.setDate(start.getDate() - 6);
+      } else if (selectedFilter === "MONTHLY") {
+        start.setDate(1);
+        end.setMonth(end.getMonth() + 1);
+        end.setDate(0);
+      } else if (selectedFilter === "YEARLY") {
+        start.setMonth(0, 1);
+        end.setMonth(11, 31);
+      } else if (selectedFilter === "CUSTOM" && rangeStart && rangeEnd) {
+        start.setTime(new Date(rangeStart).getTime());
+        end.setTime(new Date(rangeEnd).getTime());
+      }
+
+      const startStr = start.toLocaleDateString("en-CA");
+      const endStr = end.toLocaleDateString("en-CA");
+
+      const response = await fetch(`${API_URL}/api/sales/all?startDate=${startStr}&endDate=${endStr}`, {
         headers: { "Content-Type": "application/json" },
       });
       if (!response.ok) throw new Error("Failed to fetch sales");
@@ -761,7 +781,8 @@ export default function SalesReport() {
   const changeDate = (days: number) => {
     const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() + days);
-    setSelectedDate(newDate.toISOString().split("T")[0]);
+    // Preserve the local date without converting to UTC
+    setSelectedDate(newDate.toLocaleDateString('en-CA'));
   };
 
 
@@ -775,47 +796,60 @@ export default function SalesReport() {
         return itemDate === selectedDate;
       });
     } else if (selectedFilter === "WEEKLY") {
-      const selectedDateObj = new Date(selectedDate);
-      const sevenDaysAgo = new Date(
-        selectedDateObj.getTime() - 6 * 24 * 60 * 60 * 1000,
-      );
-      result = sales.filter((s) => {
-        if (!s.SettlementDate) return false;
-        const saleDate = new Date(s.SettlementDate);
-        return saleDate >= sevenDaysAgo && saleDate <= selectedDateObj;
-      });
-    } else if (selectedFilter === "MONTHLY") {
-      const selectedDateObj = new Date(selectedDate);
-      const firstDay = new Date(
-        selectedDateObj.getFullYear(),
-        selectedDateObj.getMonth(),
-        1,
-      );
-      const lastDay = new Date(
-        selectedDateObj.getFullYear(),
-        selectedDateObj.getMonth() + 1,
-        0,
-      );
-      result = sales.filter((s) => {
-        if (!s.SettlementDate) return false;
-        const saleDate = new Date(s.SettlementDate);
-        return saleDate >= firstDay && saleDate <= lastDay;
-      });
-    } else if (selectedFilter === "YEARLY") {
-      const selectedDateObj = new Date(selectedDate);
-      const firstDay = new Date(selectedDateObj.getFullYear(), 0, 1);
-      const lastDay = new Date(
-        selectedDateObj.getFullYear(),
-        11,
-        31,
+      const parts = selectedDate.split("-");
+      const end = new Date(
+        Number(parts[0]),
+        Number(parts[1]) - 1,
+        Number(parts[2]),
         23,
         59,
         59,
+        999
       );
+      const start = new Date(end);
+      start.setDate(start.getDate() - 6);
+      start.setHours(0, 0, 0, 0);
+
       result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
         const saleDate = new Date(s.SettlementDate);
-        return saleDate >= firstDay && saleDate <= lastDay;
+        return saleDate >= start && saleDate <= end;
+      });
+    } else if (selectedFilter === "MONTHLY") {
+      const parts = selectedDate.split("-");
+      const start = new Date(
+        Number(parts[0]),
+        Number(parts[1]) - 1,
+        1,
+        0,
+        0,
+        0,
+        0
+      );
+      const nextMonth = new Date(
+        Number(parts[0]),
+        Number(parts[1]),
+        1,
+        0,
+        0,
+        0,
+        0
+      );
+      const end = new Date(nextMonth.getTime() - 1);
+      result = sales.filter((s) => {
+        if (!s.SettlementDate) return false;
+        const saleDate = new Date(s.SettlementDate);
+        return saleDate >= start && saleDate <= end;
+      });
+    } else if (selectedFilter === "YEARLY") {
+      const parts = selectedDate.split("-");
+      const start = new Date(Number(parts[0]), 0, 1, 0, 0, 0, 0);
+      const nextYear = new Date(Number(parts[0]) + 1, 0, 1, 0, 0, 0, 0);
+      const end = new Date(nextYear.getTime() - 1);
+      result = sales.filter((s) => {
+        if (!s.SettlementDate) return false;
+        const saleDate = new Date(s.SettlementDate);
+        return saleDate >= start && saleDate <= end;
       });
     } else if (selectedFilter === "CUSTOM" && rangeStart && rangeEnd) {
       const start = new Date(rangeStart);
@@ -835,17 +869,22 @@ export default function SalesReport() {
     return dateScopedSales.filter((s) => {
       const modeUpper = s.PayMode?.toUpperCase().trim() || "";
       const isUpiMode = modeUpper.includes("UPI") || modeUpper.includes("GPAY");
+      const typeUpper = s.OrderType?.toUpperCase().trim() || "";
       
       const modeMatch =
-        activePaymentModes.includes(s.PayMode?.trim()) ||
+        activePaymentModes.includes(modeUpper) ||
         (activePaymentModes.includes("UPI") && isUpiMode) ||
         (showCancelledOrders && s.IsCancelled) ||
-        s.OrderType === 'LEDGER';
+        (typeUpper === 'LEDGER' && (
+          activePaymentModes.includes(modeUpper) ||
+          (s.OrderId?.toLowerCase().includes("member") && activePaymentModes.includes("MEMBER")) ||
+          (s.OrderId?.toLowerCase().includes("credit") && activePaymentModes.includes("CREDIT"))
+        ));
       const typeMatch =
-        s.OrderType === 'LEDGER' ||
+        typeUpper === 'LEDGER' ||
         activeOrderTypes.length === 2 ||
         (s.OrderType
-          ? activeOrderTypes.includes(s.OrderType?.trim())
+          ? activeOrderTypes.includes(typeUpper)
           : activeOrderTypes.includes("DINE-IN"));
       return modeMatch && typeMatch;
     });
@@ -936,10 +975,11 @@ export default function SalesReport() {
 
   const paymentBreakdownMetrics = useMemo(() => {
     const filteredByTypes = dateScopedSales.filter((s) => {
+      const typeUpper = s.OrderType?.toUpperCase().trim() || "";
       const typeMatch =
         activeOrderTypes.length === 2 ||
         (s.OrderType
-          ? activeOrderTypes.includes(s.OrderType?.trim()) || s.OrderType?.trim() === 'LEDGER'
+          ? activeOrderTypes.includes(typeUpper) || typeUpper === 'LEDGER'
           : activeOrderTypes.includes("DINE-IN"));
       return typeMatch;
     });

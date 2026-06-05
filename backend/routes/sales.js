@@ -173,82 +173,170 @@ router.get("/all", async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const pool = await poolPromise;
-    const result = await pool.request().query(`
-      SELECT TOP 200 * FROM (
-        SELECT 
-          sh.SettlementID, 
-          DATEADD(MINUTE, -468, sh.LastSettlementDate) AS SettlementDate, 
-          sh.BillNo AS OrderId, 
-          sh.OrderType,
-          sh.TableNo, 
-          sh.Section, 
-          sh.CashierId, 
-          sh.BillNo, 
-          sh.SER_NAME,
-          ${normalizeReportPayModeSql("sts.PayMode")} as PayMode,
-          sh.SysAmount as SysAmount,
-          sh.ManualAmount as ManualAmount,
-          sh.SubTotal as SubTotal,
-          ISNULL(sh.DiscountAmount, 0) as DiscountAmount,
-          sh.DiscountType as DiscountType,
-          ISNULL(sh.ServiceCharge, 0) as ServiceCharge,
-          ISNULL(sh.TotalTax, 0) as TotalTax,
-          ISNULL(sts.ReceiptCount, 0) as ReceiptCount,
-          ISNULL(sh.VoidItemQty, 0) as VoidQty,
-          ISNULL(sh.VoidItemAmount, 0) as VoidAmount,
-          sh.IsCancelled,
-          sh.CancellationReason,
-          DATEADD(MINUTE, -468, sh.CancelledDate) as CancelledDate,
-          sh.CancelledByUserName,
-          ri.OrderId AS MasterOrderId,
-          ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
-          ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
-          sh.RoundedBy as RoundedBy,
-          ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage
-        FROM SettlementHeader sh
-        LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
-        LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
+    const { startDate, endDate } = req.query;
 
-        UNION ALL
+    const isDateStr = (str) => typeof str === "string" && /^\d{4}-\d{2}-\d{2}$/.test(str);
+    const useRange = isDateStr(startDate) && isDateStr(endDate);
 
-        SELECT 
-          cct.TransactionId AS SettlementID,
-          DATEADD(MINUTE, -468, cct.CreatedDate) AS SettlementDate,
-          CASE WHEN mm.MemberId IS NOT NULL THEN 'Member Payment Collected' ELSE 'Credit Payment Collected' END AS OrderId,
-          'LEDGER' AS OrderType,
-          'LEDGER' AS TableNo,
-          COALESCE(mm.Name, m.Name, 'Customer') AS Section,
-          CAST(cct.CreatedBy AS VARCHAR(50)) AS CashierId,
-          cct.Remarks AS BillNo,
-          'Cashier' AS SER_NAME,
-          cct.PaymentMethod AS PayMode,
-          cct.PaidAmount AS SysAmount,
-          cct.PaidAmount AS ManualAmount,
-          cct.PaidAmount AS SubTotal,
-          0 AS DiscountAmount,
-          NULL AS DiscountType,
-          0 AS ServiceCharge,
-          0 AS TotalTax,
-          1 AS ReceiptCount,
-          0 AS VoidQty,
-          0 AS VoidAmount,
-          0 AS IsCancelled,
-          NULL AS CancellationReason,
-          NULL AS CancelledDate,
-          NULL AS CancelledByUserName,
-          NULL AS MasterOrderId,
-          0 AS TotalDiscountAmount,
-          0 AS TotalLineItemDiscountAmount,
-          0 AS RoundedBy,
-          0 AS DiscountPercentage
-        FROM CustomerCreditTransactions cct
-        LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
-        LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
-        WHERE cct.TransactionType = 'PAYMENT'
-      ) CombinedSales
-      ORDER BY SettlementDate DESC
-    `);
+    let queryStr = "";
+    if (useRange) {
+      const shWhere = getReportDateWhereSqlForRange(startDate, endDate, "sh.LastSettlementDate");
+      const cctWhere = getReportDateWhereSqlForRange(startDate, endDate, "cct.CreatedDate");
+      queryStr = `
+        SELECT * FROM (
+          SELECT 
+            sh.SettlementID, 
+            DATEADD(MINUTE, -468, sh.LastSettlementDate) AS SettlementDate, 
+            sh.BillNo AS OrderId, 
+            sh.OrderType,
+            sh.TableNo, 
+            sh.Section, 
+            sh.CashierId, 
+            sh.BillNo, 
+            sh.SER_NAME,
+            ${normalizeReportPayModeSql("sts.PayMode")} as PayMode,
+            sh.SysAmount as SysAmount,
+            sh.ManualAmount as ManualAmount,
+            sh.SubTotal as SubTotal,
+            ISNULL(sh.DiscountAmount, 0) as DiscountAmount,
+            sh.DiscountType as DiscountType,
+            ISNULL(sh.ServiceCharge, 0) as ServiceCharge,
+            ISNULL(sh.TotalTax, 0) as TotalTax,
+            ISNULL(sts.ReceiptCount, 0) as ReceiptCount,
+            ISNULL(sh.VoidItemQty, 0) as VoidQty,
+            ISNULL(sh.VoidItemAmount, 0) as VoidAmount,
+            sh.IsCancelled,
+            sh.CancellationReason,
+            DATEADD(MINUTE, -468, sh.CancelledDate) as CancelledDate,
+            sh.CancelledByUserName,
+            ri.OrderId AS MasterOrderId,
+            ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
+            ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
+            sh.RoundedBy as RoundedBy,
+            ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage
+          FROM SettlementHeader sh
+          LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
+          LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
+          WHERE ${shWhere}
 
+          UNION ALL
+
+          SELECT 
+            cct.TransactionId AS SettlementID,
+            DATEADD(MINUTE, -468, cct.CreatedDate) AS SettlementDate,
+            CASE WHEN mm.MemberId IS NOT NULL THEN 'Member Payment Collected' ELSE 'Credit Payment Collected' END AS OrderId,
+            'LEDGER' AS OrderType,
+            'LEDGER' AS TableNo,
+            COALESCE(mm.Name, m.Name, 'Customer') AS Section,
+            CAST(cct.CreatedBy AS VARCHAR(50)) AS CashierId,
+            cct.Remarks AS BillNo,
+            'Cashier' AS SER_NAME,
+            cct.PaymentMethod AS PayMode,
+            cct.PaidAmount AS SysAmount,
+            cct.PaidAmount AS ManualAmount,
+            cct.PaidAmount AS SubTotal,
+            0 AS DiscountAmount,
+            NULL AS DiscountType,
+            0 AS ServiceCharge,
+            0 AS TotalTax,
+            1 AS ReceiptCount,
+            0 AS VoidQty,
+            0 AS VoidAmount,
+            0 AS IsCancelled,
+            NULL AS CancellationReason,
+            NULL AS CancelledDate,
+            NULL AS CancelledByUserName,
+            NULL AS MasterOrderId,
+            0 AS TotalDiscountAmount,
+            0 AS TotalLineItemDiscountAmount,
+            0 AS RoundedBy,
+            0 AS DiscountPercentage
+          FROM CustomerCreditTransactions cct
+          LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
+          LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
+          WHERE cct.TransactionType = 'PAYMENT' AND ${cctWhere}
+        ) CombinedSales
+        ORDER BY SettlementDate DESC
+      `;
+    } else {
+      queryStr = `
+        SELECT TOP 200 * FROM (
+          SELECT 
+            sh.SettlementID, 
+            DATEADD(MINUTE, -468, sh.LastSettlementDate) AS SettlementDate, 
+            sh.BillNo AS OrderId, 
+            sh.OrderType,
+            sh.TableNo, 
+            sh.Section, 
+            sh.CashierId, 
+            sh.BillNo, 
+            sh.SER_NAME,
+            ${normalizeReportPayModeSql("sts.PayMode")} as PayMode,
+            sh.SysAmount as SysAmount,
+            sh.ManualAmount as ManualAmount,
+            sh.SubTotal as SubTotal,
+            ISNULL(sh.DiscountAmount, 0) as DiscountAmount,
+            sh.DiscountType as DiscountType,
+            ISNULL(sh.ServiceCharge, 0) as ServiceCharge,
+            ISNULL(sh.TotalTax, 0) as TotalTax,
+            ISNULL(sts.ReceiptCount, 0) as ReceiptCount,
+            ISNULL(sh.VoidItemQty, 0) as VoidQty,
+            ISNULL(sh.VoidItemAmount, 0) as VoidAmount,
+            sh.IsCancelled,
+            sh.CancellationReason,
+            DATEADD(MINUTE, -468, sh.CancelledDate) as CancelledDate,
+            sh.CancelledByUserName,
+            ri.OrderId AS MasterOrderId,
+            ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
+            ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
+            sh.RoundedBy as RoundedBy,
+            ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage
+          FROM SettlementHeader sh
+          LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
+          LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
+
+          UNION ALL
+
+          SELECT 
+            cct.TransactionId AS SettlementID,
+            DATEADD(MINUTE, -468, cct.CreatedDate) AS SettlementDate,
+            CASE WHEN mm.MemberId IS NOT NULL THEN 'Member Payment Collected' ELSE 'Credit Payment Collected' END AS OrderId,
+            'LEDGER' AS OrderType,
+            'LEDGER' AS TableNo,
+            COALESCE(mm.Name, m.Name, 'Customer') AS Section,
+            CAST(cct.CreatedBy AS VARCHAR(50)) AS CashierId,
+            cct.Remarks AS BillNo,
+            'Cashier' AS SER_NAME,
+            cct.PaymentMethod AS PayMode,
+            cct.PaidAmount AS SysAmount,
+            cct.PaidAmount AS ManualAmount,
+            cct.PaidAmount AS SubTotal,
+            0 AS DiscountAmount,
+            NULL AS DiscountType,
+            0 AS ServiceCharge,
+            0 AS TotalTax,
+            1 AS ReceiptCount,
+            0 AS VoidQty,
+            0 AS VoidAmount,
+            0 AS IsCancelled,
+            NULL AS CancellationReason,
+            NULL AS CancelledDate,
+            NULL AS CancelledByUserName,
+            NULL AS MasterOrderId,
+            0 AS TotalDiscountAmount,
+            0 AS TotalLineItemDiscountAmount,
+            0 AS RoundedBy,
+            0 AS DiscountPercentage
+          FROM CustomerCreditTransactions cct
+          LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
+          LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
+          WHERE cct.TransactionType = 'PAYMENT'
+        ) CombinedSales
+        ORDER BY SettlementDate DESC
+      `;
+    }
+
+    const result = await pool.request().query(queryStr);
     const records = result.recordset || [];
     if (records.length > 0) {
       const masterOrderIds = records
@@ -793,19 +881,23 @@ router.get("/day-end-summary", async (req, res) => {
     // Fetch Credit Customer Payments (ReferenceType = 'MEMBER')
     const creditPaymentsRes = await pool.request()
       .query(`
+        WITH RawCollections AS (
+          SELECT 
+            CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER' ELSE 'CREDIT' END AS CustomerType,
+            UPPER(ISNULL(pm.Description, 'CASH')) AS PaymodeName,
+            ptd.Amount
+          FROM PaymentTransactionDetails ptd
+          INNER JOIN Paymode pm ON pm.Position = ptd.PayModeId
+          LEFT JOIN MemberMaster mm ON ptd.ReferenceId = mm.MemberId
+          WHERE ptd.ReferenceType = 'MEMBER'
+            AND ${ptdWhereSql}
+        )
         SELECT 
-          CASE WHEN (CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER' ELSE 'CREDIT' END) = 'MEMBER' 
-               THEN 'MEMBER PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' 
-               ELSE 'CREDIT PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' 
-          END as Paymode,
-          SUM(ptd.Amount) as Amount,
-          COUNT(ptd.PaymentTransactionId) as Count
-        FROM PaymentTransactionDetails ptd
-        INNER JOIN Paymode pm ON pm.Position = ptd.PayModeId
-        LEFT JOIN MemberMaster mm ON ptd.ReferenceId = mm.MemberId
-        WHERE ptd.ReferenceType = 'MEMBER'
-          AND ${ptdWhereSql}
-        GROUP BY pm.Description, CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER' ELSE 'CREDIT' END
+          CustomerType + ' PAYMENT (' + PaymodeName + ')' AS Paymode,
+          SUM(Amount) AS Amount,
+          COUNT(*) AS Count
+        FROM RawCollections
+        GROUP BY CustomerType, PaymodeName
       `);
 
     const creditPayments = creditPaymentsRes.recordset || [];
