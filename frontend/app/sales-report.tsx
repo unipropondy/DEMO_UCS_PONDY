@@ -775,47 +775,58 @@ export default function SalesReport() {
         return itemDate === selectedDate;
       });
     } else if (selectedFilter === "WEEKLY") {
-      const selectedDateObj = new Date(selectedDate);
-      const sevenDaysAgo = new Date(
-        selectedDateObj.getTime() - 6 * 24 * 60 * 60 * 1000,
-      );
-      result = sales.filter((s) => {
-        if (!s.SettlementDate) return false;
-        const saleDate = new Date(s.SettlementDate);
-        return saleDate >= sevenDaysAgo && saleDate <= selectedDateObj;
-      });
-    } else if (selectedFilter === "MONTHLY") {
-      const selectedDateObj = new Date(selectedDate);
-      const firstDay = new Date(
-        selectedDateObj.getFullYear(),
-        selectedDateObj.getMonth(),
-        1,
-      );
-      const lastDay = new Date(
-        selectedDateObj.getFullYear(),
-        selectedDateObj.getMonth() + 1,
-        0,
-      );
-      result = sales.filter((s) => {
-        if (!s.SettlementDate) return false;
-        const saleDate = new Date(s.SettlementDate);
-        return saleDate >= firstDay && saleDate <= lastDay;
-      });
-    } else if (selectedFilter === "YEARLY") {
-      const selectedDateObj = new Date(selectedDate);
-      const firstDay = new Date(selectedDateObj.getFullYear(), 0, 1);
-      const lastDay = new Date(
-        selectedDateObj.getFullYear(),
-        11,
-        31,
+      const parts = selectedDate.split("-");
+      const end = new Date(
+        Number(parts[0]),
+        Number(parts[1]) - 1,
+        Number(parts[2]),
         23,
         59,
         59,
+        999
+      );
+      const start = new Date(end);
+      start.setDate(start.getDate() - 6);
+      start.setHours(0, 0, 0, 0);
+
+      result = sales.filter((s) => {
+        if (!s.SettlementDate) return false;
+        const saleDate = new Date(s.SettlementDate);
+        return saleDate >= start && saleDate <= end;
+      });
+    } else if (selectedFilter === "MONTHLY") {
+      const parts = selectedDate.split("-");
+      const start = new Date(
+        Number(parts[0]),
+        Number(parts[1]) - 1,
+        1,
+        0,
+        0,
+        0,
+        0
+      );
+      const end = new Date(
+        Number(parts[0]),
+        Number(parts[1]),
+        0,
+        23,
+        59,
+        59,
+        999
       );
       result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
         const saleDate = new Date(s.SettlementDate);
-        return saleDate >= firstDay && saleDate <= lastDay;
+        return saleDate >= start && saleDate <= end;
+      });
+    } else if (selectedFilter === "YEARLY") {
+      const parts = selectedDate.split("-");
+      const start = new Date(Number(parts[0]), 0, 1, 0, 0, 0, 0);
+      const end = new Date(Number(parts[0]), 11, 31, 23, 59, 59, 999);
+      result = sales.filter((s) => {
+        if (!s.SettlementDate) return false;
+        const saleDate = new Date(s.SettlementDate);
+        return saleDate >= start && saleDate <= end;
       });
     } else if (selectedFilter === "CUSTOM" && rangeStart && rangeEnd) {
       const start = new Date(rangeStart);
