@@ -21,6 +21,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
 import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
@@ -70,6 +71,7 @@ type DashboardStats = {
 export default function ReceivablesScreen() {
   const router = useRouter();
   const { user, token } = useAuthStore();
+  const isFocused = useIsFocused();
   const settingsStore = useCompanySettingsStore((state) => state.settings);
   const currencySymbol = settingsStore?.currencySymbol || "$";
   const { width: screenWidth } = useWindowDimensions();
@@ -93,39 +95,6 @@ export default function ReceivablesScreen() {
   const [transactions, setTransactions] = useState<CreditTransactionType[]>([]);
   const [outstandingBills, setOutstandingBills] = useState<OutstandingBillType[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
-
-  // Collection Modal States
-  const [showCollectModal, setShowCollectModal] = useState(false);
-  const [collectAmount, setCollectAmount] = useState("");
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([
-    { payMode: "CASH", description: "CASH", Position: 1 },
-    { payMode: "UPI", description: "UPI", Position: 2 },
-    { payMode: "CARD", description: "CARD", Position: 3 }
-  ]);
-  const [collectMethod, setCollectMethod] = useState<string>("CASH");
-  const [collectRemarks, setCollectRemarks] = useState("");
-  const [allocationMode, setAllocationMode] = useState<"FIFO" | "MANUAL">("FIFO");
-  const [manualAllocations, setManualAllocations] = useState<{ [settlementId: string]: string }>({});
-  const [submittingCollection, setSubmittingCollection] = useState(false);
-
-  const fetchPaymentMethods = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/sales/payment-methods`);
-      const data = await res.json();
-      const filtered = (Array.isArray(data) ? data : []).filter(
-        (m: any) => {
-          const mUpper = (m.payMode || "").toUpperCase().trim();
-          return mUpper !== "MEMBER" && mUpper !== "CREDIT";
-        }
-      );
-      if (filtered.length > 0) {
-        setPaymentMethods(filtered);
-        setCollectMethod(filtered[0].payMode);
-      }
-    } catch (err) {
-      console.error("[FETCH PAYMENT METHODS ERROR]", err);
-    }
-  };
 
   // Fetch Dashboard Stats and Aging data
   const fetchData = useCallback(async () => {
@@ -172,17 +141,14 @@ export default function ReceivablesScreen() {
   }, [token]);
 
   useEffect(() => {
-    fetchData();
-    fetchPaymentMethods();
-  }, [fetchData]);
+    if (isFocused) {
+      fetchData();
+    }
+  }, [isFocused, fetchData]);
 
   // Handle hardware back button on Android
   useEffect(() => {
     const backAction = () => {
-      if (showCollectModal) {
-        setShowCollectModal(false);
-        return true;
-      }
       if (showLedgerModal) {
         setShowLedgerModal(false);
         setSelectedCustomer(null);
@@ -200,7 +166,7 @@ export default function ReceivablesScreen() {
 
     const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
     return () => backHandler.remove();
-  }, [showCollectModal, showLedgerModal]);
+  }, [showLedgerModal]);
 
   // Fetch individual customer statements and unpaid bills
   const fetchCustomerDetails = async (customer: CustomerAgingType) => {
@@ -249,126 +215,7 @@ export default function ReceivablesScreen() {
     fetchCustomerDetails(customer);
   };
 
-  // Calculate allocated sum for manual allocation
-  const manualAllocatedSum = useMemo(() => {
-    return Object.values(manualAllocations).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
-  }, [manualAllocations]);
 
-  // Adjust manual allocation when the entered collected amount changes
-  const handleCollectAmountChange = (text: string) => {
-    setCollectAmount(text);
-    const numericAmt = parseFloat(text) || 0;
-    
-    // Re-FIFO manual allocations as default recommendations
-    let remaining = numericAmt;
-    const updated: { [settlementId: string]: string } = {};
-    outstandingBills.forEach((bill) => {
-      const due = bill.OutstandingAmount;
-      const alloc = Math.min(remaining, due);
-      updated[bill.SettlementId] = alloc > 0 ? alloc.toFixed(2) : "0.00";
-      remaining -= alloc;
-    });
-    setManualAllocations(updated);
-  };
-
-  // Modify single invoice allocation manually
-  const handleInvoiceAllocChange = (settlementId: string, value: string) => {
-    setManualAllocations(prev => ({
-      ...prev,
-      [settlementId]: value
-    }));
-  };
-
-  // Post Collection Payment to Backend
-  const handleSubmitCollection = async () => {
-    if (!selectedCustomer) return;
-
-    const numericAmt = parseFloat(collectAmount);
-    if (isNaN(numericAmt) || numericAmt <= 0) {
-      Alert.alert("Invalid Input", "Please enter a valid payment amount.");
-      return;
-    }
-
-    // Manual allocation checks
-    let allocationPayload = [];
-    if (allocationMode === "MANUAL") {
-      const totalAllocated = manualAllocatedSum;
-      const diff = Math.abs(totalAllocated - numericAmt);
-      if (diff > 0.01) {
-        Alert.alert("Allocation Error", `Allocated amount (${currencySymbol}${totalAllocated.toFixed(2)}) must equal collection amount (${currencySymbol}${numericAmt.toFixed(2)})`);
-        return;
-      }
-
-      // Check for negative allocation values
-      for (const [sId, valStr] of Object.entries(manualAllocations)) {
-        const val = parseFloat(valStr) || 0;
-        if (val < 0) {
-          Alert.alert("Invalid Allocation", "Allocation amounts cannot be negative.");
-          return;
-        }
-        if (val > 0) {
-          const originalBill = outstandingBills.find(b => b.SettlementId === sId);
-          if (originalBill && val > originalBill.OutstandingAmount + 0.01) {
-            Alert.alert("Over-allocation Warning", `Allocated amount for ${originalBill.BillNo} exceeds the bill due amount.`);
-            return;
-          }
-          allocationPayload.push({
-            settlementId: sId,
-            billNo: originalBill?.BillNo || "",
-            amount: val
-          });
-        }
-      }
-    }
-
-    setSubmittingCollection(true);
-    try {
-      const response = await fetch(`${API_URL}/api/credit-customers/pay`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : ""
-        },
-        body: JSON.stringify({
-          memberId: selectedCustomer.MemberId,
-          amount: numericAmt,
-          payments: [{
-            payModeId: (() => {
-              const selectedMode = paymentMethods.find((m) => m.payMode === collectMethod);
-              return selectedMode ? selectedMode.Position || selectedMode.payModeId || 1 : 1;
-            })(),
-            payMode: collectMethod,
-            amount: numericAmt,
-            referenceNo: collectRemarks.trim()
-          }],
-          allocations: allocationMode === "MANUAL" ? allocationPayload : null,
-          remarks: collectRemarks.trim() || `Credit payment collection (${collectMethod})`,
-          userId: user?.userId
-        })
-      });
-
-      const data = await response.json();
-      if (response.ok && data.success) {
-        Alert.alert("Success", "Collection recorded successfully!");
-        setShowCollectModal(false);
-        // Refresh details
-        const updatedCustomer = {
-          ...selectedCustomer,
-          OutstandingBalance: Math.max(0, selectedCustomer.OutstandingBalance - numericAmt)
-        };
-        setSelectedCustomer(updatedCustomer);
-        fetchCustomerDetails(updatedCustomer);
-        fetchData();
-      } else {
-        Alert.alert("Failed", data.error || "Failed to record credit collection.");
-      }
-    } catch (err) {
-      console.error(err);
-      Alert.alert("Error", "Network error occurred.");
-    } finally {
-      setSubmittingCollection(false);
-    }
-  };
 
   // Send WhatsApp Reminder Link
   const handleSendWhatsAppReminder = () => {
@@ -901,9 +748,10 @@ export default function ReceivablesScreen() {
                           pathname: "/payment",
                           params: {
                             memberId: selectedCustomer.MemberId,
-                            collectAmount: String(selectedCustomer.OutstandingBalance || 0),
+                            collectAmount: String(Math.max(0, selectedCustomer.OutstandingBalance || 0)),
                             memberName: selectedCustomer.Name,
                             memberPhone: selectedCustomer.Phone,
+                            isMember: "false"
                           }
                         });
                       }}
@@ -926,166 +774,7 @@ export default function ReceivablesScreen() {
           </View>
         </Modal>
 
-        {/* ================= COLLECTION & ALLOCATION MODAL ================= */}
-        <Modal 
-          visible={showCollectModal} 
-          transparent 
-          animationType="fade"
-          onRequestClose={() => setShowCollectModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[
-              styles.collectCard,
-              isMobile && {
-                height: "80%",
-                maxHeight: "80%",
-                borderRadius: 16,
-                width: "95%",
-              }
-            ]}>
-              <View style={styles.adjustModalHeader}>
-                <View>
-                  <Text style={styles.adjustModalTitle}>Collect Payment</Text>
-                  <Text style={styles.billItemSub}>Record credit collections & settle invoices</Text>
-                </View>
-                <TouchableOpacity onPress={() => setShowCollectModal(false)}>
-                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
-                </TouchableOpacity>
-              </View>
 
-              <ScrollView style={{ flex: 1, flexShrink: 1, padding: isMobile ? 12 : 20 }} showsVerticalScrollIndicator={false}>
-                {/* Collected Amount Input */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>COLLECTED AMOUNT ({currencySymbol})</Text>
-                  <TextInput
-                    style={styles.sheetInput}
-                    keyboardType="numeric"
-                    placeholder="0.00"
-                    placeholderTextColor={Theme.textMuted}
-                    value={collectAmount}
-                    onChangeText={handleCollectAmountChange}
-                  />
-                  <Text style={styles.inputHelper}>
-                    Outstanding due: {currencySymbol}{selectedCustomer?.OutstandingBalance.toFixed(2)}
-                  </Text>
-                </View>
-
-                {/* Payment Method Selector */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>PAYMENT MODE</Text>
-                  <View style={styles.methodGroup}>
-                    {paymentMethods.map((m) => (
-                      <TouchableOpacity
-                        key={m.payMode}
-                        style={[styles.methodToggle, collectMethod === m.payMode && styles.activeMethodToggle]}
-                        onPress={() => setCollectMethod(m.payMode)}
-                      >
-                        <Text style={[styles.methodToggleText, collectMethod === m.payMode && styles.activeMethodToggleText]}>
-                          {m.description || m.payMode}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Remarks */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>REMARKS / TRANSACTION REFERENCE</Text>
-                  <TextInput
-                    style={styles.sheetInput}
-                    placeholder="e.g. Counter cash, UPI Ref 12345"
-                    placeholderTextColor={Theme.textMuted}
-                    value={collectRemarks}
-                    onChangeText={setCollectRemarks}
-                  />
-                </View>
-
-                {/* Allocation Mode Select */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>ALLOCATION STRATEGY</Text>
-                  <View style={styles.methodGroup}>
-                    <TouchableOpacity
-                      style={[styles.allocToggle, allocationMode === "FIFO" && styles.activeAllocToggle]}
-                      onPress={() => setAllocationMode("FIFO")}
-                    >
-                      <Ionicons name="list-outline" size={16} color={allocationMode === "FIFO" ? "#FFF" : Theme.textSecondary} />
-                      <Text style={[styles.allocToggleText, allocationMode === "FIFO" && styles.activeAllocToggleText, isMobile && { fontSize: 10 }]}>
-                        FIFO (Auto)
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.allocToggle, allocationMode === "MANUAL" && styles.activeAllocToggle]}
-                      onPress={() => setAllocationMode("MANUAL")}
-                    >
-                      <Ionicons name="options-outline" size={16} color={allocationMode === "MANUAL" ? "#FFF" : Theme.textSecondary} />
-                      <Text style={[styles.allocToggleText, allocationMode === "MANUAL" && styles.activeAllocToggleText, isMobile && { fontSize: 10 }]}>
-                        Manual (Bill)
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Invoice level manual entry fields */}
-                {allocationMode === "MANUAL" && (
-                  <View style={styles.manualAllocBlock}>
-                    <Text style={styles.manualAllocTitle}>Allocate Collected Dues:</Text>
-                    <View style={styles.liveAllocSummary}>
-                      <Text style={styles.liveAllocText}>
-                        Collected: <Text style={{ fontFamily: Fonts.black }}>{currencySymbol}{(parseFloat(collectAmount) || 0).toFixed(2)}</Text>
-                      </Text>
-                      <Text style={[
-                        styles.liveAllocText,
-                        Math.abs(manualAllocatedSum - (parseFloat(collectAmount) || 0)) > 0.01 && { color: Theme.danger }
-                      ]}>
-                        Allocated: <Text style={{ fontFamily: Fonts.black }}>{currencySymbol}{manualAllocatedSum.toFixed(2)}</Text>
-                      </Text>
-                    </View>
-                    
-                    {outstandingBills.length === 0 ? (
-                      <Text style={styles.noHistoryText}>No open bills available for manual allocation.</Text>
-                    ) : (
-                      <View style={{ gap: 10, marginTop: 10 }}>
-                        {outstandingBills.map((bill) => (
-                          <View key={bill.SettlementId} style={styles.manualAllocRow}>
-                            <View style={{ flex: 1.5 }}>
-                              <Text style={styles.manualRowBillNo}>#{bill.BillNo}</Text>
-                              <Text style={styles.manualRowBillDue}>Due: {currencySymbol}{bill.OutstandingAmount.toFixed(2)}</Text>
-                            </View>
-                            <View style={[styles.cashInputBox, { flex: 1, height: 44, marginVertical: 0 }]}>
-                              <Text style={[styles.currencyPrefix, { fontSize: 13 }]}>{currencySymbol}</Text>
-                              <TextInput
-                                style={[styles.cashInput, { fontSize: 13 }]}
-                                keyboardType="numeric"
-                                placeholder="0.00"
-                                value={manualAllocations[bill.SettlementId] || "0.00"}
-                                onChangeText={(val) => handleInvoiceAllocChange(bill.SettlementId, val)}
-                              />
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.submitBtn, submittingCollection && { opacity: 0.6 }]}
-                  onPress={handleSubmitCollection}
-                  disabled={submittingCollection}
-                >
-                  {submittingCollection ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.submitBtnText}>Record Payment Collection</Text>
-                  )}
-                </TouchableOpacity>
-
-                <View style={{ height: 40 }} />
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
 
       </SafeAreaView>
     </View>

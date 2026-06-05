@@ -82,7 +82,11 @@ export default function PaymentSuccess() {
   const handleDone = () => {
     CustomerDisplaySync.syncIdle();
     if (params.isLedgerCollection === "true") {
-      router.replace("/receivables");
+      if (params.isMember === "true") {
+        router.replace("/members");
+      } else {
+        router.replace("/receivables");
+      }
     } else {
       router.replace({
         pathname: "/(tabs)/category",

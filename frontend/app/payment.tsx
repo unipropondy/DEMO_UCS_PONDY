@@ -97,13 +97,23 @@ function getPaymodeIcon(payMode: string): string {
 
 const isCashMethod = (payMode: string) => /^(CAS|CASH)$/i.test(payMode.trim());
 
+const formatMoney = (symbol: string, amount: number) => {
+  try {
+    return `${symbol}${(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  } catch (e) {
+    return `${symbol}${(amount || 0).toFixed(2)}`;
+  }
+};
+
 export default function PaymentScreen() {
   const pathname = usePathname();
   const params = useLocalSearchParams();
   const memberId = params.memberId as string | undefined;
-  const collectAmount = params.collectAmount ? parseFloat(params.collectAmount as string) : undefined;
+  const collectAmountRaw = params.collectAmount ? parseFloat(params.collectAmount as string) : undefined;
+  const collectAmount = collectAmountRaw !== undefined ? Math.max(0, collectAmountRaw) : undefined;
   const memberName = params.memberName as string | undefined;
   const memberPhone = params.memberPhone as string | undefined;
+  const isMember = params.isMember === "true";
   const isLedgerCollection = !!memberId;
 
   const isFocused = useIsFocused() && pathname === "/payment";
@@ -123,14 +133,17 @@ export default function PaymentScreen() {
     if (memberId) {
       setSelectedMember({
         MemberId: memberId,
-        Name: memberName || "Credit Customer",
+        Name: memberName || (isMember ? "Member" : "Credit Customer"),
         Phone: memberPhone || "",
         CurrentBalance: collectAmount || 0,
         CreditLimit: 999999
       });
       const fetchMemberDetails = async () => {
         try {
-          const res = await fetch(`${API_URL}/api/credit-customers/search?query=${encodeURIComponent(memberPhone || memberId)}`);
+          const endpoint = isMember
+            ? `${API_URL}/api/members/search?query=${encodeURIComponent(memberPhone || memberId)}`
+            : `${API_URL}/api/credit-customers/search?query=${encodeURIComponent(memberPhone || memberId)}`;
+          const res = await fetch(endpoint);
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             const match = data.find((m: any) => m.MemberId === memberId);
@@ -144,7 +157,7 @@ export default function PaymentScreen() {
       };
       fetchMemberDetails();
     }
-  }, [memberId]);
+  }, [memberId, isMember]);
 
   const isLandscape = width > height;
   const isTablet = Math.min(width, height) >= 500;
@@ -555,6 +568,13 @@ export default function PaymentScreen() {
 
   const confirmPayment = async () => {
     if (processing) return;
+    if (isLedgerCollection && total <= 0) {
+      Alert.alert(
+        "No Payment Required",
+        `Outstanding balance is ${currencySymbol}${total.toFixed(2)}. No collection payment is required.`
+      );
+      return;
+    }
     if (total > 0 && isCashMethod(method) && (paidNum < total && Math.abs(paidNum - total) > 0.01)) {
       showToast({ type: "warning", message: "Insufficient Payment", subtitle: `Please enter at least ${currencySymbol}${total.toFixed(2)}` });
       return;
@@ -616,7 +636,10 @@ export default function PaymentScreen() {
       }];
 
       try {
-        const response = await fetch(`${API_URL}/api/credit-customers/pay`, {
+        const payEndpoint = isMember
+          ? `${API_URL}/api/members/pay`
+          : `${API_URL}/api/credit-customers/pay`;
+        const response = await fetch(payEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -653,7 +676,8 @@ export default function PaymentScreen() {
                 serviceCharge: "0.00",
                 isSplit: payments && payments.length > 0 ? "true" : "false",
                 waiterName: user?.userName || "Cashier",
-                isLedgerCollection: "true"
+                isLedgerCollection: "true",
+                isMember: isMember ? "true" : "false"
               },
             });
           }, 100);
@@ -1294,19 +1318,19 @@ export default function PaymentScreen() {
                                     styles.creditStatValue, 
                                     { color: (selectedMember.CreditLimit || 0) - (selectedMember.CurrentBalance || 0) < total ? Theme.danger : Theme.success }
                                   ]}>
-                                    {currencySymbol}{((selectedMember.CreditLimit || 0) - (selectedMember.CurrentBalance || 0)).toFixed(2)}
+                                    {formatMoney(currencySymbol, (selectedMember.CreditLimit || 0) - (selectedMember.CurrentBalance || 0))}
                                   </Text>
                                 </View>
                                 <View style={styles.creditStatCol}>
                                   <Text style={styles.creditStatLabel}>Credit Limit</Text>
                                   <Text style={styles.creditStatValue}>
-                                    {currencySymbol}{(selectedMember.CreditLimit || 0).toFixed(2)}
+                                    {formatMoney(currencySymbol, selectedMember.CreditLimit || 0)}
                                   </Text>
                                 </View>
                                 <View style={styles.creditStatCol}>
-                                  <Text style={styles.creditStatLabel}>Current Balance</Text>
+                                  <Text style={styles.creditStatLabel}>Outstanding</Text>
                                   <Text style={styles.creditStatValue}>
-                                    {currencySymbol}{(selectedMember.CurrentBalance || 0).toFixed(2)}
+                                    {formatMoney(currencySymbol, selectedMember.CurrentBalance || 0)}
                                   </Text>
                                 </View>
                               </View>
@@ -1315,7 +1339,7 @@ export default function PaymentScreen() {
                                 <View style={styles.limitExceededBanner}>
                                   <Ionicons name="alert-circle" size={16} color={Theme.danger} />
                                   <Text style={styles.limitExceededText}>
-                                    Transaction exceeds Credit Limit by {currencySymbol}{((selectedMember.CurrentBalance || 0) + total - (selectedMember.CreditLimit || 0)).toFixed(2)}
+                                    Transaction exceeds Credit Limit by {formatMoney(currencySymbol, (selectedMember.CurrentBalance || 0) + total - (selectedMember.CreditLimit || 0))}
                                   </Text>
                                 </View>
                               )}
@@ -1770,12 +1794,12 @@ export default function PaymentScreen() {
                                   </View>
                                   <Text style={styles.memberPhoneText}>{item.Phone}</Text>
                                   <Text style={{ fontSize: 11, fontFamily: Fonts.medium, color: Theme.textMuted, marginTop: 4 }}>
-                                    Limit: {currencySymbol}{(item.CreditLimit || 0).toFixed(2)} | Balance: {currencySymbol}{(item.CurrentBalance || 0).toFixed(2)}
+                                    Limit: {formatMoney(currencySymbol, item.CreditLimit || 0)} | Outstanding: {formatMoney(currencySymbol, item.CurrentBalance || 0)}
                                   </Text>
                                 </View>
                                 <View style={{ alignItems: 'flex-end' }}>
                                   <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: isLimitExceeded ? Theme.danger : Theme.success }}>
-                                    Rem: {currencySymbol}{remainingCredit.toFixed(2)}
+                                    Avail: {formatMoney(currencySymbol, remainingCredit)}
                                   </Text>
                                   {isLimitExceeded && (
                                     <Text style={{ fontSize: 10, fontFamily: Fonts.medium, color: Theme.danger, marginTop: 2 }}>
@@ -1797,12 +1821,12 @@ export default function PaymentScreen() {
                             <Text style={{ fontSize: 14, fontFamily: Fonts.bold, color: Theme.primary }}>{selectedMember.Name} ({selectedMember.Phone})</Text>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
                               <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Bill Amount:</Text>
-                              <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>{currencySymbol}{total.toFixed(2)}</Text>
+                              <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>{formatMoney(currencySymbol, total)}</Text>
                             </View>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                               <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textSecondary }}>Remaining Credit:</Text>
                               <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
-                                {currencySymbol}{(selectedMember.CreditLimit - selectedMember.CurrentBalance).toFixed(2)}
+                                {formatMoney(currencySymbol, selectedMember.CreditLimit - selectedMember.CurrentBalance)}
                               </Text>
                             </View>
                           </View>

@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
 import { API_URL } from "@/constants/Config";
 import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
@@ -36,9 +37,18 @@ type MemberType = {
   Balance?: number;
 };
 
+const formatMoney = (amount: number) => {
+  try {
+    return `$${(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  } catch (e) {
+    return `$${(amount || 0).toFixed(2)}`;
+  }
+};
+
 export default function MembersScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const isFocused = useIsFocused();
   const [members, setMembers] = useState<MemberType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -80,10 +90,16 @@ export default function MembersScreen() {
   };
 
   const handleCollectPayment = (member: MemberType) => {
-    setPaymentMember(member);
-    setPaymentAmount(String(member.CurrentBalance || 0));
-    setPaymentStep("AMOUNT");
-    setShowPaymentModal(true);
+    router.push({
+      pathname: "/payment" as any,
+      params: {
+        memberId: member.MemberId,
+        collectAmount: String(Math.max(0, member.CurrentBalance || 0)),
+        memberName: member.Name,
+        memberPhone: member.Phone,
+        isMember: "true"
+      }
+    });
   };
 
   // Form State
@@ -97,24 +113,6 @@ export default function MembersScreen() {
     currentBalance: "0",
     balance: "0",
   });
-
-  // Member Payment States
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMember, setPaymentMember] = useState<MemberType | null>(null);
-  const [paymentStep, setPaymentStep] = useState<"AMOUNT" | "SPLIT">("AMOUNT");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [processingPayment, setProcessingPayment] = useState(false);
-
-  const fetchPaymentMethods = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/sales/payment-methods`);
-      const data = await res.json();
-      setPaymentMethods(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("[FETCH PAYMENT METHODS ERROR]", err);
-    }
-  };
 
   const fetchMembers = useCallback(async () => {
     try {
@@ -131,9 +129,10 @@ export default function MembersScreen() {
   }, []);
 
   useEffect(() => {
-    fetchMembers();
-    fetchPaymentMethods();
-  }, [fetchMembers]);
+    if (isFocused) {
+      fetchMembers();
+    }
+  }, [isFocused, fetchMembers]);
 
   const openAddModal = () => {
     setFormData({ 
@@ -188,7 +187,7 @@ export default function MembersScreen() {
           isActive: formData.isActive,
           creditLimit: parseFloat(formData.creditLimit) || 0,
           currentBalance: parseFloat(formData.currentBalance) || 0,
-          balance: parseFloat(formData.balance) || 0,
+          balance: editingMember ? (editingMember.Balance ?? 0) : 0,
           userId: user?.userId,
         }),
       });
@@ -268,13 +267,49 @@ export default function MembersScreen() {
 
         <View style={styles.cardDivider} />
 
-        <View style={styles.dataGrid}>
-          <View style={styles.dataBox}><Text style={styles.label}>EMAIL</Text><Text style={styles.val} numberOfLines={1}>{item.Email || "—"}</Text></View>
-          <View style={styles.dataBox}><Text style={styles.label}>STATUS</Text><Text style={[styles.val, { color: (item.IsActive === true || item.IsActive === 1) ? Theme.success : Theme.danger }]}>{(item.IsActive === true || item.IsActive === 1) ? "ACTIVE" : "INACTIVE"}</Text></View>
-          <View style={styles.dataBox}><Text style={styles.label}>CREDIT LIMIT</Text><Text style={[styles.val, { color: Theme.success }]}>${(item.CreditLimit || 0).toFixed(2)}</Text></View>
-          <View style={styles.dataBox}><Text style={styles.label}>CURRENT BAL</Text><Text style={styles.val}>${(item.CurrentBalance || 0).toFixed(2)}</Text></View>
-          <View style={[styles.dataBox, { width: '100%' }]}><Text style={styles.label}>ADDRESS</Text><Text style={styles.val}>{item.Address || "—"}</Text></View>
-          <View style={styles.dataBox}><Text style={styles.label}>FINAL BALANCE</Text><Text style={[styles.val, { fontFamily: Fonts.black }]}>${(item.Balance || 0).toFixed(2)}</Text></View>
+        <View style={styles.contactDetailsRow}>
+          <View style={styles.contactItem}>
+            <Ionicons name="mail-outline" size={14} color={Theme.textSecondary} />
+            <Text style={styles.contactText} numberOfLines={1}>{item.Email || "—"}</Text>
+          </View>
+          <View style={[styles.contactItem, { justifyContent: 'flex-end', flex: 0.6 }]}>
+            <View style={[styles.badge, (item.IsActive === true || item.IsActive === 1) ? styles.badgeActive : styles.badgeInactive]}>
+              <Text style={[styles.badgeText, (item.IsActive === true || item.IsActive === 1) ? styles.textActive : styles.textInactive]}>
+                {(item.IsActive === true || item.IsActive === 1) ? "ACTIVE" : "INACTIVE"}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {item.Address ? (
+          <View style={styles.addressRow}>
+            <Ionicons name="location-outline" size={14} color={Theme.textSecondary} style={{ marginTop: 2 }} />
+            <Text style={styles.addressText} numberOfLines={2}>{item.Address}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.financialSummaryBlock}>
+          <View style={styles.financialCol}>
+            <Text style={styles.financialLabel}>CREDIT LIMIT</Text>
+            <Text style={[styles.financialVal, { color: Theme.success }]}>
+              {formatMoney(item.CreditLimit || 0)}
+            </Text>
+          </View>
+          <View style={[styles.financialCol, { borderLeftWidth: 1, borderRightWidth: 1, borderColor: Theme.border + '50' }]}>
+            <Text style={styles.financialLabel}>OUTSTANDING</Text>
+            <Text style={styles.financialVal}>
+              {formatMoney(item.CurrentBalance || 0)}
+            </Text>
+          </View>
+          <View style={styles.financialCol}>
+            <Text style={styles.financialLabel}>AVAILABLE CREDIT</Text>
+            <Text style={[
+              styles.financialVal,
+              { color: (item.CreditLimit || 0) - (item.CurrentBalance || 0) < 0 ? Theme.danger : Theme.success }
+            ]}>
+              {formatMoney((item.CreditLimit || 0) - (item.CurrentBalance || 0))}
+            </Text>
+          </View>
         </View>
       </View>
     );
@@ -384,13 +419,9 @@ export default function MembersScreen() {
                     <TextInput style={styles.sheetInput} keyboardType="numeric" value={formData.creditLimit} onChangeText={v => setFormData({ ...formData, creditLimit: v })} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>FINAL BALANCE</Text>
-                    <TextInput style={styles.sheetInput} keyboardType="numeric" value={formData.balance} onChangeText={v => setFormData({ ...formData, balance: v })} />
+                    <Text style={styles.inputLabel}>OUTSTANDING</Text>
+                    <TextInput style={styles.sheetInput} keyboardType="numeric" value={formData.currentBalance} onChangeText={v => setFormData({ ...formData, currentBalance: v })} />
                   </View>
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>CURRENT BALANCE</Text>
-                  <TextInput style={styles.sheetInput} keyboardType="numeric" value={formData.currentBalance} onChangeText={v => setFormData({ ...formData, currentBalance: v })} />
                 </View>
 
                 <TouchableOpacity style={styles.submitBtn} onPress={handleSaveMember} disabled={isSaving}>
@@ -554,103 +585,7 @@ export default function MembersScreen() {
           </View>
         </Modal>
 
-        {/* Payment Collection Modal */}
-        <Modal visible={showPaymentModal} transparent animationType="slide" onRequestClose={() => setShowPaymentModal(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.formSheet, { maxHeight: '95%', paddingBottom: 20 }]}>
-              <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>Collect Payment</Text>
-                <TouchableOpacity onPress={() => setShowPaymentModal(false)} style={styles.sheetClose}>
-                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
-                </TouchableOpacity>
-              </View>
 
-              {paymentStep === "AMOUNT" ? (
-                <View style={{ padding: 25 }}>
-                  <Text style={{ fontFamily: Fonts.bold, color: Theme.textSecondary, fontSize: 14, marginBottom: 4 }}>
-                    MEMBER
-                  </Text>
-                  <Text style={{ fontFamily: Fonts.black, color: Theme.primary, fontSize: 18, marginBottom: 15 }}>
-                    {paymentMember?.Name} • {paymentMember?.Phone}
-                  </Text>
-
-                  <View style={{ backgroundColor: Theme.primary + '10', padding: 15, borderRadius: 16, borderLeftWidth: 4, borderLeftColor: Theme.primary, marginBottom: 20 }}>
-                    <Text style={{ fontSize: 11, fontFamily: Fonts.black, color: Theme.primary, marginBottom: 4 }}>OUTSTANDING BALANCE</Text>
-                    <Text style={{ fontSize: 24, fontFamily: Fonts.black, color: Theme.textPrimary }}>
-                      ${(paymentMember?.CurrentBalance || 0).toFixed(2)}
-                    </Text>
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>AMOUNT TO COLLECT</Text>
-                    <TextInput
-                      style={styles.sheetInput}
-                      keyboardType="numeric"
-                      value={paymentAmount}
-                      onChangeText={setPaymentAmount}
-                      placeholder="0.00"
-                      placeholderTextColor={Theme.textMuted}
-                    />
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.submitBtn}
-                    onPress={() => {
-                      const amt = parseFloat(paymentAmount);
-                      if (isNaN(amt) || amt <= 0) {
-                        Alert.alert("Invalid Amount", "Please enter a valid amount to collect.");
-                        return;
-                      }
-                      setPaymentStep("SPLIT");
-                    }}
-                  >
-                    <Text style={styles.submitBtnText}>Continue to Split Payment</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={{ minHeight: 450, padding: 10 }}>
-                  <SplitPaymentComponent
-                    targetTotal={parseFloat(paymentAmount) || 0}
-                    paymentMethods={paymentMethods.map(pm => ({ payMode: pm.payMode, description: pm.description, position: pm.Position }))}
-                    memberFlow={true}
-                    selectedMember={paymentMember}
-                    processing={processingPayment}
-                    currencySymbol="$"
-                    onCancel={() => setPaymentStep("AMOUNT")}
-                    onComplete={async (payments) => {
-                      setProcessingPayment(true);
-                      try {
-                        const res = await fetch(`${API_URL}/api/members/pay`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            memberId: paymentMember?.MemberId,
-                            amount: parseFloat(paymentAmount) || 0,
-                            payments,
-                            userId: user?.userId
-                          })
-                        });
-                        const data = await res.json();
-                        if (res.ok && data.success) {
-                          Alert.alert("Success", "Payment collected successfully.");
-                          setShowPaymentModal(false);
-                          setPaymentMember(null);
-                          fetchMembers();
-                        } else {
-                          Alert.alert("Failed", data.error || "Payment collection failed.");
-                        }
-                      } catch (err) {
-                        Alert.alert("Error", "A network error occurred.");
-                      } finally {
-                        setProcessingPayment(false);
-                      }
-                    }}
-                  />
-                </View>
-              )}
-            </View>
-          </View>
-        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -686,10 +621,31 @@ const styles = StyleSheet.create({
   cardActions: { flexDirection: 'row', gap: 10 },
   actionBtn: { width: 38, height: 38, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   cardDivider: { height: 1, backgroundColor: Theme.border, marginVertical: 15 },
-  dataGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 15 },
-  dataBox: { width: '50%' },
-  label: { color: Theme.textMuted, fontSize: 9, fontFamily: Fonts.black, marginBottom: 4, letterSpacing: 0.5 },
-  val: { color: Theme.textPrimary, fontSize: 14, fontFamily: Fonts.semiBold },
+  contactDetailsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  contactItem: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  contactText: { fontSize: 13, color: Theme.textPrimary, fontFamily: Fonts.medium },
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8 },
+  addressText: { fontSize: 13, color: Theme.textSecondary, fontFamily: Fonts.medium, flex: 1 },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  badgeActive: { backgroundColor: Theme.success + '15' },
+  badgeInactive: { backgroundColor: Theme.danger + '15' },
+  badgeText: { fontSize: 11, fontFamily: Fonts.bold },
+  textActive: { color: Theme.success },
+  textInactive: { color: Theme.danger },
+  financialSummaryBlock: {
+    flexDirection: 'row',
+    backgroundColor: Theme.bgInput,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    justifyContent: 'space-between',
+  },
+  financialCol: { flex: 1, alignItems: 'center' },
+  financialLabel: { fontSize: 9, fontFamily: Fonts.black, color: Theme.textSecondary, marginBottom: 4, letterSpacing: 0.5 },
+  financialVal: { fontSize: 13, fontFamily: Fonts.black },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: 20 },
   formSheet: { backgroundColor: Theme.bgCard, borderRadius: 24, width: '100%', maxWidth: 500, ...Theme.shadowLg, maxHeight: '90%' },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 25, borderBottomWidth: 1, borderBottomColor: Theme.border },

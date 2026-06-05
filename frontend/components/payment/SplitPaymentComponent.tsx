@@ -17,6 +17,14 @@ import { Theme } from "../../constants/theme";
 import UPIPaymentModal from "./UPIPaymentModal";
 import PayNowPaymentModal from "./PayNowPaymentModal";
 
+const formatMoney = (symbol: string, amount: number) => {
+  try {
+    return `${symbol}${(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  } catch (e) {
+    return `${symbol}${(amount || 0).toFixed(2)}`;
+  }
+};
+
 export type SplitPaymentRow = {
   id: string;
   payModeId: number;
@@ -180,7 +188,7 @@ export default function SplitPaymentComponent({
         }
         const availLimit = (selectedMember.CreditLimit || 0) - (selectedMember.CurrentBalance || 0);
         if (totalMemberAmt > availLimit) {
-          return `Total member payment (${currencySymbol}${totalMemberAmt.toFixed(2)}) exceeds available credit limit (${currencySymbol}${availLimit.toFixed(2)}).`;
+          return `Total member payment (${formatMoney(currencySymbol, totalMemberAmt)}) exceeds available credit limit (${formatMoney(currencySymbol, availLimit)}).`;
         }
       }
     }
@@ -401,7 +409,7 @@ export default function SplitPaymentComponent({
                         Member: <Text style={{ fontFamily: Fonts.black }}>{selectedMember.Name}</Text>
                       </Text>
                       <Text style={[styles.memberLimitText, exceedsLimit && { color: Theme.danger }]}>
-                        Avail Limit: {currencySymbol}{availLimit.toFixed(2)}
+                        Avail Limit: {formatMoney(currencySymbol, availLimit)}
                       </Text>
                     </View>
                   ) : (
@@ -469,13 +477,13 @@ export default function SplitPaymentComponent({
       <View style={styles.summaryBoard}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Total Bill</Text>
-          <Text style={styles.summaryValue}>{currencySymbol}{targetTotal.toFixed(2)}</Text>
+          <Text style={styles.summaryValue}>{formatMoney(currencySymbol, targetTotal)}</Text>
         </View>
 
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Total Paid</Text>
           <Text style={[styles.summaryValue, { color: Theme.success }]}>
-            {currencySymbol}{totalPaid.toFixed(2)}
+            {formatMoney(currencySymbol, totalPaid)}
           </Text>
         </View>
 
@@ -487,7 +495,7 @@ export default function SplitPaymentComponent({
               { color: remainingBalance > 0.01 ? Theme.danger : Theme.success, fontFamily: Fonts.black },
             ]}
           >
-            {currencySymbol}{remainingBalance.toFixed(2)}
+            {formatMoney(currencySymbol, remainingBalance)}
           </Text>
         </View>
 
