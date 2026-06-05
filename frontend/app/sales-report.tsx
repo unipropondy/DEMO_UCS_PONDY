@@ -156,7 +156,7 @@ export default function SalesReport() {
   const todayDate = new Date().toLocaleDateString("en-CA");
   const [selectedDate, setSelectedDate] = useState(todayDate);
   const [selectedFilter, setSelectedFilter] = useState<FilterType>("DAILY");
-  const [activeMainFilter, setActiveMainFilter] = useState<"ALL_SALES" | "CASH" | "CARD" | "UPI" | "CREDIT" | "MEMBER_PAYMENTS">("ALL_SALES");
+  const [activeMainFilter, setActiveMainFilter] = useState<"ALL_SALES" | "CASH" | "CARD" | "UPI" | "CREDIT" | "MEMBER_PAYMENTS" | "CREDIT_PAYMENTS">("ALL_SALES");
   const [, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -516,12 +516,20 @@ export default function SalesReport() {
 
       const paymentBreakdown: any[] = [];
       let memberPaymentsCollected = 0;
+      let creditPaymentsCollected = 0;
       summaryData.paymodeDetail?.forEach((p: any) => {
         const paymodeName = String(p.Paymode || 'CASH').toUpperCase();
-        if (paymodeName.startsWith('CREDIT PAYMENT') || paymodeName.startsWith('MEMBER PAYMENT')) {
+        if (paymodeName.startsWith('MEMBER PAYMENT')) {
           memberPaymentsCollected += p.Amount || 0;
           paymentBreakdown.push({
-            name: paymodeName.replace('CREDIT PAYMENT', 'MEMBER PAYMENT'),
+            name: p.Paymode,
+            qty: p.ReceiptCount || 0,
+            amount: p.Amount || 0
+          });
+        } else if (paymodeName.startsWith('CREDIT PAYMENT')) {
+          creditPaymentsCollected += p.Amount || 0;
+          paymentBreakdown.push({
+            name: p.Paymode,
             qty: p.ReceiptCount || 0,
             amount: p.Amount || 0
           });
@@ -554,7 +562,8 @@ export default function SalesReport() {
         totalSales: sa.totalSales || 0,
         totalDiscount: sa.totalDiscount || 0,
         memberPaymentsCollected: Number(memberPaymentsCollected),
-        totalCollections: Number(sa.totalSales || 0) + Number(memberPaymentsCollected),
+        creditPaymentsCollected: Number(creditPaymentsCollected),
+        totalCollections: Number(sa.totalSales || 0) + Number(memberPaymentsCollected) + Number(creditPaymentsCollected),
         
         totalOrders: sa.billCount || 0,
         totalItems: items.reduce((acc, curr) => acc + curr.quantity, 0),
@@ -840,12 +849,15 @@ export default function SalesReport() {
       } else if (activeMainFilter === "CREDIT") {
         mainFilterMatch = s.OrderType !== 'LEDGER' && (modeUpper === "CREDIT" || modeUpper === "MEMBER");
       } else if (activeMainFilter === "MEMBER_PAYMENTS") {
-        mainFilterMatch = s.OrderType === 'LEDGER';
+        mainFilterMatch = s.OrderType === 'LEDGER' && s.OrderId === 'Member Payment Collected';
+      } else if (activeMainFilter === "CREDIT_PAYMENTS") {
+        mainFilterMatch = s.OrderType === 'LEDGER' && s.OrderId === 'Credit Payment Collected';
       }
 
       if (!mainFilterMatch) return false;
 
       const modeMatch = activeMainFilter === "MEMBER_PAYMENTS" || 
+                       activeMainFilter === "CREDIT_PAYMENTS" || 
                        activePaymentModes.includes(s.PayMode?.trim()) || 
                        (activePaymentModes.includes("UPI") && isUpiMode) ||
                        (showCancelledOrders && s.IsCancelled);
@@ -890,7 +902,11 @@ export default function SalesReport() {
         }
 
         if (s.OrderType === 'LEDGER') {
-          acc.MemberPaymentsCollected += s.SysAmount || 0;
+          if (s.OrderId === 'Credit Payment Collected') {
+            acc.CreditPaymentsCollected += s.SysAmount || 0;
+          } else {
+            acc.MemberPaymentsCollected += s.SysAmount || 0;
+          }
           return acc;
         }
 
@@ -928,6 +944,7 @@ export default function SalesReport() {
         CancelledCount: 0,
         CancelledAmount: 0,
         MemberPaymentsCollected: 0,
+        CreditPaymentsCollected: 0,
       },
     );
   }, [dateScopedSales]);
@@ -1548,41 +1565,7 @@ export default function SalesReport() {
         </View>
       </View>
 
-      {/* Active Badges */}
-      <View style={styles.badgeRow}>
-        {activePaymentModes.length < 4 &&
-          activePaymentModes.map((m) => (
-            <View
-              key={m}
-              style={[styles.activeBadge, { borderColor: Theme.border }]}
-            >
-              <Text style={styles.badgeText}>{m}</Text>
-              <TouchableOpacity onPress={() => togglePaymentMode(m)}>
-                <Ionicons
-                  name="close-circle"
-                  size={14}
-                  color={Theme.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-          ))}
-        {activeOrderTypes.length < 2 &&
-          activeOrderTypes.map((t) => (
-            <View
-              key={t}
-              style={[styles.activeBadge, { borderColor: Theme.border }]}
-            >
-              <Text style={styles.badgeText}>{t}</Text>
-              <TouchableOpacity onPress={() => toggleOrderType(t)}>
-                <Ionicons
-                  name="close-circle"
-                  size={14}
-                  color={Theme.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-          ))}
-      </View>
+
 
       {/* Filter Toggles */}
       <View style={styles.filterBar}>
@@ -1696,7 +1679,8 @@ export default function SalesReport() {
           { id: "CARD", label: "Card" },
           { id: "UPI", label: "UPI" },
           { id: "CREDIT", label: "Credit Sales" },
-          { id: "MEMBER_PAYMENTS", label: "Member Payments" }
+          { id: "MEMBER_PAYMENTS", label: "Member Payments" },
+          { id: "CREDIT_PAYMENTS", label: "Credit Payments" }
         ].map((opt) => (
           <TouchableOpacity
             key={opt.id}
@@ -1738,8 +1722,14 @@ export default function SalesReport() {
           Theme.primary,
         )}
         {renderMetricTile(
+          "Credit Payments",
+          formatCurrency(filteredMetrics.CreditPaymentsCollected),
+          "cash-outline",
+          Theme.warning,
+        )}
+        {renderMetricTile(
           "Total Collections",
-          formatCurrency(filteredMetrics.TotalSales + filteredMetrics.MemberPaymentsCollected),
+          formatCurrency(filteredMetrics.TotalSales + filteredMetrics.MemberPaymentsCollected + filteredMetrics.CreditPaymentsCollected),
           "wallet-outline",
           "#22c55e",
         )}
@@ -2189,8 +2179,12 @@ export default function SalesReport() {
           <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.primary }}>{formatCurrency(filteredMetrics.MemberPaymentsCollected)}</Text>
         </View>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
+          <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.warning }}>Credit Payments Collected:</Text>
+          <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.warning }}>{formatCurrency(filteredMetrics.CreditPaymentsCollected)}</Text>
+        </View>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
           <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: Theme.success }}>Total Collections:</Text>
-          <Text style={{ fontFamily: Fonts.black, fontSize: 16, color: Theme.success }}>{formatCurrency(paymentBreakdownTotal + filteredMetrics.MemberPaymentsCollected)}</Text>
+          <Text style={{ fontFamily: Fonts.black, fontSize: 16, color: Theme.success }}>{formatCurrency(paymentBreakdownTotal + filteredMetrics.MemberPaymentsCollected + filteredMetrics.CreditPaymentsCollected)}</Text>
         </View>
       </View>
 

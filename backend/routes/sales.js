@@ -214,10 +214,10 @@ router.get("/all", async (req, res) => {
         SELECT 
           cct.TransactionId AS SettlementID,
           DATEADD(MINUTE, -468, cct.CreatedDate) AS SettlementDate,
-          'Member Payment Collected' AS OrderId,
+          CASE WHEN mm.MemberId IS NOT NULL THEN 'Member Payment Collected' ELSE 'Credit Payment Collected' END AS OrderId,
           'LEDGER' AS OrderType,
           'LEDGER' AS TableNo,
-          COALESCE(mm.Name, m.Name, 'Member') AS Section,
+          COALESCE(mm.Name, m.Name, 'Customer') AS Section,
           CAST(cct.CreatedBy AS VARCHAR(50)) AS CashierId,
           cct.Remarks AS BillNo,
           'Cashier' AS SER_NAME,
@@ -794,14 +794,15 @@ router.get("/day-end-summary", async (req, res) => {
     const creditPaymentsRes = await pool.request()
       .query(`
         SELECT 
-          'MEMBER PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' as Paymode,
+          CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' ELSE 'CREDIT PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' END as Paymode,
           SUM(ptd.Amount) as Amount,
           COUNT(ptd.PaymentTransactionId) as Count
         FROM PaymentTransactionDetails ptd
         INNER JOIN Paymode pm ON pm.Position = ptd.PayModeId
+        LEFT JOIN MemberMaster mm ON ptd.ReferenceId = mm.MemberId
         WHERE ptd.ReferenceType = 'MEMBER'
           AND ${ptdWhereSql}
-        GROUP BY pm.Description
+        GROUP BY pm.Description, CASE WHEN mm.MemberId IS NOT NULL THEN 1 ELSE 0 END
       `);
 
     const creditPayments = creditPaymentsRes.recordset || [];
@@ -811,8 +812,15 @@ router.get("/day-end-summary", async (req, res) => {
 
     paymodes.push(...creditPayments);
 
-    const cashTotal = paymodes.filter(p => p.Paymode === 'CASH' || p.Paymode === 'CREDIT PAYMENT (CASH)').reduce((acc, curr) => acc + (Number(curr.Amount) || 0), 0);
-    const otherTotal = paymodes.filter(p => p.Paymode !== 'CASH' && p.Paymode !== 'CREDIT PAYMENT (CASH)').reduce((acc, curr) => acc + (Number(curr.Amount) || 0), 0);
+    const cashTotal = paymodes.filter(p => {
+      const mode = String(p.Paymode).toUpperCase();
+      return mode === 'CASH' || mode === 'CREDIT PAYMENT (CASH)' || mode === 'MEMBER PAYMENT (CASH)';
+    }).reduce((acc, curr) => acc + (Number(curr.Amount) || 0), 0);
+
+    const otherTotal = paymodes.filter(p => {
+      const mode = String(p.Paymode).toUpperCase();
+      return mode !== 'CASH' && mode !== 'CREDIT PAYMENT (CASH)' && mode !== 'MEMBER PAYMENT (CASH)';
+    }).reduce((acc, curr) => acc + (Number(curr.Amount) || 0), 0);
 
     const billCount = Number(analysis.TotalBills) || 0;
     console.log(`[DAY-END DEBUG] billCount: ${billCount}`);

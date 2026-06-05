@@ -116,12 +116,21 @@ const generatePdfDocDefinition = (data) => {
     { text: (data.totalRevenue || 0).toFixed(2), style: 'currencyValue', bold: true, alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
   ]);
 
-  if (data.memberPaymentsCollected && data.memberPaymentsCollected > 0) {
-    tableBody.push([
-      { text: 'Member Payments Collected', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-      { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-      { text: (data.memberPaymentsCollected || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-    ]);
+  if ((data.memberPaymentsCollected && data.memberPaymentsCollected > 0) || (data.creditPaymentsCollected && data.creditPaymentsCollected > 0)) {
+    if (data.memberPaymentsCollected && data.memberPaymentsCollected > 0) {
+      tableBody.push([
+        { text: 'Member Payments Collected', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
+        { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
+        { text: (data.memberPaymentsCollected || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
+      ]);
+    }
+    if (data.creditPaymentsCollected && data.creditPaymentsCollected > 0) {
+      tableBody.push([
+        { text: 'Credit Payments Collected', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
+        { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
+        { text: (data.creditPaymentsCollected || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
+      ]);
+    }
     tableBody.push([
       { text: 'Total Collections', style: 'rowLabel', bold: true, fillColor: '#e2f0d9', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
       { text: '-', alignment: 'center', bold: true, fillColor: '#e2f0d9', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
