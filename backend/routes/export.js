@@ -184,16 +184,61 @@ const generatePdfDocDefinition = (data) => {
   // Section: Item Wise Sales
   if (data.items && data.items.length > 0) {
     tableBody.push([
-      { text: 'Item Wise Sales Analysis', style: 'sectionHeader', fillColor: '#e9ecef', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], colSpan: 3 },
+      { text: 'Item Wise Sales Analysis (Grouped by Category)', style: 'sectionHeader', fillColor: '#d0e1f9', border: [1, 1, 1, 1], margin: [8, 6, 8, 6], colSpan: 3 },
       {},
       {}
     ]);
-    
+
+    // Group items by category
+    const groupedItems = {};
     data.items.forEach(item => {
+      const cat = item.category || 'Unmapped';
+      if (!groupedItems[cat]) {
+        groupedItems[cat] = [];
+      }
+      groupedItems[cat].push(item);
+    });
+
+    // Sort categories alphabetically
+    const sortedCategories = Object.keys(groupedItems).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    );
+
+    sortedCategories.forEach(category => {
+      const groupList = groupedItems[category];
+      const catQty = groupList.reduce((sum, i) => sum + Number(i.qty || 0), 0);
+      const catVoid = groupList.reduce((sum, i) => sum + Number(i.voidQty || 0), 0);
+      const catSales = groupList.reduce((sum, i) => sum + Number(i.amount || 0), 0);
+
+      // Category Header row
       tableBody.push([
-        { text: item.name, style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: String(item.qty || 0), alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: (item.amount || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
+        { text: `▼ ${category.toUpperCase()}`, fontSize: 10, bold: true, fillColor: '#f2f4f8', border: [1, 1, 1, 1], margin: [8, 6, 8, 6], colSpan: 3 },
+        {},
+        {}
+      ]);
+
+      // Category items
+      groupList.forEach(item => {
+        tableBody.push([
+          { 
+            text: [
+              { text: item.name, fontSize: 9.5 },
+              item.subcategory ? { text: `\nSub: ${item.subcategory}`, fontSize: 8, color: '#555' } : null
+            ].filter(Boolean),
+            style: 'rowLabel', 
+            border: [1, 1, 1, 1], 
+            margin: [8, 5, 8, 5] 
+          },
+          { text: String(item.qty || 0), alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], fontSize: 9.5 },
+          { text: (item.amount || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], fontSize: 9.5 }
+        ]);
+      });
+
+      // Category Sub-total row
+      tableBody.push([
+        { text: `   Total for ${category}`, fontSize: 9, bold: true, italics: true, fillColor: '#fafbfc', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
+        { text: String(catQty), alignment: 'center', bold: true, fillColor: '#fafbfc', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], fontSize: 9 },
+        { text: catSales.toFixed(2), style: 'currencyValue', bold: true, alignment: 'right', fillColor: '#fafbfc', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], fontSize: 9 }
       ]);
     });
   }

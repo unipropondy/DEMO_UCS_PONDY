@@ -527,7 +527,10 @@ export default function SalesReport() {
               name: d.dishName || d.DishName,
               quantity: d.totalQty,
               price: d.totalAmount / (d.totalQty || 1),
-              revenue: d.totalAmount
+              revenue: d.totalAmount,
+              category: d.categoryName || d.CategoryName || "Unmapped",
+              subcategory: d.subCategoryName || d.SubCategoryName || "Unmapped",
+              voidQty: d.voidQty || 0,
            }));
         }
       } catch (e) {
@@ -599,7 +602,10 @@ export default function SalesReport() {
         items: items.length > 0 ? items.map(i => ({
           name: i.name,
           qty: i.quantity,
-          amount: i.revenue
+          amount: i.revenue,
+          category: i.category,
+          subcategory: i.subcategory,
+          voidQty: i.voidQty,
         })) : undefined
       };
   };
@@ -1404,118 +1410,35 @@ export default function SalesReport() {
                   </>
                 )}
               </View>
-              {rows.slice(0, 100).map((row, idx) => (
-                <View
-                  key={`${detailReportType}-${idx}`}
-                  style={[
-                    styles.reportTableRow,
-                    idx % 2 === 0 && styles.reportTableRowAlt,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.reportCell,
-                      styles.reportCellText,
-                      styles.snoCell,
-                    ]}
-                  >
-                    {idx + 1}
-                  </Text>
-                  {isSettlement ? (
-                    <>
+              {(() => {
+                if (isSettlement || !isDishReport) {
+                  return rows.slice(0, 100).map((row, idx) => (
+                    <View
+                      key={`${detailReportType}-${idx}`}
+                      style={[
+                        styles.reportTableRow,
+                        idx % 2 === 0 && styles.reportTableRowAlt,
+                      ]}
+                    >
                       <Text
                         style={[
                           styles.reportCell,
                           styles.reportCellText,
-                          styles.paymodeCell,
-                          { textAlign: "left" },
+                          styles.snoCell,
                         ]}
                       >
-                        {row.Paymode}
+                        {idx + 1}
                       </Text>
-                      <Text
-                        style={[
-                          styles.reportCell,
-                          styles.reportCellText,
-                          styles.sysAmtCell,
-                          { color: Theme.success },
-                        ]}
-                      >
-                        {formatCurrency(row.SysAmount)}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.reportCell,
-                          styles.reportCellText,
-                          styles.manualAmtCell,
-                          { color: Theme.primary },
-                        ]}
-                      >
-                        {formatCurrency(row.ManualAmount)}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.reportCell,
-                          styles.reportCellText,
-                          styles.diffCell,
-                          {
-                            color:
-                              row.SortageOrExces < 0
-                                ? "#dc2626"
-                                : Theme.textPrimary,
-                          },
-                        ]}
-                      >
-                        {formatCurrency(row.SortageOrExces)}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.reportCell,
-                          styles.reportCellText,
-                          styles.qtyCell,
-                        ]}
-                      >
-                        {Number(row.ReceiptCount || 0).toFixed(0)}
-                      </Text>
-                    </>
-                  ) : (
-                    <>
                       <Text
                         numberOfLines={1}
                         style={[
                           styles.reportCell,
                           styles.reportCellText,
-                          isDishReport
-                            ? styles.dishNameCell
-                            : styles.categoryNameCell,
+                          styles.categoryNameCell,
                         ]}
                       >
-                        {isDishReport ? row.DishName : row.CategoryName}
+                        {row.CategoryName}
                       </Text>
-                      {isDishReport && (
-                        <Text
-                          numberOfLines={1}
-                          style={[
-                            styles.reportCell,
-                            styles.reportCellText,
-                            styles.categoryNameCell,
-                          ]}
-                        >
-                          {row.CategoryName || "Unmapped"}
-                        </Text>
-                      )}
-                      {isDishReport && (
-                        <Text
-                          numberOfLines={1}
-                          style={[
-                            styles.reportCell,
-                            styles.reportCellText,
-                            styles.subCategoryNameCell,
-                          ]}
-                        >
-                          {row.SubCategoryName || "Unmapped"}
-                        </Text>
-                      )}
                       <Text
                         style={[
                           styles.reportCell,
@@ -1545,10 +1468,181 @@ export default function SalesReport() {
                       >
                         {formatCurrency(Number(row.SalesAmount || 0))}
                       </Text>
-                    </>
-                  )}
-                </View>
-              ))}
+                    </View>
+                  ));
+                }
+
+                // Group dishReport by category
+                const groups: { [key: string]: any[] } = {};
+                rows.forEach((row) => {
+                  const cat = row.CategoryName || "Unmapped";
+                  if (!groups[cat]) {
+                    groups[cat] = [];
+                  }
+                  groups[cat].push(row);
+                });
+
+                // Sort category names alphabetically
+                const sortedCategories = Object.keys(groups).sort((a, b) =>
+                  a.localeCompare(b, undefined, { sensitivity: "base" })
+                );
+
+                let globalIdx = 0;
+                return sortedCategories.map((category) => {
+                  const groupRows = groups[category]!;
+                  const catQty = groupRows.reduce((sum, r) => sum + Number(r.Sold || 0), 0);
+                  const catVoid = groupRows.reduce((sum, r) => sum + Number(r.Voided || 0), 0);
+                  const catSales = groupRows.reduce((sum, r) => sum + Number(r.SalesAmount || 0), 0);
+
+                  return (
+                    <View key={`cat-group-${category}`} style={{ width: "100%" }}>
+                      {/* Sticky-like Category Header Row */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          backgroundColor: Theme.primary + "12",
+                          borderBottomWidth: 1.5,
+                          borderBottomColor: Theme.primary + "40",
+                          alignItems: "center",
+                        }}
+                      >
+                        <View style={styles.snoCell} />
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.reportCell,
+                            styles.reportCellText,
+                            styles.dishNameCell,
+                            {
+                              fontFamily: Fonts.black,
+                              fontSize: 13,
+                              color: Theme.primary,
+                              textAlign: "left",
+                              textTransform: "uppercase",
+                            },
+                          ]}
+                        >
+                          ▼ {category}
+                        </Text>
+                        <View style={styles.categoryNameCell} />
+                        <View style={styles.subCategoryNameCell} />
+                        <Text
+                          style={[
+                            styles.reportCell,
+                            styles.reportCellText,
+                            styles.qtyCell,
+                            { fontFamily: Fonts.black, fontSize: 13, color: Theme.textPrimary },
+                          ]}
+                        >
+                          {catQty}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.reportCell,
+                            styles.reportCellText,
+                            styles.qtyCell,
+                            { fontFamily: Fonts.black, fontSize: 13, color: "#dc2626" },
+                          ]}
+                        >
+                          {catVoid}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.reportCell,
+                            styles.reportCellText,
+                            styles.amountCell,
+                            { fontFamily: Fonts.black, fontSize: 13, color: Theme.success },
+                          ]}
+                        >
+                          {formatCurrency(catSales)}
+                        </Text>
+                      </View>
+                      
+                      {groupRows.map((row, rowIdx) => {
+                        const currentSno = ++globalIdx;
+                        return (
+                          <View
+                            key={`dish-${category}-${rowIdx}`}
+                            style={[
+                              styles.reportTableRow,
+                              rowIdx % 2 === 0 && styles.reportTableRowAlt,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.reportCell,
+                                styles.reportCellText,
+                                styles.snoCell,
+                              ]}
+                            >
+                              {currentSno}
+                            </Text>
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                styles.reportCell,
+                                styles.reportCellText,
+                                styles.dishNameCell,
+                              ]}
+                            >
+                              {row.DishName}
+                            </Text>
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                styles.reportCell,
+                                styles.reportCellText,
+                                styles.categoryNameCell,
+                              ]}
+                            >
+                              {row.CategoryName || "Unmapped"}
+                            </Text>
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                styles.reportCell,
+                                styles.reportCellText,
+                                styles.subCategoryNameCell,
+                              ]}
+                            >
+                              {row.SubCategoryName || "Unmapped"}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.reportCell,
+                                styles.reportCellText,
+                                styles.qtyCell,
+                              ]}
+                            >
+                              {Number(row.Sold || 0).toFixed(0)}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.reportCell,
+                                styles.reportCellText,
+                                styles.qtyCell,
+                                { color: "#dc2626" },
+                              ]}
+                            >
+                              {Number(row.Voided || 0).toFixed(0)}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.reportCell,
+                                styles.reportCellText,
+                                styles.amountCell,
+                                { color: Theme.success, fontWeight: "bold" },
+                              ]}
+                            >
+                              {formatCurrency(Number(row.SalesAmount || 0))}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  );
+                });
+              })()}
             </View>
           </ScrollView>
         )}
