@@ -805,15 +805,16 @@ export default function SalesReport() {
         0,
         0
       );
-      const end = new Date(
+      const nextMonth = new Date(
         Number(parts[0]),
         Number(parts[1]),
+        1,
         0,
-        23,
-        59,
-        59,
-        999
+        0,
+        0,
+        0
       );
+      const end = new Date(nextMonth.getTime() - 1);
       result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
         const saleDate = new Date(s.SettlementDate);
@@ -822,7 +823,8 @@ export default function SalesReport() {
     } else if (selectedFilter === "YEARLY") {
       const parts = selectedDate.split("-");
       const start = new Date(Number(parts[0]), 0, 1, 0, 0, 0, 0);
-      const end = new Date(Number(parts[0]), 11, 31, 23, 59, 59, 999);
+      const nextYear = new Date(Number(parts[0]) + 1, 0, 1, 0, 0, 0, 0);
+      const end = new Date(nextYear.getTime() - 1);
       result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
         const saleDate = new Date(s.SettlementDate);
