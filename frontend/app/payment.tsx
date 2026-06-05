@@ -466,9 +466,9 @@ export default function PaymentScreen() {
     fetchPaymentDetail(m.payMode, m);
   };
 
-  const { subtotal, grossTotal: payGrossTotal, totalItemDiscount: payItemDiscount } = useMemo(() => {
+  const { subtotal, grossTotal: payGrossTotal, totalItemDiscount: payItemDiscount, scEligibleSubtotal } = useMemo(() => {
     if (isLedgerCollection) {
-      return { grossTotal: collectAmount || 0, totalItemDiscount: 0, subtotal: collectAmount || 0 };
+      return { grossTotal: collectAmount || 0, totalItemDiscount: 0, subtotal: collectAmount || 0, scEligibleSubtotal: 0 };
     }
     const nonVoided = finalItems.filter((i: any) => i.status !== "VOIDED");
     return nonVoided.reduce((acc: any, item: any) => {
@@ -483,12 +483,15 @@ export default function PaymentScreen() {
           itemDiscount = discAmt * (item.qty || 0);
         }
       }
+      const itemSubtotal = baseTotal - itemDiscount;
+      const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
       return {
         grossTotal: acc.grossTotal + baseTotal,
         totalItemDiscount: acc.totalItemDiscount + itemDiscount,
-        subtotal: acc.subtotal + (baseTotal - itemDiscount),
+        subtotal: acc.subtotal + itemSubtotal,
+        scEligibleSubtotal: acc.scEligibleSubtotal + (isSC ? itemSubtotal : 0),
       };
-    }, { grossTotal: 0, totalItemDiscount: 0, subtotal: 0 });
+    }, { grossTotal: 0, totalItemDiscount: 0, subtotal: 0, scEligibleSubtotal: 0 });
   }, [finalItems, isLedgerCollection, collectAmount]);
 
   const discountAmount = useMemo(() => {
@@ -500,7 +503,15 @@ export default function PaymentScreen() {
 
   // Service Charge & GST: SC on net, GST on (net + SC)
   const netAfterDiscount = isLedgerCollection ? (collectAmount || 0) : (subtotal - discountAmount);
-  const serviceChargeAmt = isLedgerCollection ? 0 : (netAfterDiscount * scRate);
+
+  // Pro-rate the bill-level discount to service-charge-eligible items
+  const scEligibleNet = useMemo(() => {
+    if (isLedgerCollection || subtotal <= 0) return 0;
+    const proportion = scEligibleSubtotal / subtotal;
+    return Math.max(0, scEligibleSubtotal - proportion * discountAmount);
+  }, [scEligibleSubtotal, subtotal, discountAmount, isLedgerCollection]);
+
+  const serviceChargeAmt = isLedgerCollection ? 0 : (scEligibleNet * scRate);
   const taxableAmount = netAfterDiscount + serviceChargeAmt;
   const tax = isLedgerCollection ? 0 : (taxableAmount * gstRate);
   const baseTotal = taxableAmount + tax;

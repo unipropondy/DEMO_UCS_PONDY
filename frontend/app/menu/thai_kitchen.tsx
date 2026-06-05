@@ -821,6 +821,7 @@ export default function MenuScreen() {
           KitchenTypeName: dish.KitchenTypeName || currentKitchenName,
           PrinterIP: dish.PrinterIP,
           KitchenTypeCode: dish.KitchenTypeCode || currentKitchenCode,
+          isServiceCharge: dish.isServiceCharge,
         });
       };
 
@@ -947,6 +948,7 @@ export default function MenuScreen() {
         PrinterIP: selectedDish.PrinterIP,
         KitchenTypeCode: selectedDish.KitchenTypeCode || currentKitchenCode,
         splitMembers: selectedDish.splitMembers || undefined,
+        isServiceCharge: selectedDish.isServiceCharge,
       } as any);
 
       // addToCartGlobal handles both local state and database sync
@@ -1229,6 +1231,7 @@ export default function MenuScreen() {
                           KitchenTypeName: selectedSplitDish.KitchenTypeName || kitchens.find(k => k.CategoryId === selectedKitchenId)?.KitchenTypeName || "KITCHEN",
                           PrinterIP: selectedSplitDish.PrinterIP,
                           KitchenTypeCode: selectedSplitDish.KitchenTypeCode || String(selectedKitchenId || "0"),
+                          isServiceCharge: selectedSplitDish.isServiceCharge,
                         } as any);
                         setShowSplitModal(false);
                       }
@@ -1244,6 +1247,7 @@ export default function MenuScreen() {
                         KitchenTypeName: selectedSplitDish.KitchenTypeName || kitchens.find(k => k.CategoryId === selectedKitchenId)?.KitchenTypeName || "KITCHEN",
                         PrinterIP: selectedSplitDish.PrinterIP,
                         KitchenTypeCode: selectedSplitDish.KitchenTypeCode || String(selectedKitchenId || "0"),
+                        isServiceCharge: selectedSplitDish.isServiceCharge,
                       } as any);
                       setShowSplitModal(false);
                     })

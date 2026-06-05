@@ -46,6 +46,7 @@ export type CartItem = {
   sent?: number;
   sentDate?: string | number;
   IsOpenItem?: boolean | number | string;
+  isServiceCharge?: number | boolean;
 };
 
 export type DiscountInfo = {
@@ -152,6 +153,7 @@ const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartIte
     PrinterIP: item.PrinterIP || fallback.PrinterIP,
     KitchenTypeCode: item.KitchenTypeCode || fallback.KitchenTypeCode,
     IsOpenItem: item.IsOpenItem !== undefined ? item.IsOpenItem : fallback.IsOpenItem,
+    isServiceCharge: item.isServiceCharge !== undefined ? item.isServiceCharge : (fallback.isServiceCharge !== undefined ? fallback.isServiceCharge : 0),
   };
 };
 

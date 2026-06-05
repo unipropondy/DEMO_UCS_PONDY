@@ -399,7 +399,42 @@ class SunmiPrinterService {
       const gstRate = companySettings.gstPercentage || 0;
       const scPercentage = companySettings.serviceChargePercentage || 0;
       const savedSC = saleData.serviceCharge != null ? parseFloat(String(saleData.serviceCharge)) : null;
-      const serviceChargeAmount = savedSC !== null ? savedSC : (currentSubtotal * (scPercentage / 100));
+      
+      let serviceChargeAmount = 0;
+      if (savedSC !== null) {
+        serviceChargeAmount = savedSC;
+      } else {
+        let scEligibleSubtotal = 0;
+        (saleData.items || []).forEach((item: any) => {
+          if (item.status === "VOIDED") return;
+          const qtyNum = parseInt(String(item.qty || item.quantity || 1)) || 1;
+          const baseTotal = (item.price || 0) * qtyNum;
+          let itemDiscount = 0;
+          const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+          const discType = item.discountType || "percentage";
+          if (discAmt > 0) {
+            if (discType === "percentage") {
+              itemDiscount = baseTotal * (discAmt / 100);
+            } else {
+              itemDiscount = discAmt * qtyNum;
+            }
+          }
+          const itemSubtotal = baseTotal - itemDiscount;
+          const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
+          if (isSC) {
+            scEligibleSubtotal += itemSubtotal;
+          }
+        });
+        let scEligibleNet = scEligibleSubtotal;
+        if (grossTotal > 0 && orderDiscount > 0) {
+          const subtotalPostItemDisc = grossTotal - totalItemDiscount;
+          if (subtotalPostItemDisc > 0) {
+            const proportion = scEligibleSubtotal / subtotalPostItemDisc;
+            scEligibleNet = Math.max(0, scEligibleSubtotal - proportion * orderDiscount);
+          }
+        }
+        serviceChargeAmount = scEligibleNet * (scPercentage / 100);
+      }
       const hasSC = serviceChargeAmount > 0;
       const effectiveSCPercentage = serviceChargeAmount > 0 && currentSubtotal > 0
         ? Math.round((serviceChargeAmount / currentSubtotal) * 100)

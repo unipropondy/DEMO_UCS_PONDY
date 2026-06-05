@@ -574,7 +574,7 @@ export default function SummaryScreen() {
     [cart],
   );
 
-  const { grossTotal, totalItemDiscount } = useMemo(() => {
+  const { grossTotal, totalItemDiscount, scEligibleSubtotal } = useMemo(() => {
     return cart.reduce((acc: any, item: any) => {
       const isVoided = (item as any).status === "VOIDED";
       if (isVoided) return acc;
@@ -592,11 +592,15 @@ export default function SummaryScreen() {
         }
       }
 
+      const itemSubtotal = baseTotal - itemDiscount;
+      const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
+
       return {
         grossTotal: acc.grossTotal + baseTotal,
         totalItemDiscount: acc.totalItemDiscount + itemDiscount,
+        scEligibleSubtotal: acc.scEligibleSubtotal + (isSC ? itemSubtotal : 0),
       };
-    }, { grossTotal: 0, totalItemDiscount: 0 });
+    }, { grossTotal: 0, totalItemDiscount: 0, scEligibleSubtotal: 0 });
   }, [cart]);
 
   const subtotal = useMemo(() => grossTotal - totalItemDiscount, [grossTotal, totalItemDiscount]);
@@ -609,7 +613,15 @@ export default function SummaryScreen() {
   }, [discountInfo, subtotal]);
 
   const netAfterDiscount = useMemo(() => subtotal - discountAmount, [subtotal, discountAmount]);
-  const serviceChargeAmount = useMemo(() => netAfterDiscount * scRate, [netAfterDiscount, scRate]);
+
+  // Pro-rate the bill-level discount to service-charge-eligible items
+  const scEligibleNet = useMemo(() => {
+    if (subtotal <= 0) return 0;
+    const proportion = scEligibleSubtotal / subtotal;
+    return Math.max(0, scEligibleSubtotal - proportion * discountAmount);
+  }, [scEligibleSubtotal, subtotal, discountAmount]);
+
+  const serviceChargeAmount = useMemo(() => scEligibleNet * scRate, [scEligibleNet, scRate]);
   const taxableAmount = useMemo(() => netAfterDiscount + serviceChargeAmount, [netAfterDiscount, serviceChargeAmount]);
   const gstAmountRaw = useMemo(() => taxableAmount * gstRate, [taxableAmount, gstRate]);
   // ✅ FIX: Round GST for display so breakdown matches the rounded grand total
