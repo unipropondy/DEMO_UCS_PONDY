@@ -345,6 +345,89 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000); // 5 Minutes
 
+// 📊 TEMPORARY DIAGNOSTICS LOGGING (Every 5 minutes)
+const DIAGNOSTICS_LOG_FILE = path.join(__dirname, "logs", "diagnostics.log");
+
+function logDiagnostics(label = "Interval") {
+  try {
+    const mem = process.memoryUsage();
+    const { activeTransactions } = require("./utils/transactionHelper");
+    const { getPool } = require("./config/db");
+    
+    const pool = getPool();
+    const poolStats = pool && pool.pool ? {
+      used: pool.pool.used.length,
+      free: pool.pool.free.length,
+      pendingAcquires: pool.pool.pendingAcquires.length,
+      pendingCreates: pool.pool.pendingCreates.length,
+      max: pool.pool.max,
+      min: pool.pool.min
+    } : { used: 0, free: 0, pendingAcquires: 0, pendingCreates: 0, max: 0, min: 0 };
+
+    const io = app.get("io");
+    const activeSockets = io ? io.sockets.sockets.size : 0;
+    const activeRooms = io && io.sockets.adapter ? io.sockets.adapter.rooms.size : 0;
+
+    const imgCacheStats = menuRoutes && menuRoutes.imageCache ? menuRoutes.imageCache.getStats() : {
+      size: 0,
+      maxSize: 100,
+      estimatedMemoryMb: "0.00 MB",
+      hits: 0,
+      misses: 0,
+      hitRate: "0.00%",
+      missRate: "0.00%"
+    };
+
+    const stats = {
+      timestamp: new Date().toISOString(),
+      label,
+      memory: {
+        rss: (mem.rss / 1024 / 1024).toFixed(2) + " MB",
+        heapTotal: (mem.heapTotal / 1024 / 1024).toFixed(2) + " MB",
+        heapUsed: (mem.heapUsed / 1024 / 1024).toFixed(2) + " MB",
+        external: (mem.external / 1024 / 1024).toFixed(2) + " MB",
+        heapUsagePercent: ((mem.heapUsed / mem.heapTotal) * 100).toFixed(2) + "%"
+      },
+      transactions: {
+        activeCount: activeTransactions ? activeTransactions.size : 0
+      },
+      databasePool: poolStats,
+      sockets: {
+        activeSockets,
+        activeRooms
+      },
+      imageCache: imgCacheStats
+    };
+
+    const logMessage = `[DIAGNOSTICS] [${stats.timestamp}] [${label}]
+Memory: RSS=${stats.memory.rss}, HeapTotal=${stats.memory.heapTotal}, HeapUsed=${stats.memory.heapUsed} (Usage: ${stats.memory.heapUsagePercent})
+Transactions: ActiveCount=${stats.transactions.activeCount}
+DB Pool: Used=${stats.databasePool.used}, Free=${stats.databasePool.free}, PendingAcquires=${stats.databasePool.pendingAcquires}, PendingCreates=${stats.databasePool.pendingCreates}
+Sockets: ActiveSockets=${stats.sockets.activeSockets}, ActiveRooms=${stats.sockets.activeRooms}
+Image Cache: Size=${stats.imageCache.size}/${stats.imageCache.maxSize}, EstMemory=${stats.imageCache.estimatedMemoryMb}, Hits=${stats.imageCache.hits}, Misses=${stats.imageCache.misses} (HitRate: ${stats.imageCache.hitRate}, MissRate: ${stats.imageCache.missRate})
+--------------------------------------------------------------------------------`;
+
+    console.log(logMessage);
+    const logsDir = path.dirname(DIAGNOSTICS_LOG_FILE);
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+    fs.appendFileSync(DIAGNOSTICS_LOG_FILE, logMessage + "\n", "utf8");
+  } catch (err) {
+    console.error("⚠️ [Diagnostics] Logging failed:", err.message);
+  }
+}
+
+// Log startup metrics after 5 seconds to let everything initialize
+setTimeout(() => {
+  logDiagnostics("Startup");
+}, 5000);
+
+// Log every 5 minutes
+setInterval(() => {
+  logDiagnostics("Interval");
+}, 5 * 60 * 1000);
+
 /* ================= START SERVER ================= */
 httpServer.listen(PORT, async () => {
   console.log(`🚀 Modular Server running on port ${PORT}`);

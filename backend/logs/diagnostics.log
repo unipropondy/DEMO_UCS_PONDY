@@ -1,0 +1,13 @@
+[DIAGNOSTICS] [2026-06-05T04:12:28.218Z] [Startup]
+Memory: RSS=118.82 MB, HeapTotal=99.88 MB, HeapUsed=53.33 MB (Usage: 53.39%)
+Transactions: ActiveCount=0
+DB Pool: Used=2, Free=0, PendingAcquires=0, PendingCreates=0
+Sockets: ActiveSockets=0, ActiveRooms=0
+--------------------------------------------------------------------------------
+[DIAGNOSTICS] [2026-06-05T04:16:19.484Z] [Startup]
+Memory: RSS=119.96 MB, HeapTotal=102.84 MB, HeapUsed=42.87 MB (Usage: 41.69%)
+Transactions: ActiveCount=0
+DB Pool: Used=1, Free=0, PendingAcquires=1, PendingCreates=1
+Sockets: ActiveSockets=0, ActiveRooms=0
+Image Cache: Size=0/100, EstMemory=0.00 MB, Hits=0, Misses=0 (HitRate: 0.00%, MissRate: 0.00%)
+--------------------------------------------------------------------------------

@@ -174,17 +174,87 @@ router.get("/dishes/group/:DishGroupId", async (req, res) => {
 });
 
 /* ================= IMAGES ================= */
-const imageCache = new Map();
+class LRUImageCache {
+  constructor(maxSize = 100) {
+    this.maxSize = maxSize;
+    this.cache = new Map();
+    this.hits = 0;
+    this.misses = 0;
+    this.estimatedMemoryBytes = 0;
+  }
+
+  has(key) {
+    const exists = this.cache.has(key);
+    return exists;
+  }
+
+  get(key) {
+    if (!this.cache.has(key)) {
+      this.misses++;
+      return null;
+    }
+    this.hits++;
+    const value = this.cache.get(key);
+    // Move key to the end (most recently used)
+    this.cache.delete(key);
+    this.cache.set(key, value);
+    return value;
+  }
+
+  set(key, value) {
+    if (this.cache.has(key)) {
+      const oldVal = this.cache.get(key);
+      this.estimatedMemoryBytes -= oldVal.length || 0;
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxSize) {
+      // Evict oldest (first item in insertion order)
+      const oldestKey = this.cache.keys().next().value;
+      const oldestValue = this.cache.get(oldestKey);
+      this.estimatedMemoryBytes -= oldestValue.length || 0;
+      this.cache.delete(oldestKey);
+    }
+    
+    this.cache.set(key, value);
+    this.estimatedMemoryBytes += value.length || 0;
+  }
+
+  clear() {
+    this.cache.clear();
+    this.estimatedMemoryBytes = 0;
+    this.hits = 0;
+    this.misses = 0;
+  }
+
+  getStats() {
+    const totalRequests = this.hits + this.misses;
+    const hitRate = totalRequests > 0 ? ((this.hits / totalRequests) * 100).toFixed(2) + "%" : "0.00%";
+    const missRate = totalRequests > 0 ? ((this.misses / totalRequests) * 100).toFixed(2) + "%" : "0.00%";
+    
+    return {
+      size: this.cache.size,
+      maxSize: this.maxSize,
+      estimatedMemoryMb: (this.estimatedMemoryBytes / 1024 / 1024).toFixed(2) + " MB",
+      hits: this.hits,
+      misses: this.misses,
+      hitRate,
+      missRate
+    };
+  }
+}
+
+const imageCache = new LRUImageCache(100);
+router.imageCache = imageCache;
 
 router.get("/image/:imageId", async (req, res) => {
   try {
     const imageId = req.params.imageId;
     
     // Serve from cache if available
-    if (imageCache.has(imageId)) {
+    const cachedBuffer = imageCache.get(imageId);
+    if (cachedBuffer) {
       console.log(`⚡ [ImageCache] Cache HIT: ${imageId}`);
       res.set("Cache-Control", "public, max-age=86400");
-      return res.type("image/jpeg").send(imageCache.get(imageId));
+      return res.type("image/jpeg").send(cachedBuffer);
     }
 
     console.log(`⚡ [ImageCache] Cache MISS: ${imageId}`);
