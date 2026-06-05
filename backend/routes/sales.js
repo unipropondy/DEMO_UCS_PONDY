@@ -794,7 +794,10 @@ router.get("/day-end-summary", async (req, res) => {
     const creditPaymentsRes = await pool.request()
       .query(`
         SELECT 
-          CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' ELSE 'CREDIT PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' END as Paymode,
+          CASE WHEN (CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER' ELSE 'CREDIT' END) = 'MEMBER' 
+               THEN 'MEMBER PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' 
+               ELSE 'CREDIT PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' 
+          END as Paymode,
           SUM(ptd.Amount) as Amount,
           COUNT(ptd.PaymentTransactionId) as Count
         FROM PaymentTransactionDetails ptd
@@ -802,7 +805,7 @@ router.get("/day-end-summary", async (req, res) => {
         LEFT JOIN MemberMaster mm ON ptd.ReferenceId = mm.MemberId
         WHERE ptd.ReferenceType = 'MEMBER'
           AND ${ptdWhereSql}
-        GROUP BY pm.Description, CASE WHEN mm.MemberId IS NOT NULL THEN 1 ELSE 0 END
+        GROUP BY pm.Description, CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER' ELSE 'CREDIT' END
       `);
 
     const creditPayments = creditPaymentsRes.recordset || [];
