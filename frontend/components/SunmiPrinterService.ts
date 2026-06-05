@@ -315,6 +315,11 @@ class SunmiPrinterService {
           await this.left(`   ${item.name}`);
         }
 
+        const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
+        if (isSC) {
+          await this.left(`    [Service Charge ${companySettings.serviceChargePercentage}%]`);
+        }
+
         // Print modifiers if they have a positive amount/price
         if (item.modifiers && Array.isArray(item.modifiers)) {
           for (const m of item.modifiers) {
@@ -457,7 +462,7 @@ class SunmiPrinterService {
 
       if (hasSC) {
         await this.twoCols(
-          `Service Charge (${effectiveSCPercentage}%):`,
+          `Item Service Charge (${effectiveSCPercentage}%):`,
           `${symbol}${serviceChargeAmount.toFixed(2)}`,
         );
       }

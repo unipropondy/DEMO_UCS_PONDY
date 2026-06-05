@@ -504,8 +504,18 @@ const CartItemRow = React.memo(
       item.StatusCode === 0 ||
       item.statusCode === 0;
 
+    const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
+
     return (
-      <View style={styles.itemContainer}>
+      <View style={[
+        styles.itemContainer,
+        isSC && {
+          borderWidth: 2,
+          borderColor: Theme.danger,
+          borderBottomWidth: 2,
+          borderBottomColor: Theme.danger,
+        }
+      ]}>
         <View
           style={[
             styles.statusBar,
@@ -1600,7 +1610,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
               {serviceChargeAmt > 0 && (
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>
-                    Service Charge ({settings.serviceChargePercentage}%)
+                    Item Service Charge ({settings.serviceChargePercentage}%)
                   </Text>
                   <Text style={styles.summaryValue}>
                     {currencySymbol}

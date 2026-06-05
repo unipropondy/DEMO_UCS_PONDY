@@ -847,8 +847,17 @@ export default function SummaryScreen() {
               maxToRenderPerBatch={10}
               windowSize={5}
               removeClippedSubviews={true}
-              renderItem={({ item }: { item: any }) => (
-                <View style={styles.row}>
+              renderItem={({ item }: { item: any }) => {
+                const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
+                return (
+                  <View style={[
+                    styles.row,
+                    isSC && {
+                      borderWidth: 2,
+                      borderColor: Theme.danger,
+                      borderLeftColor: Theme.danger,
+                    }
+                  ]}>
                   <View style={styles.qtyBadge}>
                     <Text style={styles.qtyBadgeText}>{item.qty}</Text>
                   </View>
@@ -898,6 +907,11 @@ export default function SummaryScreen() {
                             .join("  ·  ")}
                         </Text>
                       )}
+                    {isSC && settings.serviceChargePercentage > 0 && item.status !== "VOIDED" && (
+                      <Text style={[styles.sub, { color: Theme.primary, fontFamily: Fonts.bold, marginTop: 4 }]}>
+                        Item Service Charge ({settings.serviceChargePercentage}%): {currencySymbol}{((((item.price || 0) * item.qty) - ((item.discountType === 'fixed' || (item.discountType == null && item.discountAmount > 0 && !item.discount)) ? (Number(item.discountAmount ?? item.discount ?? 0) * item.qty) : (((item.price || 0) * item.qty) * (Number(item.discountAmount ?? item.discount ?? 0) / 100)))) * (settings.serviceChargePercentage / 100)).toFixed(2)}
+                      </Text>
+                    )}
                   </View>
 
                   <View style={[styles.priceBlock, { alignItems: 'flex-end', justifyContent: 'center' }]}>
@@ -939,7 +953,8 @@ export default function SummaryScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
-              )}
+                );
+              }}
             />
           </View>
 
@@ -1121,7 +1136,7 @@ export default function SummaryScreen() {
                         isPhone && !isLandscape && { fontSize: 13 },
                       ]}
                     >
-                      Service Charge ({settings.serviceChargePercentage}%)
+                      Item Service Charge ({settings.serviceChargePercentage}%)
                     </Text>
                     <Text
                       style={[

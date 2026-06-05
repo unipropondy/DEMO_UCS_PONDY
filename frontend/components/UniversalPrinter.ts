@@ -1083,6 +1083,11 @@ class UniversalPrinter {
         text += `[L]   ${item.name}\n`;
       }
 
+      const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
+      if (isSC) {
+        text += `[L]   [Service Charge ${company.serviceChargePercentage}%]\n`;
+      }
+
       // Modifiers with positive pricing
       if (item.modifiers && Array.isArray(item.modifiers)) {
         item.modifiers.forEach((m: any) => {
@@ -1240,7 +1245,7 @@ class UniversalPrinter {
     }
 
     if (hasSC) {
-      text += this.formatTwoCols48(`Service Charge (${effectiveSCPercentage}%):`, `${symbol}${serviceChargeAmount.toFixed(2)}`);
+      text += this.formatTwoCols48(`Item Service Charge (${effectiveSCPercentage}%):`, `${symbol}${serviceChargeAmount.toFixed(2)}`);
     }
 
     if (hasGST) {

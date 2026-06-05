@@ -1037,8 +1037,19 @@ export default function PaymentScreen() {
 
     const finalPrice = baseTotal - itemDiscount;
 
+    const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
+
     return (
-      <View style={styles.itemRow}>
+      <View style={[
+        styles.itemRow,
+        isSC && {
+          borderWidth: 2,
+          borderColor: Theme.danger,
+          borderRadius: 8,
+          marginVertical: 4,
+          paddingHorizontal: 8,
+        }
+      ]}>
         <Text style={[styles.itemQty, isVoided && styles.itemVoidedText]}>{item.qty}x</Text>
         <View style={{ flex: 1, paddingRight: 8 }}>
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
@@ -1082,6 +1093,11 @@ export default function PaymentScreen() {
           {item.modifiers && Array.isArray(item.modifiers) && item.modifiers.length > 0 && (
             <Text style={styles.itemSubText} numberOfLines={2}>
               {item.modifiers.map((m: any) => `+ ${m.ModifierName}`).join("  ·  ")}
+            </Text>
+          )}
+          {isSC && settingsStore.serviceChargePercentage > 0 && !isVoided && (
+            <Text style={[styles.itemSubText, { color: Theme.primary, fontFamily: Fonts.bold, marginTop: 4 }]}>
+              Item Service Charge ({settingsStore.serviceChargePercentage}%): {currencySymbol}{((baseTotal - itemDiscount) * (settingsStore.serviceChargePercentage / 100)).toFixed(2)}
             </Text>
           )}
         </View>
@@ -1466,7 +1482,7 @@ export default function PaymentScreen() {
 
                         {displayedServiceCharge > 0 && (
                           <View style={styles.breakRow}>
-                            <Text style={styles.breakLabel}>Service Charge ({settingsStore.serviceChargePercentage || 0}%)</Text>
+                            <Text style={styles.breakLabel}>Item Service Charge ({settingsStore.serviceChargePercentage || 0}%)</Text>
                             <Text style={styles.breakValue}>{currencySymbol}{displayedServiceCharge.toFixed(2)}</Text>
                           </View>
                         )}

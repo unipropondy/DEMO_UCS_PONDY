@@ -98,12 +98,17 @@ const NavRail = () => {
 
 const DishCard = React.memo(
   ({ dish, width, cartQty, onPress, isPhone, isTablet, isLandscape }: any) => {
+    const isSC = Number(dish.isServiceCharge) === 1 || dish.isServiceCharge === true;
     return (
       <Pressable
         style={({ pressed }: { pressed: boolean }) => [
           styles.card,
           { width, padding: isPhone ? 8 : isTablet ? 12 : 10 },
           isLandscape && !isTablet && { maxHeight: 135 },
+          isSC && {
+            borderWidth: 2,
+            borderColor: Theme.danger,
+          },
           pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
         ]}
         onPress={() => onPress(dish)}

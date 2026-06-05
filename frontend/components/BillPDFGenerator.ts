@@ -441,6 +441,7 @@ private static escapeHtml(str: string): string {
             <tr>
                 <td class="item-name">
                     ${item.name}
+                    ${Number(item.isServiceCharge) === 1 || item.isServiceCharge === true ? `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">[Service Charge ${company.serviceChargePercentage}%]</div>` : ''}
                     ${modifiersHTML}
                     ${(() => {
                       const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
@@ -810,10 +811,10 @@ private static escapeHtml(str: string): string {
             `}
             
             ${hasSC ? `
-            <div class="total-row">
-              <span>Service Charge (${effectiveSCPercentage}%):</span>
-              <span>${currencySymbol}${serviceChargeAmount.toFixed(2)}</span>
-            </div>
+             <div class="total-row">
+               <span>Item Service Charge (${effectiveSCPercentage}%):</span>
+               <span>${currencySymbol}${serviceChargeAmount.toFixed(2)}</span>
+             </div>
             ` : ''}
             ${hasGST ? `
             <div class="total-row">
