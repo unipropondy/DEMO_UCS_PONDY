@@ -28,7 +28,7 @@ if (!envContent.includes("JWT_SECRET=")) {
 require("dotenv").config({ path: envPath });
 
 const { poolPromise } = require("./config/db");
-const { initDB } = require("./config/init");
+const { initDB, syncKitchensToPrintMaster } = require("./config/init");
 const dbCheck = require("./middleware/dbCheck");
 const { getHoldOvertimeMinutes } = require("./utils/settingsCache");
 const { rollbackAllActive } = require("./utils/transactionHelper");
@@ -443,6 +443,21 @@ httpServer.listen(PORT, async () => {
   } catch (err) {
     console.error("⚠️ Initial DB setup failed:", err.message);
   }
+
+  // 🔄 KITCHEN AUTO-SYNC: Detect new kitchens from backoffice every 3 minutes
+  // This ensures any kitchen added in the backoffice automatically appears
+  // in PrintMaster (smart kitchen routing) without needing a server restart.
+  setInterval(async () => {
+    try {
+      const pool = await poolPromise;
+      if (pool && pool.connected) {
+        await syncKitchensToPrintMaster(pool);
+      }
+    } catch (err) {
+      console.error("❌ [KitchenSync Interval] Error:", err.message);
+    }
+  }, 3 * 60 * 1000); // Every 3 minutes
+  console.log("🍳 [KitchenSync] Background auto-sync started (every 3 minutes).");
 });
 
 // Register global exception handlers for transaction cleanup

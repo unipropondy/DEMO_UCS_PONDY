@@ -389,9 +389,132 @@ async function initDB(pool) {
     `);
 
     console.log("✅ Database schema and performance indexes are up to date.");
+
+    // 🔄 Auto-sync kitchens to PrintMaster on every startup
+    await syncKitchensToPrintMaster(pool);
+
   } catch (err) {
     console.error("❌ initDB CRITICAL ERROR:", err.message);
   }
 }
 
-module.exports = { initDB };
+// ============================================================
+// 🔄 AUTO-SYNC: Detect active kitchens → ensure PrintMaster rows
+// ============================================================
+// This runs on startup AND every few minutes (via server.js polling).
+// Even on a fresh DB copy or new kitchen added from backoffice,
+// it will auto-create the PrintMaster entry (PrinterType=2) so that
+// smart kitchen routing always works without manual configuration.
+// ============================================================
+async function syncKitchensToPrintMaster(pool) {
+  try {
+    // --- 1. Ensure default Cashier Printer (PrinterType = 1) ---
+    const cashierCheck = await pool.request()
+      .query("SELECT COUNT(*) as cnt FROM PrintMaster WHERE PrinterType = 1 AND IsActive = 1");
+    if (cashierCheck.recordset[0].cnt === 0) {
+      let defaultIP = "192.168.0.20";
+      try {
+        const cs = await pool.request().query("SELECT TOP 1 PrinterIP FROM CompanySettings WHERE PrinterIP IS NOT NULL AND PrinterIP <> ''");
+        if (cs.recordset[0]?.PrinterIP) defaultIP = cs.recordset[0].PrinterIP;
+      } catch (_) {}
+      await pool.request()
+        .input("ip", sql.NVarChar, defaultIP)
+        .query(`
+          INSERT INTO PrintMaster (PrinterId, PrinterName, PrinterPath, PrinterIP, PrinterType, PrintSection, KitchenTypeName, KitchenTypeValue, IsActive, PrintCopy)
+          VALUES (NEWID(), 'Receipt Printer', @ip, @ip, 1, 1, 'Receipt Print', 0, 1, 1)
+        `);
+      console.log("🛠️ [KitchenSync] Auto-created default Cashier Printer in PrintMaster.");
+    }
+
+    // --- 2. Ensure default TakeAway Printer (PrinterType = 3) ---
+    const taCheck = await pool.request()
+      .query("SELECT COUNT(*) as cnt FROM PrintMaster WHERE PrinterType = 3 AND IsActive = 1");
+    if (taCheck.recordset[0].cnt === 0) {
+      await pool.request().query(`
+        INSERT INTO PrintMaster (PrinterId, PrinterName, PrinterPath, PrinterIP, PrinterType, PrintSection, KitchenTypeName, KitchenTypeValue, IsActive, PrintCopy)
+        VALUES (NEWID(), 'TakeAway', '192.168.0.20', '192.168.0.20', 3, 1, 'TakeAway', 6, 1, 1)
+      `);
+      console.log("🛠️ [KitchenSync] Auto-created default TakeAway Printer in PrintMaster.");
+    }
+
+    // --- 3. Read all active kitchens from CategoryMaster + CategoryKitchenType ---
+    const activeCatsResult = await pool.request().query(`
+      SELECT DISTINCT
+        cm.CategoryName AS KitchenTypeName,
+        ISNULL(ckt.KitchenTypeCode, '2') AS KitchenTypeCode
+      FROM CategoryMaster cm
+      LEFT JOIN CategoryKitchenType ckt ON cm.CategoryId = ckt.CategoryId
+      WHERE cm.IsActive = 1
+        AND cm.CategoryName IS NOT NULL
+        AND cm.CategoryName <> ''
+        AND cm.CategoryName NOT LIKE '%TEST%'
+    `);
+
+    const activeCats = activeCatsResult.recordset;
+
+    // Deduplicate by KitchenTypeCode
+    const seenCodes = new Map(); // code -> name
+    for (const cat of activeCats) {
+      const code = parseInt(cat.KitchenTypeCode || "2");
+      if (!seenCodes.has(code)) {
+        seenCodes.set(code, cat.KitchenTypeName);
+      }
+    }
+
+    // --- 4. Fetch existing kitchen printers (PrinterType=2) from PrintMaster ---
+    const existingResult = await pool.request().query(
+      "SELECT KitchenTypeValue FROM PrintMaster WHERE PrinterType = 2"
+    );
+    const existingCodes = new Set(existingResult.recordset.map(r => r.KitchenTypeValue));
+
+    // --- 5. Insert missing kitchen printers ---
+    let inserted = 0;
+    let reactivated = 0;
+    for (const [code, name] of seenCodes) {
+      if (!existingCodes.has(code)) {
+        // Brand new: insert with empty IP (admin sets it in Receipt Settings)
+        await pool.request()
+          .input("name", sql.NVarChar, name)
+          .input("code", sql.Int, code)
+          .query(`
+            INSERT INTO PrintMaster (
+              PrinterId, PrinterName, PrinterPath, PrinterIP,
+              PrinterType, PrintSection, KitchenTypeName,
+              KitchenTypeValue, IsActive, PrintCopy
+            ) VALUES (
+              NEWID(), @name, '', '',
+              2, 1, @name,
+              @code, 1, 1
+            )
+          `);
+        inserted++;
+        console.log(`🍳 [KitchenSync] Auto-added kitchen to PrintMaster: "${name}" (code=${code})`);
+      } else {
+        // Exists but may be soft-deleted — reactivate if inactive
+        const reactivateResult = await pool.request()
+          .input("code", sql.Int, code)
+          .query(`
+            UPDATE PrintMaster
+            SET IsActive = 1
+            WHERE PrinterType = 2
+              AND KitchenTypeValue = @code
+              AND IsActive = 0
+          `);
+        if (reactivateResult.rowsAffected[0] > 0) {
+          reactivated++;
+          console.log(`♻️ [KitchenSync] Reactivated kitchen in PrintMaster: code=${code}`);
+        }
+      }
+    }
+
+    if (inserted === 0 && reactivated === 0) {
+      console.log(`✅ [KitchenSync] All ${seenCodes.size} active kitchen(s) already present in PrintMaster.`);
+    } else {
+      console.log(`✅ [KitchenSync] Sync complete. Inserted: ${inserted}, Reactivated: ${reactivated}`);
+    }
+  } catch (err) {
+    console.error("❌ [KitchenSync] Failed to sync kitchens to PrintMaster:", err.message);
+  }
+}
+
+module.exports = { initDB, syncKitchensToPrintMaster };

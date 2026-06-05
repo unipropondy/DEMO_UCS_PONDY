@@ -3,6 +3,7 @@ const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
 const { getAppSettings, invalidateCache } = require("../utils/settingsCache");
+const { syncKitchensToPrintMaster } = require("../config/init");
 
 // 🔹 GET Settings
 router.get("/", async (req, res) => {
@@ -264,6 +265,17 @@ router.post("/kitchen-printers/delete", async (req, res) => {
       .query("UPDATE PrintMaster SET IsActive = 0 WHERE KitchenTypeValue = @id");
 
     res.json({ success: true, message: "Kitchen printer deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔹 ON-DEMAND Kitchen Sync (trigger immediately after adding kitchen from backoffice)
+router.post("/sync-kitchens", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    await syncKitchensToPrintMaster(pool);
+    res.json({ success: true, message: "Kitchen sync completed. New kitchens auto-added to PrintMaster." });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
