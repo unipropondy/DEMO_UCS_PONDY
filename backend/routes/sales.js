@@ -214,10 +214,10 @@ router.get("/all", async (req, res) => {
         SELECT 
           cct.TransactionId AS SettlementID,
           DATEADD(MINUTE, -468, cct.CreatedDate) AS SettlementDate,
-          'CREDIT PAYMENT' AS OrderId,
+          'Member Payment Collected' AS OrderId,
           'LEDGER' AS OrderType,
           'LEDGER' AS TableNo,
-          m.Name AS Section,
+          COALESCE(mm.Name, m.Name, 'Member') AS Section,
           CAST(cct.CreatedBy AS VARCHAR(50)) AS CashierId,
           cct.Remarks AS BillNo,
           'Cashier' AS SER_NAME,
@@ -242,7 +242,8 @@ router.get("/all", async (req, res) => {
           0 AS RoundedBy,
           0 AS DiscountPercentage
         FROM CustomerCreditTransactions cct
-        INNER JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
+        LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
+        LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
         WHERE cct.TransactionType = 'PAYMENT'
       ) CombinedSales
       ORDER BY SettlementDate DESC
@@ -793,7 +794,7 @@ router.get("/day-end-summary", async (req, res) => {
     const creditPaymentsRes = await pool.request()
       .query(`
         SELECT 
-          'CREDIT PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' as Paymode,
+          'MEMBER PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' as Paymode,
           SUM(ptd.Amount) as Amount,
           COUNT(ptd.PaymentTransactionId) as Count
         FROM PaymentTransactionDetails ptd
@@ -1916,6 +1917,16 @@ router.get("/consolidated-report/pdf", async (req, res) => {
     const filter = normalizeReportFilter(req.query.filter || 'daily');
     const date = req.query.date;
     const dateWhereClause = await getReportDateWhereSql(filter, "sh.LastSettlementDate", date);
+    const ptdWhereClause = await getReportDateWhereSql(filter, "ptd.CreatedDate", date);
+
+    // Fetch total member collections within range
+    const collectionResult = await pool.request().query(`
+      SELECT ISNULL(SUM(ptd.Amount), 0) as TotalCollected
+      FROM PaymentTransactionDetails ptd
+      WHERE ptd.ReferenceType = 'MEMBER'
+        AND ${ptdWhereClause}
+    `);
+    const memberPaymentsCollected = collectionResult.recordset[0]?.TotalCollected || 0;
 
     // Aggregate all settlement data
     const aggregateResult = await pool.request().query(`
@@ -2005,7 +2016,9 @@ router.get("/consolidated-report/pdf", async (req, res) => {
       voidAmount: Number(aggregateData.voidAmount || 0),
       totalDiscount: Number(aggregateData.totalDiscount || 0),
       paymentBreakdown: paymentBreakdown,
-      currencySymbol: '$'
+      currencySymbol: '$',
+      memberPaymentsCollected: Number(memberPaymentsCollected),
+      totalCollections: Number(aggregateData.totalSales || 0) + Number(memberPaymentsCollected)
     };
 
     // Use the new PDF generator

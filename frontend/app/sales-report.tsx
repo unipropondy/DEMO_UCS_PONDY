@@ -156,6 +156,7 @@ export default function SalesReport() {
   const todayDate = new Date().toLocaleDateString("en-CA");
   const [selectedDate, setSelectedDate] = useState(todayDate);
   const [selectedFilter, setSelectedFilter] = useState<FilterType>("DAILY");
+  const [activeMainFilter, setActiveMainFilter] = useState<"ALL_SALES" | "CASH" | "CARD" | "UPI" | "CREDIT" | "MEMBER_PAYMENTS">("ALL_SALES");
   const [, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -514,12 +515,23 @@ export default function SalesReport() {
       }
 
       const paymentBreakdown: any[] = [];
+      let memberPaymentsCollected = 0;
       summaryData.paymodeDetail?.forEach((p: any) => {
-        paymentBreakdown.push({
-          name: p.Paymode,
-          qty: p.ReceiptCount || 0,
-          amount: p.Amount || 0
-        });
+        const paymodeName = String(p.Paymode || 'CASH').toUpperCase();
+        if (paymodeName.startsWith('CREDIT PAYMENT') || paymodeName.startsWith('MEMBER PAYMENT')) {
+          memberPaymentsCollected += p.Amount || 0;
+          paymentBreakdown.push({
+            name: paymodeName.replace('CREDIT PAYMENT', 'MEMBER PAYMENT'),
+            qty: p.ReceiptCount || 0,
+            amount: p.Amount || 0
+          });
+        } else {
+          paymentBreakdown.push({
+            name: p.Paymode,
+            qty: p.ReceiptCount || 0,
+            amount: p.Amount || 0
+          });
+        }
       });
 
       const sa = summaryData.salesAnalysis || {};
@@ -541,6 +553,8 @@ export default function SalesReport() {
         totalRevenue: sa.totalSales || 0,
         totalSales: sa.totalSales || 0,
         totalDiscount: sa.totalDiscount || 0,
+        memberPaymentsCollected: Number(memberPaymentsCollected),
+        totalCollections: Number(sa.totalSales || 0) + Number(memberPaymentsCollected),
         
         totalOrders: sa.billCount || 0,
         totalItems: items.reduce((acc, curr) => acc + curr.quantity, 0),
@@ -813,7 +827,26 @@ export default function SalesReport() {
     return dateScopedSales.filter((s) => {
       const modeUpper = s.PayMode?.toUpperCase().trim() || "";
       const isUpiMode = modeUpper.includes("UPI") || modeUpper.includes("GPAY");
-      const modeMatch = activePaymentModes.includes(s.PayMode?.trim()) || 
+      
+      let mainFilterMatch = false;
+      if (activeMainFilter === "ALL_SALES") {
+        mainFilterMatch = s.OrderType !== 'LEDGER';
+      } else if (activeMainFilter === "CASH") {
+        mainFilterMatch = s.OrderType !== 'LEDGER' && modeUpper === "CASH";
+      } else if (activeMainFilter === "CARD") {
+        mainFilterMatch = s.OrderType !== 'LEDGER' && modeUpper === "CARD";
+      } else if (activeMainFilter === "UPI") {
+        mainFilterMatch = s.OrderType !== 'LEDGER' && isUpiMode;
+      } else if (activeMainFilter === "CREDIT") {
+        mainFilterMatch = s.OrderType !== 'LEDGER' && (modeUpper === "CREDIT" || modeUpper === "MEMBER");
+      } else if (activeMainFilter === "MEMBER_PAYMENTS") {
+        mainFilterMatch = s.OrderType === 'LEDGER';
+      }
+
+      if (!mainFilterMatch) return false;
+
+      const modeMatch = activeMainFilter === "MEMBER_PAYMENTS" || 
+                       activePaymentModes.includes(s.PayMode?.trim()) || 
                        (activePaymentModes.includes("UPI") && isUpiMode) ||
                        (showCancelledOrders && s.IsCancelled);
       const typeMatch =
@@ -827,6 +860,8 @@ export default function SalesReport() {
     dateScopedSales,
     activePaymentModes,
     activeOrderTypes,
+    activeMainFilter,
+    showCancelledOrders,
   ]);
 
   const filteredSales = useMemo(() => {
@@ -846,11 +881,16 @@ export default function SalesReport() {
   }, [baseFilteredSales, showCancelledOrders, sortOrder]);
 
   const filteredMetrics = useMemo(() => {
-    return baseFilteredSales.reduce(
+    return dateScopedSales.reduce(
       (acc, s) => {
         if (s.IsCancelled) {
           acc.CancelledCount += 1;
           acc.CancelledAmount += s.VoidAmount || 0;
+          return acc;
+        }
+
+        if (s.OrderType === 'LEDGER') {
+          acc.MemberPaymentsCollected += s.SysAmount || 0;
           return acc;
         }
 
@@ -887,9 +927,10 @@ export default function SalesReport() {
         TotalVoidAmount: 0,
         CancelledCount: 0,
         CancelledAmount: 0,
+        MemberPaymentsCollected: 0,
       },
     );
-  }, [filteredSales]);
+  }, [dateScopedSales]);
 
   const avgOrder = useMemo(() => {
     if (!filteredMetrics.TotalTransactions) return 0;
@@ -909,6 +950,10 @@ export default function SalesReport() {
     return filteredByTypes.reduce(
       (acc, s) => {
         if (s.IsCancelled) {
+          return acc;
+        }
+
+        if (s.OrderType === 'LEDGER') {
           return acc;
         }
 
@@ -1062,9 +1107,9 @@ export default function SalesReport() {
             { 
               DishName: selectedOrder?.IsCancelled 
                 ? "Items not captured (Legacy Cancelled Order)" 
-                : "Item info not available", 
-              Qty: 0, 
-              Price: 0 
+                : (selectedOrder?.OrderType === 'LEDGER' ? "Member Outstanding Payment" : "Item info not available"), 
+              Qty: selectedOrder?.OrderType === 'LEDGER' ? 1 : 0, 
+              Price: selectedOrder?.OrderType === 'LEDGER' ? selectedOrder?.SysAmount : 0 
             },
           ]);
         }
@@ -1638,13 +1683,65 @@ export default function SalesReport() {
         </View>
       )}
 
+      {/* Main List Filters */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.mainFilterBar}
+        style={{ marginBottom: 12 }}
+      >
+        {[
+          { id: "ALL_SALES", label: "All Sales" },
+          { id: "CASH", label: "Cash" },
+          { id: "CARD", label: "Card" },
+          { id: "UPI", label: "UPI" },
+          { id: "CREDIT", label: "Credit Sales" },
+          { id: "MEMBER_PAYMENTS", label: "Member Payments" }
+        ].map((opt) => (
+          <TouchableOpacity
+            key={opt.id}
+            onPress={() => {
+              if (Platform.OS !== "web") {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+              setActiveMainFilter(opt.id as any);
+            }}
+            style={[
+              styles.mainFilterBtn,
+              activeMainFilter === opt.id && styles.activeMainFilterBtn,
+            ]}
+          >
+            <Text
+              style={[
+                styles.mainFilterText,
+                activeMainFilter === opt.id && styles.activeMainFilterText,
+              ]}
+            >
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       {/* Metrics Grid */}
       <View style={styles.metricsGrid}>
         {renderMetricTile(
-          "Gross Revenue",
+          "Total Sales",
           formatCurrency(filteredMetrics.TotalSales),
           "card-outline",
           Theme.success,
+        )}
+        {renderMetricTile(
+          "Member Payments",
+          formatCurrency(filteredMetrics.MemberPaymentsCollected),
+          "cash-outline",
+          Theme.primary,
+        )}
+        {renderMetricTile(
+          "Total Collections",
+          formatCurrency(filteredMetrics.TotalSales + filteredMetrics.MemberPaymentsCollected),
+          "wallet-outline",
+          "#22c55e",
         )}
         {renderMetricTile(
           "Avg Check",
@@ -2081,6 +2178,19 @@ export default function SalesReport() {
               </TouchableOpacity>
             );
           })}
+        </View>
+        <View style={{ height: 1, backgroundColor: Theme.border, marginVertical: 12, opacity: 0.5 }} />
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4 }}>
+          <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: Theme.textSecondary }}>Total Sales:</Text>
+          <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary }}>{formatCurrency(paymentBreakdownTotal)}</Text>
+        </View>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
+          <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.primary }}>Member Payments Collected:</Text>
+          <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.primary }}>{formatCurrency(filteredMetrics.MemberPaymentsCollected)}</Text>
+        </View>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
+          <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: Theme.success }}>Total Collections:</Text>
+          <Text style={{ fontFamily: Fonts.black, fontSize: 16, color: Theme.success }}>{formatCurrency(paymentBreakdownTotal + filteredMetrics.MemberPaymentsCollected)}</Text>
         </View>
       </View>
 
@@ -4384,5 +4494,33 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#52525b',
     fontFamily: Fonts.semiBold,
+  },
+  mainFilterBar: {
+    flexDirection: 'row',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    gap: 8,
+  },
+  mainFilterBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Theme.bgCard,
+    borderWidth: 1,
+    borderColor: Theme.border,
+  },
+  activeMainFilterBtn: {
+    backgroundColor: Theme.primary,
+    borderColor: Theme.primary,
+    ...Theme.shadowSm,
+  },
+  mainFilterText: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: Theme.textSecondary,
+  },
+  activeMainFilterText: {
+    color: '#fff',
+    fontFamily: Fonts.black,
   },
 });

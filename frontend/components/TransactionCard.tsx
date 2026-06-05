@@ -82,7 +82,7 @@ const TransactionCard = React.memo(
         <View style={styles.txOrderInfo}>
           <Text style={styles.txTitle} numberOfLines={1}>
             {item.OrderType === "LEDGER" 
-              ? `Collection: ${item.Section || 'Credit Customer'}`
+              ? `Member Payment Collected: ${item.Section || 'Member'}`
               : (SCREEN_W < 450 ? `#${formatOrderId(item).split("-").pop()}` : `Order #${formatOrderId(item)}`)}
           </Text>
           <Text style={styles.txSmall} numberOfLines={1}>
@@ -101,7 +101,7 @@ const TransactionCard = React.memo(
                     : isNets
                     ? "🔳"
                     : "💳"
-                } Ledger Settle`
+                } Member Account Settlement`
               : `${item.OrderType === "TAKEAWAY" ? "🛍️ Takeaway" : `🪑 Table ${item.TableNo || "N/A"}`} • ${
                   item.PayMode === "CASH"
                     ? "Cash"

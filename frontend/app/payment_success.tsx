@@ -100,7 +100,7 @@ export default function PaymentSuccess() {
     try {
       const isLedger = params.isLedgerCollection === "true";
       const discountInfo = isLedger ? {} : JSON.parse(discountInfoRaw || "{}");
-      const items = isLedger ? [{ name: "Ledger Payment Settle", qty: 1, price: parseFloat(total) || 0 }] : JSON.parse(itemsRaw || "[]");
+      const items = isLedger ? [{ name: "Member Outstanding Payment", qty: 1, price: parseFloat(total) || 0 }] : JSON.parse(itemsRaw || "[]");
       const userId = await AsyncStorage.getItem("userId") || "1";
 
       // Compute subTotal from items so Sunmi printer can show Sub Total → Discount → Grand Total
@@ -144,12 +144,12 @@ export default function PaymentSuccess() {
             <Ionicons name="checkmark-circle" size={80} color={Theme.success} />
           </View>
 
-          <Text style={styles.title}>{params.isLedgerCollection === "true" ? "Collection Successful" : "Payment Successful"}</Text>
+          <Text style={styles.title}>{params.isLedgerCollection === "true" ? "Member Payment Collected" : "Payment Successful"}</Text>
           <Text style={styles.orderText}>{params.isLedgerCollection === "true" ? `Settlement ID: ${orderId}` : `Order #${orderId}`}</Text>
 
           <Text style={styles.sub}>
             {params.isLedgerCollection === "true"
-              ? `Credit Account Ledger Settle`
+              ? `Member Account Settlement`
               : (orderType === "DINE_IN"
                 ? `Table ${tableNo} • ${formatSection(section)}`
                 : `Takeaway • ${formatSection(section)}`)}

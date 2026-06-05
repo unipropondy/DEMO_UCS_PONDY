@@ -149,6 +149,16 @@ const generateSalesReportPdf = (reportData) => {
     { text: `${currencySymbol}${Number(totalSales).toFixed(2)}`, fontSize: 10, alignment: 'right', fillColor: '#ecf0f1', border: [1, 1, 1, 1], margin: [8, 6, 8, 6] }
   ]);
 
+  mainTable.push([
+    { text: 'Member Payments Collected', fontSize: 10, fillColor: '#fff', border: [1, 1, 1, 1], margin: [8, 6, 8, 6] },
+    { text: `${currencySymbol}${Number(reportData.memberPaymentsCollected || 0).toFixed(2)}`, fontSize: 10, alignment: 'right', fillColor: '#fff', border: [1, 1, 1, 1], margin: [8, 6, 8, 6] }
+  ]);
+
+  mainTable.push([
+    { text: 'Total Collections', fontSize: 11, bold: true, fillColor: '#27ae60', color: '#fff', border: [1, 1, 1, 1], margin: [8, 8, 8, 8] },
+    { text: `${currencySymbol}${Number(reportData.totalCollections || totalSales).toFixed(2)}`, fontSize: 11, bold: true, alignment: 'right', fillColor: '#27ae60', color: '#fff', border: [1, 1, 1, 1], margin: [8, 8, 8, 8] }
+  ]);
+
   // Tax & SVC Section
   mainTable.push([
     { text: 'Tax & SVC', fontSize: 11, bold: true, fillColor: '#2c3e50', color: '#fff', border: [1, 1, 1, 1], margin: [8, 8, 8, 8] },
