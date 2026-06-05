@@ -5,9 +5,11 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Image,
   Keyboard,
+  LayoutAnimation,
   Modal,
   Platform,
   Pressable,
@@ -326,6 +328,21 @@ const CartBadge = React.memo(({ isPhone, isLandscape }: any) => {
 export default function MenuScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
+  const [isCartVisible, setIsCartVisible] = useState(true);
+  const cartAnim = React.useRef(new Animated.Value(1)).current;
+
+  const toggleCart = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsCartVisible(!isCartVisible);
+  };
+
+  React.useEffect(() => {
+    Animated.timing(cartAnim, {
+      toValue: isCartVisible ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [isCartVisible]);
 
   const {
     kitchens,
@@ -546,7 +563,7 @@ export default function MenuScreen() {
   };
 
   // Sidebar width should be more responsive
-  const cartWidth = isTablet
+  const originalCartWidth = isTablet
     ? width > 1024
       ? 380
       : 330
@@ -554,24 +571,38 @@ export default function MenuScreen() {
       ? usableWidth * 0.38
       : width * 0.62;
 
-  const mainWidth =
-    (isLandscape && !isTablet ? usableWidth : width) - cartWidth;
+  const cartWidth = isCartVisible ? originalCartWidth : 0;
+
+  const fullWidth = isLandscape && !isTablet ? usableWidth : width;
+  const animatedCartWidth = cartAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, originalCartWidth],
+  });
+
+  const animatedMainWidth = cartAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [fullWidth, fullWidth - originalCartWidth],
+  });
+
+  const mainWidth = fullWidth - cartWidth;
 
   const columns = isTablet
     ? isLandscape
       ? width > 1200
-        ? 5
-        : 3
-      : 2
+        ? (isCartVisible ? 5 : 7)
+        : (isCartVisible ? 3 : 6)
+      : (isCartVisible ? 2 : 4)
     : isLandscape
-      ? 2
-      : 1; // Back to 2 columns as requested
+      ? (isCartVisible ? 2 : 4)
+      : (isCartVisible ? 1 : 3);
 
   const gap = isPhone ? (isLandscape ? 12 : 8) : 12;
   // Increase internal padding subtraction (24 -> 32) to ensure cards don't touch edges or sidebar
-  const cardWidth = Math.floor(
+  const skeletonCardWidth = Math.floor(
     (mainWidth - (isPhone ? 32 : 40) - gap * (columns - 1)) / columns,
   );
+
+  const cardWidth = `${(100 / columns) - (columns > 1 ? 1.5 : 0)}%`;
 
   const renderTopBar = () => (
     <View
@@ -642,13 +673,18 @@ export default function MenuScreen() {
             styles.headerCartBtn,
             isPhone &&
             isLandscape && { width: 36, height: 36, borderRadius: 8 },
+            isCartVisible && {
+              backgroundColor: Theme.primaryLight,
+              borderColor: Theme.primary,
+              borderWidth: 1.5,
+            }
           ]}
-          onPress={() => router.push("/cart")}
+          onPress={toggleCart}
         >
           <Ionicons
-            name="cart-outline"
+            name={isCartVisible ? "cart" : "cart-outline"}
             size={isPhone && isLandscape ? 20 : 24}
-            color={Theme.primary}
+            color={isCartVisible ? Theme.primary : Theme.textPrimary}
           />
           <CartBadge isPhone={isPhone} isLandscape={isLandscape} />
         </TouchableOpacity>
@@ -807,10 +843,6 @@ export default function MenuScreen() {
 
   const openModifiers = React.useCallback(
     async (dish: any) => {
-      // Prevent concurrent fetches for the same dish
-    if (fetchingModifiers.current.has(dish.DishId)) return;
-    fetchingModifiers.current.add(dish.DishId);
-
       const currentKitchen = kitchens.find(
         (k) => k.CategoryId === selectedKitchenId,
       );
@@ -844,6 +876,10 @@ export default function MenuScreen() {
         }
         return;
       }
+
+      // Prevent concurrent fetches for the same dish
+      if (fetchingModifiers.current.has(dish.DishId)) return;
+      fetchingModifiers.current.add(dish.DishId);
 
       // No need to set isAdding state for UI blocking
       setLoadingModifiers(true);
@@ -971,13 +1007,13 @@ export default function MenuScreen() {
         {isLandscape ? (
           <View style={styles.layout}>
             {/* DESKTOP LAYOUT - Full height sidebar */}
-            <View style={[styles.main, { width: mainWidth }]}>
+            <Animated.View style={[styles.main, { width: animatedMainWidth }]}>
               {renderTopBar()}
               {renderCategoryNav()}
               <View style={styles.gridContainer}>
                 {isLoadingDishes || isInitialLoading ? (
                   <DishGridSkeleton
-                    cardWidth={cardWidth}
+                    cardWidth={skeletonCardWidth}
                     columns={columns}
                     gap={gap}
                     isPhone={isPhone}
@@ -1029,8 +1065,12 @@ export default function MenuScreen() {
                   />
                 )}
               </View>
-            </View>
-            {isLarge && <CartSidebar width={cartWidth} />}
+            </Animated.View>
+            {isLarge && (
+              <Animated.View style={{ width: animatedCartWidth, overflow: "hidden", height: "100%" }}>
+                <CartSidebar width={originalCartWidth} />
+              </Animated.View>
+            )}
           </View>
         ) : (
           <View style={{ flex: 1, backgroundColor: Theme.bgMain }}>
@@ -1041,11 +1081,11 @@ export default function MenuScreen() {
             </View>
 
             <View style={[styles.layout, { flex: 1 }]}>
-              <View
+              <Animated.View
                 style={[
                   styles.main,
                   {
-                    width: mainWidth,
+                    width: animatedMainWidth,
                     paddingTop: 0,
                     paddingHorizontal: isPhone ? 10 : 20,
                   },
@@ -1054,7 +1094,7 @@ export default function MenuScreen() {
                 <View style={styles.gridContainer}>
                   {isLoadingDishes || isInitialLoading ? (
                     <DishGridSkeleton
-                      cardWidth={cardWidth}
+                      cardWidth={skeletonCardWidth}
                       columns={columns}
                       gap={gap}
                       isPhone={isPhone}
@@ -1106,8 +1146,12 @@ export default function MenuScreen() {
                     />
                   )}
                 </View>
-              </View>
-              {isLarge && <CartSidebar width={cartWidth} />}
+              </Animated.View>
+              {isLarge && (
+                <Animated.View style={{ width: animatedCartWidth, overflow: "hidden", height: "100%" }}>
+                  <CartSidebar width={originalCartWidth} />
+                </Animated.View>
+              )}
             </View>
           </View>
         )}
