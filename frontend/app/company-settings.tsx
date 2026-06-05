@@ -331,7 +331,7 @@ export default function CompanySettingsScreen() {
                       <Ionicons name="cloud-upload-outline" size={30} color={Theme.textMuted} />
                     )}
                   </TouchableOpacity>
-                  {settings.companyLogo && (
+                  {!!settings.companyLogo && (
                     <TouchableOpacity 
                       style={styles.removeIconBtn} 
                       onPress={() => removeLogo('company')}
@@ -383,7 +383,7 @@ export default function CompanySettingsScreen() {
                       <Ionicons name="ribbon-outline" size={30} color={Theme.textMuted} />
                     )}
                   </TouchableOpacity>
-                  {settings.halalLogo && (
+                  {!!settings.halalLogo && (
                     <TouchableOpacity 
                       style={styles.removeIconBtn} 
                       onPress={() => removeLogo('halal')}
