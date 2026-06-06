@@ -319,6 +319,72 @@ async function initDB(pool) {
       END
     `);
 
+    // 14.1 Create settlement table
+    await runQuery("Create settlement", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[settlement]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[settlement](
+              [Id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+              [OutletId] [int] NULL,
+              [SettlementDate] [date] NULL,
+              [CashierName] [nvarchar](100) NULL,
+              [OpeningCashJSON] [nvarchar](max) NULL,
+              [OpeningCashTotal] [decimal](10, 2) NULL,
+              [PhysicalCashJSON] [nvarchar](max) NULL,
+              [PhysicalCashTotal] [decimal](10, 2) NULL,
+              [TotalSales] [decimal](10, 2) NULL,
+              [TotalDiscount] [decimal](10, 2) NULL,
+              [VoidAmount] [decimal](10, 2) NULL,
+              [NetSales] [decimal](10, 2) NULL,
+              [CashReceived] [decimal](10, 2) NULL,
+              [ExpectedClosingCash] [decimal](10, 2) NULL,
+              [CashVariance] [decimal](10, 2) NULL,
+              [VarianceStatus] [nvarchar](50) NULL,
+              [PaymentBreakdownJSON] [nvarchar](max) NULL,
+              [Status] [nvarchar](50) NULL,
+              [SettledBy] [nvarchar](100) NULL,
+              [SettledAt] [datetime] NULL,
+              [CreatedAt] [datetime] DEFAULT GETDATE(),
+              [UpdatedAt] [datetime] DEFAULT GETDATE()
+          )
+      END
+    `);
+
+    // 14.2 Create OpeningCashDenomination table
+    await runQuery("Create OpeningCashDenomination", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OpeningCashDenomination]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[OpeningCashDenomination](
+              [Id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+              [CurrencyValue] [decimal](10, 2) NULL,
+              [NoteCount] [int] NULL,
+              [Type] [varchar](10) NULL,
+              [CreatedBy] [nvarchar](100) NULL,
+              [CreatedOn] [datetime] DEFAULT GETDATE()
+          )
+      END
+    `);
+
+    // 14.3 Create CashOutEntry table
+    await runQuery("Create CashOutEntry", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CashOutEntry]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[CashOutEntry](
+              [CashOutId] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT NEWID(),
+              [CashOutNo] [varchar](50) NULL,
+              [CashOutDate] [datetime] DEFAULT GETDATE(),
+              [Amount] [decimal](18, 2) NULL,
+              [Reason] [varchar](255) NULL,
+              [Remarks] [varchar](500) NULL,
+              [PaymentMode] [varchar](50) NULL,
+              [ReferenceNo] [varchar](100) NULL,
+              [TerminalCode] [varchar](50) NULL,
+              [CreatedBy] [varchar](100) NULL,
+              [CreatedOn] [datetime] DEFAULT GETDATE()
+          )
+      END
+    `);
+
     // 15. Create CustomerCreditTransactions table for credit and payment ledger history
     // Upgrade Detector: Drop old table format if missing new 'BillAmount' column
     await runQuery("Upgrade CustomerCreditTransactions Detector", `
