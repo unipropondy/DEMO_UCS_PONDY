@@ -101,7 +101,7 @@ const TransactionCard = React.memo(
                     : isNets
                     ? "🔳"
                     : "💳"
-                } Member Account Settlement`
+                } ${item.OrderId === 'Credit Payment Collected' ? 'Credit' : 'Member'} Account Settlement`
               : `${item.OrderType === "TAKEAWAY" ? "🛍️ Takeaway" : `🪑 Table ${item.TableNo || "N/A"}`} • ${
                   modeUpper === "CASH"
                     ? "Cash"

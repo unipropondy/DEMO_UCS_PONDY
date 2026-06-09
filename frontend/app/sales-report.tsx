@@ -1794,13 +1794,13 @@ export default function SalesReport() {
         )}
         {renderMetricTile(
           "Member Payments",
-          formatCurrency(filteredMetrics.MemberPaymentsCollected),
+          formatCurrency(filteredMetrics.MemberPaymentsCollected + filteredMetrics.Member),
           "cash-outline",
           Theme.primary,
         )}
         {renderMetricTile(
           "Credit Payments",
-          formatCurrency(filteredMetrics.CreditPaymentsCollected),
+          formatCurrency(filteredMetrics.CreditPaymentsCollected + filteredMetrics.Credit),
           "cash-outline",
           Theme.warning,
         )}

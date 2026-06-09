@@ -224,7 +224,7 @@ router.get("/all", async (req, res) => {
           SELECT 
             cct.TransactionId AS SettlementID,
             DATEADD(MINUTE, -468, cct.CreatedDate) AS SettlementDate,
-            'Member Payment Collected' AS OrderId,
+            CASE WHEN mm.MemberId IS NOT NULL THEN 'Member Payment Collected' ELSE 'Credit Payment Collected' END AS OrderId,
             'LEDGER' AS OrderType,
             'LEDGER' AS TableNo,
             COALESCE(mm.Name, m.Name, 'Customer') AS Section,
@@ -300,7 +300,7 @@ router.get("/all", async (req, res) => {
           SELECT 
             cct.TransactionId AS SettlementID,
             DATEADD(MINUTE, -468, cct.CreatedDate) AS SettlementDate,
-            'Member Payment Collected' AS OrderId,
+            CASE WHEN mm.MemberId IS NOT NULL THEN 'Member Payment Collected' ELSE 'Credit Payment Collected' END AS OrderId,
             'LEDGER' AS OrderType,
             'LEDGER' AS TableNo,
             COALESCE(mm.Name, m.Name, 'Customer') AS Section,
@@ -883,7 +883,7 @@ router.get("/day-end-summary", async (req, res) => {
       .query(`
         WITH RawCollections AS (
           SELECT 
-            'MEMBER' AS CustomerType,
+            CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER' ELSE 'CREDIT' END AS CustomerType,
             UPPER(ISNULL(pm.Description, 'CASH')) AS PaymodeName,
             ptd.Amount
           FROM PaymentTransactionDetails ptd
